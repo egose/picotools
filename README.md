@@ -1,10 +1,21 @@
 # picotools
 
-[asdf](https://github.com/asdf-vm/asdf) plugin and release repository for installable `picotools` bash scripts.
+A collection of installable bash scripts bundled as a release repository, with support for [asdf](https://github.com/asdf-vm/asdf) plugin-based installation.
+
+## Tools
+
+The following scripts are included in `tools/bin`:
+
+| Tool | Description |
+|------|-------------|
+| `hello-world` | Prints "hello world" |
+| `hello-world-again` | Prints "hello world again" |
 
 ## Install
 
-### Plugin
+### via asdf
+
+Add the plugin:
 
 ```sh
 asdf plugin add picotools
@@ -12,10 +23,10 @@ asdf plugin add picotools
 asdf plugin add picotools https://github.com/egose/picotools.git
 ```
 
-### Tools
+Install and activate a version:
 
 ```sh
-# List all versions of the bundled tool set
+# List all available versions
 asdf list all picotools
 
 # Install a specific version
@@ -24,16 +35,19 @@ asdf install picotools <version>
 # Install the latest stable version
 asdf install picotools latest
 
-# Set the package global version
+# Set the global version
 asdf global picotools <version>
+```
 
-# Run the installed scripts
+Once installed, the tools are available directly on your `PATH`:
+
+```sh
 hello-world
 hello-world-again
 ```
 
-Please check [asdf](https://github.com/asdf-vm/asdf) for more details.
+Please check the [asdf documentation](https://github.com/asdf-vm/asdf) for more details.
 
-# License
+## License
 
-See [LICENSE](LICENSE) ©[Junmin Ahn](https://github.com/junminahn/)
+See [LICENSE](LICENSE) © [Junmin Ahn](https://github.com/junminahn/)

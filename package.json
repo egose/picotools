@@ -1,7 +1,22 @@
 {
   "name": "picotools",
   "version": "0.0.2",
-  "description": "[picotools](https://github.com/egose/picotools) binary plugin for [asdf](https://github.com/asdf-vm/asdf)",
+  "description": "A collection of installable bash scripts with asdf plugin support",
+  "homepage": "https://github.com/egose/picotools",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/egose/picotools.git"
+  },
+  "bugs": {
+    "url": "https://github.com/egose/picotools/issues"
+  },
+  "keywords": [
+    "asdf",
+    "asdf-plugin",
+    "bash",
+    "cli",
+    "tools"
+  ],
   "scripts": {
     "release": "release-it",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -n .conventional-changelog.mjs -s -r 0 --skip-unstable"
