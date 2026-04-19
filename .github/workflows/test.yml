@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  pull_request:
+    paths-ignore:
+    - '**.md'
+  push:
+    paths-ignore:
+    - '**.md'
+
+jobs:
+  install-test:
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: hmarr/debug-action@f7318c783045ac39ed9bb497e22ce835fdafbfe6
+    - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+    - name: Validate Bash Scripts
+      run: |
+        bash -n bin/* tools/bin/* scripts/*.bash
+
+    - name: Smoke Test Install Layout
+      run: |
+        set -euo pipefail
+
+        chmod +x bin/* tools/bin/*
+        mkdir -p dist tmp/download tmp/install
+        tar -czf dist/picotools-test.tar.gz -C tools bin
+        cp dist/picotools-test.tar.gz tmp/download/
+
+        ASDF_INSTALL_TYPE=version \
+        ASDF_INSTALL_VERSION=test \
+        ASDF_INSTALL_PATH="$PWD/tmp/install" \
+        ASDF_DOWNLOAD_PATH="$PWD/tmp/download" \
+          bin/install
+
+        "$PWD/tmp/install/bin/hello-world"
+        "$PWD/tmp/install/bin/hello-world-again"

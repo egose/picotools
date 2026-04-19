@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+resolve_github_coordinates() {
+  local plugin_path remote_url repo
+
+  plugin_path="${ASDF_PLUGIN_PATH:-$(cd "$(dirname "$0")/.." && pwd)}"
+  remote_url=$(git -C "$plugin_path" config --get remote.origin.url 2>/dev/null || true)
+
+  case "$remote_url" in
+  git@github.com:*.git)
+    repo="${remote_url#git@github.com:}"
+    repo="${repo%.git}"
+    ;;
+  ssh://git@github.com/*)
+    repo="${remote_url#ssh://git@github.com/}"
+    repo="${repo%.git}"
+    ;;
+  https://github.com/*.git)
+    repo="${remote_url#https://github.com/}"
+    repo="${repo%.git}"
+    ;;
+  https://github.com/*)
+    repo="${remote_url#https://github.com/}"
+    ;;
+  *)
+    echo "Unable to determine GitHub repository from plugin remote: ${remote_url:-<missing>}" >&2
+    echo "Set ASDF_PICOTOOLS_GITHUB_REPOSITORY=owner/repo to override." >&2
+    exit 1
+    ;;
+  esac
+
+  printf '%s\n' "$repo"
+}
+
+github_coordinates="${ASDF_PICOTOOLS_GITHUB_REPOSITORY:-$(resolve_github_coordinates)}"
+releases_url="https://api.github.com/repos/${github_coordinates}/releases"
+
+# Use an array for headers to handle spaces/quotes safely
+curl_opts=("-s")
+if [ -n "$GITHUB_API_TOKEN" ]; then
+  curl_opts+=("-H" "Authorization: token $GITHUB_API_TOKEN")
+fi
+
+sort_versions() {
+  sed 'h; s/[+-]/./g; s/.p\([[:digit:]]\)/.z\1/; s/$/.z/; G; s/\n/ /' |
+    LC_ALL=C sort -V | cut -d ' ' -f 2
+}
+
+all_tags=""
+
+# Loop through pages 1 to 3 (300 items total)
+for page in {1..3}; do
+  # Construct the full URL with page params
+  current_url="${releases_url}?per_page=100&page=${page}"
+
+  # Execute curl using the array of options
+  response=$(curl "${curl_opts[@]}" "$current_url")
+
+  # Extract tag names
+  tags=$(echo "$response" | grep -o '"tag_name": *"[^"]*"' | sed -E 's/"tag_name": *"v?([^"]*)"/\1/' || true)
+
+  # If the response is empty or just "[]", break
+  if [ -z "$tags" ] || [ "$response" == "[]" ]; then
+    break
+  fi
+
+  all_tags="${all_tags}${tags}"$'\n'
+done
+
+# Clean up empty lines and sort
+versions=$(echo "$all_tags" | sed '/^$/d' | sort_versions | xargs)
+
+echo "$versions"

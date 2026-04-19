@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+tool_name="picotools"
+install_type="$ASDF_INSTALL_TYPE"
+version="$ASDF_INSTALL_VERSION"
+install_path="$ASDF_INSTALL_PATH"
+download_path="$ASDF_DOWNLOAD_PATH"
+
+if [ "$install_type" != "version" ]; then
+  echo "asdf-$tool_name supports data-type 'version' only (got: $install_type)"
+  exit 1
+fi
+
+(
+  shopt -s nullglob
+  archives=("$download_path"/*.tar.gz)
+
+  echo "Installing $tool_name v$version..."
+
+  if [ "${#archives[@]}" -ne 1 ]; then
+    echo "Expected exactly one release archive in $download_path, found ${#archives[@]}." >&2
+    exit 1
+  fi
+
+  mkdir -p "$install_path"
+  tar -xzf "${archives[0]}" -C "$install_path"
+
+  if [ ! -d "$install_path/bin" ]; then
+    echo "Release archive is missing bin/ contents." >&2
+    exit 1
+  fi
+
+  chmod +x "$install_path/bin"/* 2>/dev/null || true
+
+  echo "$tool_name v$version installation was successful!"
+) || {
+  echo "Error: Installation failed."
+  exit 1
+}

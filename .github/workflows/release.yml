@@ -1,0 +1,37 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - v*.*.*
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+    - uses: hmarr/debug-action@f7318c783045ac39ed9bb497e22ce835fdafbfe6
+    - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+
+    - name: Build
+      run: |
+        version="${GITHUB_REF_NAME#v}"
+        artifact="picotools-${version}.tar.gz"
+
+        mkdir -p dist
+        chmod +x tools/bin/*
+        tar -czf "dist/${artifact}" -C tools bin
+
+    - name: Upload Build Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: picotools-${{ github.ref_name }}
+        path: dist/*.tar.gz
+
+    - name: Release
+      uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
+      with:
+        generate_release_notes: true
+        files: dist/*.tar.gz
