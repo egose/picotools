@@ -1,6 +1,6 @@
 {
   "name": "picotools",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "[picotools](https://github.com/egose/picotools) binary plugin for [asdf](https://github.com/asdf-vm/asdf)",
   "scripts": {
     "release": "release-it",
