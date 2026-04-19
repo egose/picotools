@@ -1,0 +1,229 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPOS_DIR="${PWD}/repos"
+CACHE_FILE="${PWD}/repo-updates.json"
+PAT_FILE="${HOME}/.config/gh-repo-sync/pat"
+PER_PAGE=100
+
+REQUIRED_TOOLS=(curl jq unzip)
+
+# --- Flag parsing ---
+
+if [ "${1:-}" = "--reset-pat" ]; then
+  rm -f "$PAT_FILE"
+  echo "PAT has been reset."
+  exit 0
+fi
+
+# --- PAT management ---
+
+check_required_tools() {
+  local missing=()
+  local tool
+
+  for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing+=("$tool")
+    fi
+  done
+
+  if [ "${#missing[@]}" -gt 0 ]; then
+    printf 'Error: missing required tools: %s\n' "${missing[*]}" >&2
+    printf 'Install them and run gh-repo-sync again.\n' >&2
+    exit 1
+  fi
+}
+
+load_pat() {
+  if [ -n "${GITHUB_PAT:-}" ]; then
+    return
+  fi
+
+  if [ -f "$PAT_FILE" ]; then
+    GITHUB_PAT=$(cat "$PAT_FILE")
+    export GITHUB_PAT
+    return
+  fi
+
+  echo -n "Enter your GitHub Personal Access Token (leave empty for public repos): "
+  read -rs GITHUB_PAT
+  echo
+
+  if [ -n "$GITHUB_PAT" ]; then
+    mkdir -p "$(dirname "$PAT_FILE")"
+    echo "$GITHUB_PAT" >"$PAT_FILE"
+    chmod 600 "$PAT_FILE"
+    export GITHUB_PAT
+    echo "Token saved to $PAT_FILE"
+  else
+    echo "Continuing without authentication (rate limit: 60 requests/hour)."
+  fi
+}
+
+# --- Cache helpers ---
+
+load_cache() {
+  if [ -f "$CACHE_FILE" ]; then
+    cat "$CACHE_FILE"
+  else
+    echo "{}"
+  fi
+}
+
+get_cached_value() {
+  local cache="$1" key="$2"
+  echo "$cache" | jq -r --arg k "$key" '.[$k] // empty'
+}
+
+set_cached_value() {
+  local cache="$1" key="$2" value="$3"
+  echo "$cache" | jq --arg k "$key" --arg v "$value" '. + {($k): $v}'
+}
+
+save_cache() {
+  local cache="$1"
+  echo "$cache" | jq '.' >"$CACHE_FILE"
+  echo "Update cache saved."
+}
+
+# --- GitHub API ---
+
+gh_api() {
+  local endpoint="$1"
+  local url="https://api.github.com${endpoint}"
+  local http_code body tmpfile
+
+  tmpfile=$(mktemp)
+  local auth_header=()
+  if [ -n "${GITHUB_PAT:-}" ]; then
+    auth_header=(-H "Authorization: token ${GITHUB_PAT}")
+  fi
+  http_code=$(curl -s -w '%{http_code}' -o "$tmpfile" \
+    "${auth_header[@]}" \
+    -H "Accept: application/vnd.github+json" \
+    "$url")
+
+  body=$(cat "$tmpfile")
+  rm -f "$tmpfile"
+
+  if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+    echo "$body"
+    return 0
+  else
+    local message
+    message=$(echo "$body" | jq -r '.message // empty' 2>/dev/null)
+    echo "API error (HTTP ${http_code}): ${message:-$body}" >&2
+    return 1
+  fi
+}
+
+fetch_all_repos() {
+  local name="$1"
+  local page=1
+  local all_repos="[]"
+
+  while true; do
+    echo "Fetching page ${page}..." >&2
+
+    # Try as org first, then as user
+    local data
+    data=$(gh_api "/orgs/${name}/repos?per_page=${PER_PAGE}&page=${page}" 2>/dev/null) ||
+      data=$(gh_api "/users/${name}/repos?per_page=${PER_PAGE}&page=${page}") ||
+      {
+        echo "Error: failed to fetch repos for ${name}" >&2
+        exit 1
+      }
+
+    local count
+    count=$(echo "$data" | jq 'length')
+    if [ "$count" -eq 0 ]; then
+      break
+    fi
+
+    all_repos=$(echo "$all_repos" "$data" | jq -s '.[0] + .[1]')
+    page=$((page + 1))
+  done
+
+  echo "$all_repos"
+}
+
+# --- Main ---
+
+main() {
+  check_required_tools
+
+  load_pat
+
+  echo -n "Enter the GitHub username or organization name: "
+  read -r org_name
+
+  if [ -z "$org_name" ]; then
+    echo "Error: name cannot be empty" >&2
+    exit 1
+  fi
+
+  mkdir -p "$REPOS_DIR"
+
+  local cache
+  cache=$(load_cache)
+
+  echo "Fetching repositories for: ${org_name}"
+  local repos
+  repos=$(fetch_all_repos "$org_name")
+
+  local total
+  total=$(echo "$repos" | jq 'length')
+  echo "Total repositories found: ${total}"
+
+  local i=0
+  while [ "$i" -lt "$total" ]; do
+    local repo_name default_branch updated_at
+    repo_name=$(echo "$repos" | jq -r ".[$i].name")
+    default_branch=$(echo "$repos" | jq -r ".[$i].default_branch")
+    updated_at=$(echo "$repos" | jq -r ".[$i].updated_at")
+
+    local cached_updated
+    cached_updated=$(get_cached_value "$cache" "$repo_name")
+
+    local repo_folder="${REPOS_DIR}/${repo_name}-${default_branch}"
+
+    if [ -n "$cached_updated" ] && [ "$cached_updated" = "$updated_at" ]; then
+      echo "Skipping ${repo_name} (no updates since last run)"
+      i=$((i + 1))
+      continue
+    fi
+
+    if [ -d "$repo_folder" ]; then
+      echo "Deleting old folder for ${repo_name}..."
+      rm -rf "$repo_folder"
+    fi
+
+    local zip_path="${REPOS_DIR}/${repo_name}.zip"
+    local zip_url="https://github.com/${org_name}/${repo_name}/archive/refs/heads/${default_branch}.zip"
+
+    echo "Downloading ${repo_name}..."
+    local dl_auth=()
+    if [ -n "${GITHUB_PAT:-}" ]; then
+      dl_auth=(-H "Authorization: token ${GITHUB_PAT}")
+    fi
+    if ! curl -sfL -o "$zip_path" "${dl_auth[@]}" "$zip_url"; then
+      echo "Failed to download ${repo_name}" >&2
+      i=$((i + 1))
+      continue
+    fi
+
+    if unzip -qo "$zip_path" -d "$REPOS_DIR"; then
+      rm -f "$zip_path"
+      cache=$(set_cached_value "$cache" "$repo_name" "${updated_at:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}")
+    else
+      echo "Error processing ${repo_name}" >&2
+    fi
+
+    i=$((i + 1))
+  done
+
+  save_cache "$cache"
+}
+
+main

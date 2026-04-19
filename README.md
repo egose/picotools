@@ -12,6 +12,9 @@ The following scripts are included in `tools/bin`:
 | `hello-world-again` | Prints "hello world again" |
 | `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
 | `pip-upgrade` | Updates all packages in `requirements.txt` to their latest PyPI versions |
+| `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
+
+`gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
 ## Install
 
