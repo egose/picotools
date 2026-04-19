@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "description": "[picotools](https://github.com/egose/picotools) binary plugin for [asdf](https://github.com/asdf-vm/asdf)",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "release": "release-it",
+    "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -n .conventional-changelog.mjs -s -r 0 --skip-unstable"
   },
   "author": "Junmin Ahn",
   "license": "MIT",
