@@ -6,5 +6,18 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Junmin Ahn",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/format": "^20.5.0",
+    "@release-it/bumper": "^7.0.5",
+    "conventional-changelog-cli": "^5.0.0",
+    "release-it": "^20.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "conventional-changelog-conventionalcommits": "^9.0.0"
+    }
+  }
 }

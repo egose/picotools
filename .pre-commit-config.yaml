@@ -28,3 +28,11 @@ repos:
     name: check bash scripts' formats
     entry: ./scripts/shfmt.bash
     language: script
+
+exclude: |
+  (?x)^(
+    CHANGELOG\.md |
+    (.*/)?package-lock\.json |
+    (.*/)?yarn\.lock |
+    (.*/)?pnpm-lock\.yaml
+  )$
