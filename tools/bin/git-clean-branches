@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+VERSION_FILE="${ROOT_DIR}/VERSION"
+
+usage() {
+  cat <<'EOF'
+Usage: git-clean-branches [--yes] [remote]
+
+Deletes all local branches except the default branch and the current branch.
+Deletes merged remote branches except the default branch and the current branch.
+
+Options:
+  --yes       Skip the confirmation prompt
+  -h, --help, help        Show this help message
+  -v, --version, version  Show the tool version
+
+Arguments:
+  remote      Remote name to clean (default: origin)
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+require_git_repo() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "Error: git is required but not installed" >&2
+    exit 1
+  fi
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Error: current directory is not a git repository" >&2
+    exit 1
+  fi
+}
+
+get_default_branch() {
+  local remote="$1"
+  local default_ref default_branch line
+
+  default_ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
+  if [ -n "$default_ref" ]; then
+    echo "${default_ref#"${remote}"/}"
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    case "$line" in
+    *"HEAD branch:"*)
+      default_branch=${line##*: }
+      if [ -n "$default_branch" ]; then
+        echo "$default_branch"
+        return 0
+      fi
+      ;;
+    esac
+  done < <(git remote show "$remote" 2>/dev/null || true)
+
+  echo ""
+}
+
+confirm() {
+  local answer
+
+  printf 'Continue? [y/N] '
+  read -r answer
+  case "$answer" in
+  y | Y | yes | YES)
+    return 0
+    ;;
+  *)
+    echo "Cancelled."
+    return 1
+    ;;
+  esac
+}
+
+main() {
+  local assume_yes=false
+  local remote=origin
+  local remote_set=false
+  local arg
+
+  for arg in "$@"; do
+    case "$arg" in
+    --yes)
+      assume_yes=true
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    *)
+      if [ "$remote_set" = true ]; then
+        echo "Error: unexpected argument: $arg" >&2
+        usage >&2
+        exit 1
+      fi
+      remote="$arg"
+      remote_set=true
+      ;;
+    esac
+  done
+
+  require_git_repo
+
+  if ! git remote get-url "$remote" >/dev/null 2>&1; then
+    echo "Error: remote '$remote' does not exist" >&2
+    exit 1
+  fi
+
+  local current_branch
+  current_branch=$(git branch --show-current)
+  if [ -z "$current_branch" ]; then
+    echo "Error: detached HEAD is not supported" >&2
+    exit 1
+  fi
+
+  git fetch "$remote" --prune
+
+  local default_branch
+  default_branch=$(get_default_branch "$remote")
+  if [ -z "$default_branch" ]; then
+    echo "Error: could not determine the default branch for remote '$remote'" >&2
+    exit 1
+  fi
+
+  local local_branches=()
+  local remote_branches=()
+  local branch ref
+
+  while IFS= read -r branch; do
+    [ -z "$branch" ] && continue
+    [ "$branch" = "$default_branch" ] && continue
+    [ "$branch" = "$current_branch" ] && continue
+    local_branches+=("$branch")
+  done < <(git for-each-ref --format='%(refname:short)' refs/heads)
+
+  while IFS= read -r ref; do
+    [ -z "$ref" ] && continue
+    [ "$ref" = "$remote/HEAD" ] && continue
+
+    branch=${ref#"${remote}"/}
+    [ "$branch" = "$default_branch" ] && continue
+    [ "$branch" = "$current_branch" ] && continue
+
+    remote_branches+=("$branch")
+  done < <(git for-each-ref --format='%(refname:short)' --merged "refs/remotes/${remote}/${default_branch}" "refs/remotes/${remote}")
+
+  printf 'Remote: %s\n' "$remote"
+  printf 'Default branch: %s\n' "$default_branch"
+  printf 'Current branch: %s\n' "$current_branch"
+
+  if [ "${#local_branches[@]}" -eq 0 ] && [ "${#remote_branches[@]}" -eq 0 ]; then
+    echo "Nothing to delete."
+    exit 0
+  fi
+
+  if [ "${#local_branches[@]}" -gt 0 ]; then
+    echo "Local branches to delete:"
+    printf '  %s\n' "${local_branches[@]}"
+  fi
+
+  if [ "${#remote_branches[@]}" -gt 0 ]; then
+    echo "Remote branches to delete:"
+    printf '  %s\n' "${remote_branches[@]}"
+  fi
+
+  if [ "$assume_yes" != true ]; then
+    confirm || exit 1
+  fi
+
+  for branch in "${local_branches[@]}"; do
+    git branch -D "$branch"
+  done
+
+  for branch in "${remote_branches[@]}"; do
+    git push "$remote" --delete "$branch"
+  done
+}
+
+main "$@"

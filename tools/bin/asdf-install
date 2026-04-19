@@ -1,22 +1,75 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Add all plugins from .tool-versions
-cut -f 1 -d ' ' .tool-versions | xargs -n 1 asdf plugin add || true
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+VERSION_FILE="${ROOT_DIR}/VERSION"
 
-# Update all plugins
-asdf plugin update --all
+usage() {
+  cat <<'EOF'
+Usage: asdf-install [tool-versions-file]
 
-# Install each tool/version listed in .tool-versions
-while IFS= read -r line; do
-  # Skip empty lines and comments
-  if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then continue; fi
+Adds missing asdf plugins, updates plugins, installs versions from a
+.tool-versions file, and runs asdf reshim.
 
-  tool=$(echo "$line" | awk '{print $1}')
-  version=$(echo "$line" | awk '{print $2}')
+Options:
+  -h, --help, help        Show this help message
+  -v, --version, version  Show the tool version
 
-  echo "Installing $tool $version..."
-  asdf install "$tool" "$version"
-done <.tool-versions
+Arguments:
+  tool-versions-file      Path to the .tool-versions file (default: ./.tool-versions)
+EOF
+}
 
-asdf reshim
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+main() {
+  local tool_versions_file=".tool-versions"
+
+  case "${1:-}" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    tool_versions_file="$1"
+    ;;
+  esac
+
+  if [ ! -f "$tool_versions_file" ]; then
+    echo "Error: file not found: $tool_versions_file" >&2
+    exit 1
+  fi
+
+  cut -f 1 -d ' ' "$tool_versions_file" | xargs -n 1 asdf plugin add || true
+  asdf plugin update --all
+
+  while IFS= read -r line; do
+    if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then
+      continue
+    fi
+
+    tool=$(echo "$line" | awk '{print $1}')
+    version=$(echo "$line" | awk '{print $2}')
+
+    echo "Installing $tool $version..."
+    asdf install "$tool" "$version"
+  done <"$tool_versions_file"
+
+  asdf reshim
+}
+
+main "$@"

@@ -8,13 +8,16 @@ The following scripts are included in `tools/bin`:
 
 | Tool | Description |
 |------|-------------|
-| `hello-world` | Prints "hello world" |
-| `hello-world-again` | Prints "hello world again" |
 | `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
 | `pip-upgrade` | Updates all packages in `requirements.txt` to their latest PyPI versions |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
+| `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
+
+`git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
+
+All tools support `--help` and `--version`. The version is read from the repository `VERSION` file.
 
 ## Install
 
@@ -47,8 +50,10 @@ asdf global picotools <version>
 Once installed, the tools are available directly on your `PATH`:
 
 ```sh
-hello-world
-hello-world-again
+asdf-install
+pip-upgrade
+gh-repo-sync
+git-clean-branches
 ```
 
 Please check the [asdf documentation](https://github.com/asdf-vm/asdf) for more details.
