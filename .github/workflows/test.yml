@@ -12,7 +12,6 @@ jobs:
   install-test:
     runs-on: ubuntu-22.04
     steps:
-    - uses: hmarr/debug-action@f7318c783045ac39ed9bb497e22ce835fdafbfe6
     - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
     - name: Validate Bash Scripts
