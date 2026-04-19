@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Add all plugins from .tool-versions
+cut -f 1 -d ' ' .tool-versions | xargs -n 1 asdf plugin add || true
+
+# Update all plugins
+asdf plugin update --all
+
+# Install each tool/version listed in .tool-versions
+while IFS= read -r line; do
+  # Skip empty lines and comments
+  if [ -z "$line" ] || [ "${line#\#}" != "$line" ]; then continue; fi
+
+  tool=$(echo "$line" | awk '{print $1}')
+  version=$(echo "$line" | awk '{print $2}')
+
+  echo "Installing $tool $version..."
+  asdf install "$tool" "$version"
+done <.tool-versions
+
+asdf reshim

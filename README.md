@@ -10,6 +10,8 @@ The following scripts are included in `tools/bin`:
 |------|-------------|
 | `hello-world` | Prints "hello world" |
 | `hello-world-again` | Prints "hello world again" |
+| `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
+| `pip-upgrade` | Updates all packages in `requirements.txt` to their latest PyPI versions |
 
 ## Install
 
