@@ -1,4 +1,4 @@
-# asdf-picotools
+# picotools
 
 [asdf](https://github.com/asdf-vm/asdf) plugin and release repository for installable `picotools` bash scripts.
 
@@ -9,7 +9,7 @@
 ```sh
 asdf plugin add picotools
 # or
-asdf plugin add picotools https://github.com/egose/asdf-picotools.git
+asdf plugin add picotools https://github.com/egose/picotools.git
 ```
 
 ### Tools
