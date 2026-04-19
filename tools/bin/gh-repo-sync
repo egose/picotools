@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
+
 REPOS_DIR="${PWD}/repos"
 CACHE_FILE="${PWD}/repo-updates.json"
 PAT_FILE="${HOME}/.config/gh-repo-sync/pat"
@@ -8,13 +14,28 @@ PER_PAGE=100
 
 REQUIRED_TOOLS=(curl jq unzip)
 
-# --- Flag parsing ---
+usage() {
+  cat <<'EOF'
+Usage: gh-repo-sync [--reset-pat]
 
-if [ "${1:-}" = "--reset-pat" ]; then
-  rm -f "$PAT_FILE"
-  echo "PAT has been reset."
-  exit 0
-fi
+Downloads and extracts repositories for a GitHub user or organization into
+./repos, and caches update timestamps in ./repo-updates.json.
+
+Options:
+  --reset-pat                 Remove the stored GitHub PAT and exit
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
 
 # --- PAT management ---
 
@@ -151,6 +172,29 @@ fetch_all_repos() {
 # --- Main ---
 
 main() {
+  case "${1:-}" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  --reset-pat)
+    rm -f "$PAT_FILE"
+    echo "PAT has been reset."
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    echo "Error: unexpected argument: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+
   check_required_tools
 
   load_pat
@@ -226,4 +270,4 @@ main() {
   save_cache "$cache"
 }
 
-main
+main "$@"

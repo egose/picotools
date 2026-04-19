@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REQUIREMENTS_FILE="${1:-requirements.txt}"
-
-if [ ! -f "$REQUIREMENTS_FILE" ]; then
-  echo "File not found: $REQUIREMENTS_FILE" >&2
-  exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
 fi
+
+usage() {
+  cat <<'EOF'
+Usage: pip-upgrade [requirements-file]
+
+Updates requirement pins in a requirements file to the latest versions on PyPI.
+
+Options:
+  -h, --help, help        Show this help message
+  -v, --version, version  Show the tool version
+
+Arguments:
+  requirements-file       Path to requirements file (default: ./requirements.txt)
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
 
 get_latest_version() {
   local base_name="${1%%\[*}"
@@ -15,34 +38,60 @@ get_latest_version() {
   echo "$response" | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4
 }
 
-tmpfile=$(mktemp)
-trap 'rm -f "$tmpfile"' EXIT
+main() {
+  local requirements_file="requirements.txt"
+  local tmpfile stripped name latest
 
-while IFS= read -r line || [ -n "$line" ]; do
-  stripped=$(echo "$line" | sed 's/#.*//' | xargs)
+  case "${1:-}" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  "")
+    ;;
+  *)
+    requirements_file="$1"
+    ;;
+  esac
 
-  # Keep blank lines and comments as-is
-  if [ -z "$stripped" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
-    echo "$line" >>"$tmpfile"
-    continue
+  if [ ! -f "$requirements_file" ]; then
+    echo "File not found: $requirements_file" >&2
+    exit 1
   fi
 
-  # Parse package name from requirement line
-  if [[ "$stripped" =~ ^([a-zA-Z0-9_.\-]+(\[[^\]+\]])?)[=\<\>!~]* ]]; then
-    name="${BASH_REMATCH[1]}"
-  else
-    echo "$line" >>"$tmpfile"
-    continue
-  fi
+  tmpfile=$(mktemp)
+  trap 'rm -f "$tmpfile"' EXIT
 
-  latest=$(get_latest_version "$name") || true
-  if [ -z "${latest:-}" ]; then
-    echo "$line" >>"$tmpfile"
-    continue
-  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    stripped=$(echo "$line" | sed 's/#.*//' | xargs)
 
-  echo "${name}==${latest}" >>"$tmpfile"
-done <"$REQUIREMENTS_FILE"
+    if [ -z "$stripped" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+      echo "$line" >>"$tmpfile"
+      continue
+    fi
 
-cp "$tmpfile" "$REQUIREMENTS_FILE"
-echo "requirements.txt updated."
+    if [[ "$stripped" =~ ^([a-zA-Z0-9_.\-]+(\[[^\]+\]])?)[=\<\>!~]* ]]; then
+      name="${BASH_REMATCH[1]}"
+    else
+      echo "$line" >>"$tmpfile"
+      continue
+    fi
+
+    latest=$(get_latest_version "$name") || true
+    if [ -z "${latest:-}" ]; then
+      echo "$line" >>"$tmpfile"
+      continue
+    fi
+
+    echo "${name}==${latest}" >>"$tmpfile"
+  done <"$requirements_file"
+
+  cp "$tmpfile" "$requirements_file"
+  echo "${requirements_file} updated."
+}
+
+main "$@"
