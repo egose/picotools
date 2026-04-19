@@ -8,8 +8,11 @@ jobs:
     steps:
     - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
 
-    - name: Install asdf tools
-      uses: egose/actions/asdf-tools@f77b6cc49f20cbc4c2a592f9dbda9a56ff796636
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
+    - name: Setup NPM Packages
+      uses: ./.github/actions/setup-npm
 
     - name: Run pre-commit
       uses: egose/actions/precommit@f77b6cc49f20cbc4c2a592f9dbda9a56ff796636

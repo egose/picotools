@@ -1,0 +1,21 @@
+name: Setup NPM Packages
+description: Setup required NPM packages with caching for pnpm
+runs:
+  using: composite
+  steps:
+  - name: Get pnpm store path
+    id: pnpm-store
+    run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_ENV
+    shell: bash
+
+  - name: Cache pnpm store
+    uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
+    with:
+      path: ${{ env.STORE_PATH }}
+      key: pnpm-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      restore-keys: |
+        pnpm-${{ runner.os }}-
+
+  - name: Install NPM packages
+    run: pnpm install
+    shell: bash
