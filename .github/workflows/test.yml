@@ -24,7 +24,7 @@ jobs:
 
         chmod +x bin/* tools/bin/*
         mkdir -p dist tmp/download tmp/install
-        tar -czf dist/picotools-test.tar.gz -C tools bin
+        tar -czf dist/picotools-test.tar.gz -C tools bin -C . VERSION
         cp dist/picotools-test.tar.gz tmp/download/
 
         ASDF_INSTALL_TYPE=version \
@@ -33,5 +33,17 @@ jobs:
         ASDF_DOWNLOAD_PATH="$PWD/tmp/download" \
           bin/install
 
-        "$PWD/tmp/install/bin/hello-world"
-        "$PWD/tmp/install/bin/hello-world-again"
+        test -f "$PWD/tmp/install/VERSION"
+        test "$(cat "$PWD/tmp/install/VERSION")" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/asdf-install" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/asdf-install" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/pip-upgrade" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/pip-upgrade" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/gh-repo-sync" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"

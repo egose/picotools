@@ -18,12 +18,14 @@ Each script should:
 set -euo pipefail
 ```
 
-2. Resolve the repository root and version file relative to the script:
+2. Resolve the version file relative to the script, supporting both repo and installed layouts:
 
 ```bash
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-VERSION_FILE="${ROOT_DIR}/VERSION"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
 ```
 
 3. Define a `usage()` function.
