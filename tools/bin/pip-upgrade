@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REQUIREMENTS_FILE="${1:-requirements.txt}"
+
+if [ ! -f "$REQUIREMENTS_FILE" ]; then
+  echo "File not found: $REQUIREMENTS_FILE" >&2
+  exit 1
+fi
+
+get_latest_version() {
+  local base_name="${1%%\[*}"
+  local response
+  response=$(curl -sf --max-time 5 "https://pypi.org/pypi/${base_name}/json" 2>/dev/null) || return 1
+  echo "$response" | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4
+}
+
+tmpfile=$(mktemp)
+trap 'rm -f "$tmpfile"' EXIT
+
+while IFS= read -r line || [ -n "$line" ]; do
+  stripped=$(echo "$line" | sed 's/#.*//' | xargs)
+
+  # Keep blank lines and comments as-is
+  if [ -z "$stripped" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+    echo "$line" >>"$tmpfile"
+    continue
+  fi
+
+  # Parse package name from requirement line
+  if [[ "$stripped" =~ ^([a-zA-Z0-9_.\-]+(\[[^\]+\]])?)[=\<\>!~]* ]]; then
+    name="${BASH_REMATCH[1]}"
+  else
+    echo "$line" >>"$tmpfile"
+    continue
+  fi
+
+  latest=$(get_latest_version "$name") || true
+  if [ -z "${latest:-}" ]; then
+    echo "$line" >>"$tmpfile"
+    continue
+  fi
+
+  echo "${name}==${latest}" >>"$tmpfile"
+done <"$REQUIREMENTS_FILE"
+
+cp "$tmpfile" "$REQUIREMENTS_FILE"
+echo "requirements.txt updated."
