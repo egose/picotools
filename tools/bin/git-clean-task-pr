@@ -1,0 +1,315 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
+
+usage() {
+  cat <<'EOF'
+Usage: git-clean-task-pr [options] [base-branch]
+
+Creates a new branch from the current branch, pulls the base branch into it,
+and then soft-resets to origin/<base-branch> so your branch changes are staged
+as one clean commit.
+
+If no branch name is provided, the script prompts with a suggested name based
+on the current branch:
+  feat/1234      -> feat/1234-1
+  feat/1234-1    -> feat/1234-2
+
+Options:
+  -b, --branch NAME         New branch name to create
+  -r, --remote REMOTE       Remote name (default: origin)
+  -m, --temp-message MSG    Temporary commit message for --continue
+                            (default: chore(0000): temporary message)
+  --continue                Resume after resolving merge conflicts
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+
+Arguments:
+  base-branch               Base branch to reset against
+                            (default: remote default branch)
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+require_git_repo() {
+  if ! command -v git >/dev/null 2>&1; then
+    echo "Error: git is required but not installed" >&2
+    exit 1
+  fi
+
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "Error: current directory is not a git repository" >&2
+    exit 1
+  fi
+}
+
+get_default_branch() {
+  local remote="$1"
+  local default_ref default_branch line
+
+  default_ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
+  if [ -n "$default_ref" ]; then
+    echo "${default_ref#"${remote}"/}"
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    case "$line" in
+    *"HEAD branch:"*)
+      default_branch=${line##*: }
+      if [ -n "$default_branch" ]; then
+        echo "$default_branch"
+        return 0
+      fi
+      ;;
+    esac
+  done < <(git remote show "$remote" 2>/dev/null || true)
+
+  echo ""
+}
+
+ensure_clean_worktree() {
+  local status
+
+  status=$(git status --porcelain)
+  if [ -n "$status" ]; then
+    echo "Error: working tree must be clean before starting" >&2
+    exit 1
+  fi
+}
+
+derive_branch_name() {
+  local current_branch="$1"
+
+  if [[ "$current_branch" =~ ^(.*)-([0-9]+)$ ]]; then
+    printf '%s-%d\n' "${BASH_REMATCH[1]}" "$((10#${BASH_REMATCH[2]} + 1))"
+    return 0
+  fi
+
+  printf '%s-1\n' "$current_branch"
+}
+
+prompt_branch_name() {
+  local suggested="$1"
+  local answer=""
+
+  printf 'New branch name [%s]: ' "$suggested"
+  read -r answer || true
+
+  if [ -n "$answer" ]; then
+    printf '%s\n' "$answer"
+    return 0
+  fi
+
+  printf '%s\n' "$suggested"
+}
+
+ensure_branch_available() {
+  local branch_name="$1"
+
+  if git show-ref --verify --quiet "refs/heads/${branch_name}"; then
+    echo "Error: local branch '${branch_name}' already exists" >&2
+    exit 1
+  fi
+}
+
+ensure_base_branch_exists() {
+  local remote="$1"
+  local base_branch="$2"
+
+  if ! git rev-parse --verify --quiet "refs/remotes/${remote}/${base_branch}" >/dev/null; then
+    echo "Error: remote branch '${remote}/${base_branch}' does not exist" >&2
+    exit 1
+  fi
+}
+
+continue_after_conflicts() {
+  local remote="$1"
+  local base_branch="$2"
+  local temp_message="$3"
+  local merge_head
+  local unresolved_files
+
+  merge_head=$(git rev-parse --git-path MERGE_HEAD)
+  if [ ! -f "$merge_head" ]; then
+    echo "Error: no merge is in progress" >&2
+    exit 1
+  fi
+
+  unresolved_files=$(git diff --name-only --diff-filter=U)
+  if [ -n "$unresolved_files" ]; then
+    echo "Error: merge conflicts are still unresolved" >&2
+    printf '%s\n' "$unresolved_files" >&2
+    exit 1
+  fi
+
+  git fetch "$remote" "$base_branch"
+  ensure_base_branch_exists "$remote" "$base_branch"
+
+  git commit -m "$temp_message"
+  git reset --soft "${remote}/${base_branch}"
+
+  echo "Soft reset complete. Create your final commit when ready."
+}
+
+main() {
+  local remote=origin
+  local base_branch=""
+  local new_branch=""
+  local temp_message="chore(0000): temporary message"
+  local continue_mode=false
+  local current_branch
+  local suggested_branch
+  local merge_head
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -b | --branch)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      new_branch="$2"
+      shift 2
+      ;;
+    -r | --remote)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      remote="$2"
+      shift 2
+      ;;
+    -m | --temp-message)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      temp_message="$2"
+      shift 2
+      ;;
+    --continue)
+      continue_mode=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Error: unexpected option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [ -n "$base_branch" ]; then
+        echo "Error: unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      base_branch="$1"
+      shift
+      ;;
+    esac
+  done
+
+  if [ $# -gt 0 ]; then
+    echo "Error: unexpected argument: $1" >&2
+    usage >&2
+    exit 1
+  fi
+
+  require_git_repo
+
+  if ! git remote get-url "$remote" >/dev/null 2>&1; then
+    echo "Error: remote '${remote}' does not exist" >&2
+    exit 1
+  fi
+
+  if [ -z "$base_branch" ]; then
+    base_branch=$(get_default_branch "$remote")
+    if [ -z "$base_branch" ]; then
+      echo "Error: could not determine the default branch for remote '${remote}'" >&2
+      exit 1
+    fi
+  fi
+
+  if [ "$continue_mode" = true ]; then
+    continue_after_conflicts "$remote" "$base_branch" "$temp_message"
+    exit 0
+  fi
+
+  ensure_clean_worktree
+
+  current_branch=$(git branch --show-current)
+  if [ -z "$current_branch" ]; then
+    echo "Error: detached HEAD is not supported" >&2
+    exit 1
+  fi
+
+  if [ -z "$new_branch" ]; then
+    suggested_branch=$(derive_branch_name "$current_branch")
+    if [ -t 0 ]; then
+      new_branch=$(prompt_branch_name "$suggested_branch")
+    else
+      new_branch="$suggested_branch"
+    fi
+  fi
+
+  if [ -z "$new_branch" ]; then
+    echo "Error: branch name cannot be empty" >&2
+    exit 1
+  fi
+
+  if [ "$new_branch" = "$current_branch" ]; then
+    echo "Error: new branch name must differ from the current branch" >&2
+    exit 1
+  fi
+
+  ensure_branch_available "$new_branch"
+
+  git fetch "$remote" "$base_branch"
+  ensure_base_branch_exists "$remote" "$base_branch"
+
+  git checkout -b "$new_branch"
+
+  if git pull "$remote" "$base_branch" --no-rebase; then
+    git reset --soft "${remote}/${base_branch}"
+    echo "Soft reset complete. Create your final commit when ready."
+    exit 0
+  fi
+
+  merge_head=$(git rev-parse --git-path MERGE_HEAD)
+  if [ -f "$merge_head" ]; then
+    echo "Merge conflicts need to be resolved on branch '${new_branch}'." >&2
+    echo "Resolve them, stage the files, then run:" >&2
+    printf '  git-clean-task-pr --continue --remote %q %q\n' "$remote" "$base_branch" >&2
+    exit 1
+  fi
+
+  echo "Error: failed to pull '${remote}/${base_branch}'" >&2
+  exit 1
+}
+
+main "$@"

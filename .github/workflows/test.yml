@@ -47,3 +47,6 @@ jobs:
 
         "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/git-clean-task-pr" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/git-clean-task-pr" --version)" = "$(cat VERSION)"
