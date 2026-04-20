@@ -12,10 +12,13 @@ The following scripts are included in `tools/bin`:
 | `pip-upgrade` | Updates all packages in `requirements.txt` to their latest PyPI versions |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
+| `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
+
+`git-clean-task-pr` defaults to the remote default branch, prompts for a new branch name, and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
 
 All tools support `--help` and `--version`. The version is read from the repository `VERSION` file.
 
@@ -54,6 +57,7 @@ asdf-install
 pip-upgrade
 gh-repo-sync
 git-clean-branches
+git-clean-task-pr
 ```
 
 Please check the [asdf documentation](https://github.com/asdf-vm/asdf) for more details.
