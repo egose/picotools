@@ -1,9 +1,13 @@
-## [0.5.0](https://github.com/egose/picotools/compare/v0.4.0...v0.5.0) (2026-04-21)
+## [0.5.1](https://github.com/egose/picotools/compare/v0.5.0...v0.5.1) (2026-04-21)
 
 ### Features
 
 * add asdf-clean-unused script ([356c393](https://github.com/egose/picotools/commit/356c3938074390de3f52bfc5d990687d2d50a269))
 * add git-clean-task-pr script ([199d049](https://github.com/egose/picotools/commit/199d0495d9257ab2c1f36f69ea764a6d87ba9ea1))
+
+### Bug Fixes
+
+* **git-clean-task-pr:** resolve bug prompt swallowed by command substitution ([83b5860](https://github.com/egose/picotools/commit/83b5860e4d8434a6e7486561e27f698f8c3b12d9))
 
 ## [0.3.0](https://github.com/egose/picotools/compare/v0.2.0...v0.3.0) (2026-04-19)
 
