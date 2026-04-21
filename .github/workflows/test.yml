@@ -90,7 +90,10 @@ jobs:
         rich>=13.0
         EOF
 
-        output=$(printf 'n\n' | PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --scope patch "$tmp_dir/requirements.txt")
+        if output=$(printf 'n\n' | PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --scope patch "$tmp_dir/requirements.txt"); then
+          printf '%s\n' "$output" >&2
+          exit 1
+        fi
         case "$output" in
           *"Continue? [y/N]"*"Cancelled."*)
             ;;
