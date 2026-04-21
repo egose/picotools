@@ -1,0 +1,429 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
+
+ASDF_CLEAN_UNUSED_TMP_DIR=""
+
+usage() {
+  cat <<'EOF'
+	Usage: asdf-clean-unused [--apply] [--ignore-path PATH]... [workspace]
+
+Scans a workspace for .tool-versions files, ignoring common generated or
+git-ignored directories such as node_modules, and compares the referenced
+versions to what is currently installed in asdf.
+
+By default this removes unused versions and plugins after prompting for
+confirmation. Use --apply to skip the confirmation prompt.
+
+	Options:
+	  --apply                    Remove unused versions and plugins without prompting
+	  --ignore-path PATH         Ignore an additional path while scanning; repeatable
+	  -h, --help, help           Show this help message
+	  -v, --version, version     Show the tool version
+
+Arguments:
+  workspace                  Directory to scan (default: current directory)
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+cleanup_tmp_dir() {
+  if [ -n "${ASDF_CLEAN_UNUSED_TMP_DIR:-}" ]; then
+    rm -rf "$ASDF_CLEAN_UNUSED_TMP_DIR"
+  fi
+}
+
+require_asdf() {
+  if ! command -v asdf >/dev/null 2>&1; then
+    echo "Error: asdf is required but not installed" >&2
+    exit 1
+  fi
+}
+
+confirm() {
+  local answer
+
+  printf 'Continue? [y/N] '
+  read -r answer
+  case "$answer" in
+  y | Y | yes | YES)
+    return 0
+    ;;
+  *)
+    echo "Cancelled."
+    return 1
+    ;;
+  esac
+}
+
+trim_whitespace() {
+  local value="$1"
+
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+list_tool_version_files() {
+  local workspace="$1"
+  shift
+  local ignored_path
+  local -a find_args=(
+    "$workspace"
+    "("
+    "-type"
+    "d"
+    "("
+    "-name"
+    ".git"
+    "-o"
+    "-name"
+    ".hg"
+    "-o"
+    "-name"
+    ".svn"
+    "-o"
+    "-name"
+    "mnt"
+    "-o"
+    "-name"
+    "lost+found"
+    "-o"
+    "-name"
+    "node_modules"
+    "-o"
+    "-name"
+    "dist"
+    "-o"
+    "-name"
+    "build"
+    "-o"
+    "-name"
+    "coverage"
+    "-o"
+    "-name"
+    "tmp"
+    "-o"
+    "-name"
+    "vendor"
+    "-o"
+    "-name"
+    ".next"
+    "-o"
+    "-name"
+    ".nuxt"
+    "-o"
+    "-name"
+    ".svelte-kit"
+    "-o"
+    "-name"
+    ".venv"
+    "-o"
+    "-name"
+    "venv"
+  )
+
+  for ignored_path in "$@"; do
+    find_args+=("-o" "-path" "$ignored_path" "-o" "-path" "$ignored_path/*")
+  done
+
+  find_args+=(")" "-prune" ")" "-o" "(" "-type" "f" "-name" ".tool-versions" "-print" ")")
+
+  find "${find_args[@]}"
+}
+
+normalize_ignore_path() {
+  local workspace="$1"
+  local path="$2"
+  local resolved
+
+  if [ -z "$path" ]; then
+    return 1
+  fi
+
+  if [[ "$path" = /* ]]; then
+    resolved="$path"
+  else
+    resolved="$workspace/$path"
+  fi
+
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -m "$resolved"
+    return 0
+  fi
+
+  printf '%s\n' "${resolved%/}"
+}
+
+path_is_ignored() {
+  local path="$1"
+  shift
+  local ignored_path
+
+  for ignored_path in "$@"; do
+    case "$path" in
+    "$ignored_path" | "$ignored_path"/*)
+      return 0
+      ;;
+    esac
+  done
+
+  return 1
+}
+
+collect_used_tools() {
+  local output_file="$1"
+  shift
+  : >"$output_file"
+
+  local file line tool
+  local -a fields
+
+  for file in "$@"; do
+    while IFS= read -r line || [ -n "$line" ]; do
+      line=${line%%#*}
+      read -r -a fields <<<"$line"
+      [ "${#fields[@]}" -eq 0 ] && continue
+
+      tool="${fields[0]}"
+      printf '%s\n' "$tool" >>"$output_file"
+    done <"$file"
+  done
+
+  sort -u -o "$output_file" "$output_file"
+}
+
+collect_used_versions() {
+  local tool="$1"
+  local output_file="$2"
+  shift 2
+  : >"$output_file"
+
+  local file line line_tool version
+  local -a fields
+
+  for file in "$@"; do
+    while IFS= read -r line || [ -n "$line" ]; do
+      line=${line%%#*}
+      read -r -a fields <<<"$line"
+      [ "${#fields[@]}" -eq 0 ] && continue
+
+      line_tool="${fields[0]}"
+
+      [ "$line_tool" = "$tool" ] || continue
+
+      for version in "${fields[@]:1}"; do
+        printf '%s\n' "$version" >>"$output_file"
+      done
+    done <"$file"
+  done
+
+  sort -u -o "$output_file" "$output_file"
+}
+
+collect_installed_versions() {
+  local tool="$1"
+  local output_file="$2"
+  local line
+
+  : >"$output_file"
+
+  while IFS= read -r line; do
+    line=$(trim_whitespace "$line")
+    line=$(trim_whitespace "${line#\*}")
+    [ -n "$line" ] || continue
+
+    case "$line" in
+    "No versions installed"*)
+      continue
+      ;;
+    esac
+
+    printf '%s\n' "$line" >>"$output_file"
+  done < <(asdf list "$tool" 2>/dev/null || true)
+
+  sort -u -o "$output_file" "$output_file"
+}
+
+main() {
+  local skip_confirmation=false
+  local workspace=.
+  local workspace_set=false
+  local -a ignored_paths_raw=()
+  local -a ignored_paths=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --apply)
+      skip_confirmation=true
+      shift
+      ;;
+    --ignore-path)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      ignored_paths_raw+=("$2")
+      shift 2
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    *)
+      if [ "$workspace_set" = true ]; then
+        echo "Error: unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      workspace="$1"
+      workspace_set=true
+      shift
+      ;;
+    esac
+  done
+
+  if [ ! -d "$workspace" ]; then
+    echo "Error: workspace not found: $workspace" >&2
+    exit 1
+  fi
+
+  require_asdf
+
+  local workspace_abs
+  workspace_abs="$(cd "$workspace" && pwd)"
+
+  local ignored_path
+  for ignored_path in "${ignored_paths_raw[@]}"; do
+    ignored_paths+=("$(normalize_ignore_path "$workspace_abs" "$ignored_path")")
+  done
+
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  ASDF_CLEAN_UNUSED_TMP_DIR="$tmp_dir"
+  trap 'cleanup_tmp_dir' EXIT
+
+  local tool_versions_files=()
+  local file
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    if path_is_ignored "$file" "${ignored_paths[@]}"; then
+      continue
+    fi
+    tool_versions_files+=("$file")
+  done < <(list_tool_version_files "$workspace_abs" "${ignored_paths[@]}")
+
+  if [ "${#tool_versions_files[@]}" -eq 0 ]; then
+    echo "No .tool-versions files found under $workspace_abs"
+    exit 0
+  fi
+
+  local used_tools_file="$tmp_dir/used-tools"
+  collect_used_tools "$used_tools_file" "${tool_versions_files[@]}"
+
+  local installed_tools_file="$tmp_dir/installed-tools"
+  if ! asdf plugin list >"$installed_tools_file" 2>/dev/null; then
+    echo "Error: failed to list asdf plugins" >&2
+    exit 1
+  fi
+  sort -u -o "$installed_tools_file" "$installed_tools_file"
+
+  local unused_tools_file="$tmp_dir/unused-tools"
+  comm -23 "$installed_tools_file" "$used_tools_file" >"$unused_tools_file"
+
+  local version_actions_file="$tmp_dir/version-actions"
+  : >"$version_actions_file"
+
+  local installed_tool used_versions_file installed_versions_file unused_versions_file version
+  while IFS= read -r installed_tool; do
+    [ -n "$installed_tool" ] || continue
+
+    if ! grep -Fxq "$installed_tool" "$used_tools_file"; then
+      continue
+    fi
+
+    used_versions_file="$tmp_dir/${installed_tool}.used"
+    installed_versions_file="$tmp_dir/${installed_tool}.installed"
+    unused_versions_file="$tmp_dir/${installed_tool}.unused"
+
+    collect_used_versions "$installed_tool" "$used_versions_file" "${tool_versions_files[@]}"
+    collect_installed_versions "$installed_tool" "$installed_versions_file"
+    comm -23 "$installed_versions_file" "$used_versions_file" >"$unused_versions_file"
+
+    while IFS= read -r version; do
+      [ -n "$version" ] || continue
+      printf '%s\t%s\n' "$installed_tool" "$version" >>"$version_actions_file"
+    done <"$unused_versions_file"
+  done <"$installed_tools_file"
+
+  echo "Workspace: $workspace_abs"
+  echo "Scanned .tool-versions files: ${#tool_versions_files[@]}"
+  printf '  %s\n' "${tool_versions_files[@]}"
+
+  local has_unused_tools=false
+  local has_unused_versions=false
+
+  if [ -s "$unused_tools_file" ]; then
+    has_unused_tools=true
+    echo
+    echo "Unused asdf plugins:"
+    while IFS= read -r installed_tool; do
+      [ -n "$installed_tool" ] || continue
+      printf '  %s\n' "$installed_tool"
+    done <"$unused_tools_file"
+  fi
+
+  if [ -s "$version_actions_file" ]; then
+    has_unused_versions=true
+    echo
+    echo "Unused asdf versions:"
+    while IFS=$'\t' read -r installed_tool version; do
+      [ -n "$installed_tool" ] || continue
+      printf '  %s %s\n' "$installed_tool" "$version"
+    done <"$version_actions_file"
+  fi
+
+  if [ "$has_unused_tools" = false ] && [ "$has_unused_versions" = false ]; then
+    echo
+    echo "Nothing to remove."
+    exit 0
+  fi
+
+  if [ "$skip_confirmation" != true ]; then
+    echo
+    confirm || exit 1
+  fi
+
+  while IFS=$'\t' read -r installed_tool version; do
+    [ -n "$installed_tool" ] || continue
+    echo "Removing $installed_tool $version..."
+    asdf uninstall "$installed_tool" "$version"
+  done <"$version_actions_file"
+
+  while IFS= read -r installed_tool; do
+    [ -n "$installed_tool" ] || continue
+    echo "Removing plugin $installed_tool..."
+    asdf plugin remove "$installed_tool"
+  done <"$unused_tools_file"
+
+  asdf reshim
+}
+
+main "$@"
