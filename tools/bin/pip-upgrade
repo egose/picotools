@@ -7,13 +7,18 @@ if [ ! -f "$VERSION_FILE" ]; then
   VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
 fi
 
+PIP_UPGRADE_TMPFILE=""
+
 usage() {
   cat <<'EOF'
-Usage: pip-upgrade [requirements-file]
+Usage: pip-upgrade [--apply] [--scope major|minor|patch] [requirements-file]
 
-Updates requirement pins in a requirements file to the latest versions on PyPI.
+Updates exact requirement pins in a requirements file to newer versions on PyPI.
 
 Options:
+  --apply                   Update the requirements file without prompting
+  --scope SCOPE             Allowed upgrade scope: major, minor, or patch
+                            (default: major)
   -h, --help, help        Show this help message
   -v, --version, version  Show the tool version
 
@@ -31,30 +36,162 @@ print_version() {
   fi
 }
 
-get_latest_version() {
-  local base_name="${1%%\[*}"
+cleanup_tmpfile() {
+  if [ -n "${PIP_UPGRADE_TMPFILE:-}" ]; then
+    rm -f "$PIP_UPGRADE_TMPFILE"
+  fi
+}
+
+confirm() {
+  local answer
+
+  printf 'Continue? [y/N] '
+  read -r answer
+  case "$answer" in
+  y | Y | yes | YES)
+    return 0
+    ;;
+  *)
+    echo "Cancelled."
+    return 1
+    ;;
+  esac
+}
+
+require_python() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Error: python3 is required but not installed" >&2
+    exit 1
+  fi
+}
+
+select_target_version() {
+  local name="$1"
+  local current_version="$2"
+  local scope="$3"
+  local lookup_name="$name"
+  local base_name
   local response
+
+  lookup_name="${lookup_name#"${lookup_name%%[![:space:]]*}"}"
+  base_name="${lookup_name%%\[*}"
+
   response=$(curl -sf --max-time 5 "https://pypi.org/pypi/${base_name}/json" 2>/dev/null) || return 1
-  echo "$response" | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4
+
+  CURRENT_VERSION="$current_version" UPGRADE_SCOPE="$scope" python3 -c '
+import json
+import os
+import sys
+
+try:
+    from packaging.version import InvalidVersion, Version
+except Exception:
+    try:
+        from pip._vendor.packaging.version import InvalidVersion, Version
+    except Exception:
+        print("Error: no PEP 440 version parser is available", file=sys.stderr)
+        sys.exit(1)
+
+
+def normalized_prefix(parts, size):
+    parts = tuple(parts)
+    if len(parts) >= size:
+        return parts[:size]
+    return parts + (0,) * (size - len(parts))
+
+
+try:
+    payload = json.load(sys.stdin)
+    current = Version(os.environ["CURRENT_VERSION"])
+except InvalidVersion:
+    sys.exit(1)
+
+scope = os.environ["UPGRADE_SCOPE"]
+releases = payload.get("releases") or {}
+candidates = []
+
+for raw_version, files in releases.items():
+    if not files or all(file.get("yanked", False) for file in files):
+        continue
+
+    try:
+        version = Version(raw_version)
+    except InvalidVersion:
+        continue
+
+    if version.is_prerelease or version.is_devrelease:
+        continue
+
+    if version < current:
+        continue
+
+    if scope == "patch":
+        if normalized_prefix(version.release, 2) != normalized_prefix(current.release, 2):
+            continue
+    elif scope == "minor":
+        if normalized_prefix(version.release, 1) != normalized_prefix(current.release, 1):
+            continue
+    elif scope != "major":
+        sys.exit(2)
+
+    candidates.append(version)
+
+if not candidates:
+    print(os.environ["CURRENT_VERSION"])
+    sys.exit(0)
+
+print(max(candidates))
+' <<<"$response"
 }
 
 main() {
   local requirements_file="requirements.txt"
-  local tmpfile stripped name latest
+  local skip_confirmation=false
+  local scope="major"
+  local tmpfile line name operator current_version target_version suffix
 
-  case "${1:-}" in
-  -h | --help | help)
-    usage
-    exit 0
-    ;;
-  -v | --version | version)
-    print_version
-    exit 0
-    ;;
-  "")
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --apply)
+      skip_confirmation=true
+      shift
+      ;;
+    --scope)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+
+      scope="$2"
+      shift 2
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    *)
+      if [ "$requirements_file" != "requirements.txt" ]; then
+        echo "Error: unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+
+      requirements_file="$1"
+      shift
+      ;;
+    esac
+  done
+
+  case "$scope" in
+  major | minor | patch)
     ;;
   *)
-    requirements_file="$1"
+    echo "Error: invalid scope '$scope'; expected one of: major, minor, patch" >&2
+    exit 1
     ;;
   esac
 
@@ -63,32 +200,45 @@ main() {
     exit 1
   fi
 
+  require_python
+
   tmpfile=$(mktemp)
-  trap 'rm -f "$tmpfile"' EXIT
+  PIP_UPGRADE_TMPFILE="$tmpfile"
+  trap 'cleanup_tmpfile' EXIT
 
   while IFS= read -r line || [ -n "$line" ]; do
-    stripped=$(echo "$line" | sed 's/#.*//' | xargs)
-
-    if [ -z "$stripped" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
-      echo "$line" >>"$tmpfile"
+    if [ -z "$line" ] || [[ "$line" =~ ^[[:space:]]*# ]]; then
+      printf '%s\n' "$line" >>"$tmpfile"
       continue
     fi
 
-    if [[ "$stripped" =~ ^([a-zA-Z0-9_.\-]+(\[[^\]+\]])?)[=\<\>!~]* ]]; then
+    if [[ "$line" =~ ^([[:space:]]*[A-Za-z0-9_.-]+(\[[^]]+\])?)(===|==)([^[:space:]#;]+)(.*)$ ]]; then
       name="${BASH_REMATCH[1]}"
+      operator="${BASH_REMATCH[3]}"
+      current_version="${BASH_REMATCH[4]}"
+      suffix="${BASH_REMATCH[5]}"
     else
-      echo "$line" >>"$tmpfile"
+      printf '%s\n' "$line" >>"$tmpfile"
       continue
     fi
 
-    latest=$(get_latest_version "$name") || true
-    if [ -z "${latest:-}" ]; then
-      echo "$line" >>"$tmpfile"
+    target_version=$(select_target_version "$name" "$current_version" "$scope") || true
+    if [ -z "${target_version:-}" ]; then
+      printf '%s\n' "$line" >>"$tmpfile"
       continue
     fi
 
-    echo "${name}==${latest}" >>"$tmpfile"
+    printf '%s%s%s%s\n' "$name" "$operator" "$target_version" "$suffix" >>"$tmpfile"
   done <"$requirements_file"
+
+  if cmp -s "$tmpfile" "$requirements_file"; then
+    echo "No updates found."
+    exit 0
+  fi
+
+  if [ "$skip_confirmation" != true ]; then
+    confirm || exit 1
+  fi
 
   cp "$tmpfile" "$requirements_file"
   echo "${requirements_file} updated."

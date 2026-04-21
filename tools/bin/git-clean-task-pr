@@ -60,6 +60,8 @@ get_default_branch() {
   local remote="$1"
   local default_ref default_branch line
 
+  git remote set-head "$remote" --auto >/dev/null 2>&1 || true
+
   default_ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
   if [ -n "$default_ref" ]; then
     echo "${default_ref#"${remote}"/}"
@@ -70,13 +72,18 @@ get_default_branch() {
     case "$line" in
     *"HEAD branch:"*)
       default_branch=${line##*: }
-      if [ -n "$default_branch" ]; then
+      if [ -n "$default_branch" ] && [ "$default_branch" != "(not queried)" ]; then
         echo "$default_branch"
         return 0
       fi
       ;;
     esac
-  done < <(git remote show "$remote" 2>/dev/null || true)
+  done < <(git remote show -n "$remote" 2>/dev/null || true)
+
+  if git rev-parse --verify --quiet "refs/remotes/${remote}/main" >/dev/null; then
+    echo "main"
+    return 0
+  fi
 
   echo ""
 }
@@ -250,7 +257,8 @@ main() {
   if [ -z "$base_branch" ]; then
     base_branch=$(get_default_branch "$remote")
     if [ -z "$base_branch" ]; then
-      echo "Error: could not determine the default branch for remote '${remote}'" >&2
+      echo "Error: could not determine the default branch for remote '${remote}' from local refs" >&2
+      echo "Pass the base branch explicitly or update the local remote HEAD with: git remote set-head ${remote} --auto" >&2
       exit 1
     fi
   fi
@@ -294,7 +302,7 @@ main() {
 
   git checkout -b "$new_branch"
 
-  if git pull "$remote" "$base_branch" --no-rebase; then
+  if git pull "$remote" "$base_branch" --no-rebase --no-edit; then
     git reset --soft "${remote}/${base_branch}"
     echo "Soft reset complete. Create your final commit when ready."
     exit 0

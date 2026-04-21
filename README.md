@@ -9,7 +9,8 @@ The following scripts are included in `tools/bin`:
 | Tool | Description |
 |------|-------------|
 | `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
-| `pip-upgrade` | Updates all packages in `requirements.txt` to their latest PyPI versions |
+| `asdf-clean-unused` | Scans workspace `.tool-versions` files and removes unused asdf plugins or versions |
+| `pip-upgrade` | Updates exact requirement pins in `requirements.txt` within a selected version scope |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
@@ -18,7 +19,11 @@ The following scripts are included in `tools/bin`:
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
-`git-clean-task-pr` defaults to the remote default branch, prompts for a new branch name, and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
+`asdf-clean-unused` ignores common generated directories such as `node_modules`, `dist`, `build`, `coverage`, `tmp`, `vendor`, `mnt`, `lost+found`, and virtualenv folders while scanning for `.tool-versions`. Use `--ignore-path PATH` to add more ignored paths. It prompts before removing unused plugins and versions by default; use `asdf-clean-unused --apply` to skip the confirmation.
+
+`pip-upgrade` updates exact `==` requirement pins and supports `--scope major`, `--scope minor`, and `--scope patch` to control how far upgrades may move from the currently pinned version. It prompts before writing changes by default; use `--apply` to skip the confirmation.
+
+`git-clean-task-pr` first tries `git remote set-head <remote> --auto`, then falls back to cached local Git refs, and finally uses `main` when `refs/remotes/<remote>/main` exists. It also prompts for a new branch name and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
 
 All tools support `--help` and `--version`. The version is read from the repository `VERSION` file.
 
@@ -54,6 +59,7 @@ Once installed, the tools are available directly on your `PATH`:
 
 ```sh
 asdf-install
+asdf-clean-unused
 pip-upgrade
 gh-repo-sync
 git-clean-branches
