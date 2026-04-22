@@ -1,0 +1,731 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
+
+OC_ROUTE_NAMESPACE=""
+OC_ROUTE_INTERACTIVE=false
+UPDATE_ROUTE_NAME=""
+UPDATE_ROUTE_HOST=""
+UPDATE_ROUTE_PATH=""
+UPDATE_ROUTE_TARGET_PORT=""
+UPDATE_ROUTE_SERVICE_NAME=""
+UPDATE_ROUTE_BALANCE=""
+UPDATE_ROUTE_DISABLE_COOKIES=""
+UPDATE_ROUTE_TIMEOUT=""
+UPDATE_ROUTE_SECURE=false
+UPDATE_ROUTE_TERMINATION=""
+UPDATE_ROUTE_INSECURE_POLICY=""
+UPDATE_ROUTE_CERTIFICATE=""
+UPDATE_ROUTE_KEY=""
+UPDATE_ROUTE_CA_CERTIFICATE=""
+OC_ROUTE_TMPFILE=""
+
+usage() {
+  cat <<'EOF'
+Usage: oc-route [options] <command> [args]
+
+Lists, reads, and updates OpenShift routes using `oc`.
+
+Commands:
+  list                  List routes in the current namespace/project
+  read [NAME]           Print a route as YAML
+  update                Apply a route manifest from flags or prompts
+
+Options:
+  -n, --namespace NS    Namespace/project to target
+  -i, --interactive     Use interactive prompts for `read` or `update`
+  -h, --help, help      Show this help message
+  -v, --version, version
+                        Show the tool version
+
+Update options:
+  --name NAME           Route name
+  --host HOST           Route host
+  --path PATH           Route path
+  --target-port PORT    Target service port
+  --service NAME        Target service name
+  --balance VALUE       Set haproxy.router.openshift.io/balance
+  --disable-cookies V   Set haproxy.router.openshift.io/disable_cookies
+  --timeout VALUE       Set haproxy.router.openshift.io/timeout
+  --secure              Include certificate, key, and optional CA data
+  --termination VALUE   TLS termination (default: edge)
+  --insecure-policy V   insecureEdgeTerminationPolicy (default: Redirect)
+  --certificate VALUE   TLS certificate content
+  --certificate-file P  Read TLS certificate content from a file
+  --key VALUE           TLS private key content
+  --key-file PATH       Read TLS private key content from a file
+  --ca-certificate V    TLS CA certificate content
+  --ca-certificate-file PATH
+                        Read TLS CA certificate content from a file
+
+Examples:
+  oc-route list
+  oc-route --namespace my-project read my-route
+  oc-route --interactive read
+  oc-route --interactive update my-route
+  oc-route update --name my-route --host app.example.com --target-port http --service my-service
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+require_oc() {
+  if ! command -v oc >/dev/null 2>&1; then
+    echo "Error: oc is required but not installed" >&2
+    exit 1
+  fi
+}
+
+run_oc() {
+  if [ -n "$OC_ROUTE_NAMESPACE" ]; then
+    oc -n "$OC_ROUTE_NAMESPACE" "$@"
+  else
+    oc "$@"
+  fi
+}
+
+reset_update_values() {
+  UPDATE_ROUTE_NAME=""
+  UPDATE_ROUTE_HOST=""
+  UPDATE_ROUTE_PATH=""
+  UPDATE_ROUTE_TARGET_PORT=""
+  UPDATE_ROUTE_SERVICE_NAME=""
+  UPDATE_ROUTE_BALANCE=""
+  UPDATE_ROUTE_DISABLE_COOKIES=""
+  UPDATE_ROUTE_TIMEOUT=""
+  UPDATE_ROUTE_SECURE=false
+  UPDATE_ROUTE_TERMINATION=""
+  UPDATE_ROUTE_INSECURE_POLICY=""
+  UPDATE_ROUTE_CERTIFICATE=""
+  UPDATE_ROUTE_KEY=""
+  UPDATE_ROUTE_CA_CERTIFICATE=""
+}
+
+read_file_content() {
+  local file_path="$1"
+
+  if [ ! -f "$file_path" ]; then
+    echo "Error: file not found: $file_path" >&2
+    exit 1
+  fi
+
+  local content
+  content=$(<"$file_path")
+  printf '%s' "$content"
+}
+
+require_option_value() {
+  local option_name="$1"
+
+  if [ $# -lt 2 ]; then
+    echo "Error: missing value for $option_name" >&2
+    exit 1
+  fi
+}
+
+cleanup_tmpfile() {
+  if [ -n "${OC_ROUTE_TMPFILE:-}" ] && [ -f "$OC_ROUTE_TMPFILE" ]; then
+    rm -f "$OC_ROUTE_TMPFILE"
+  fi
+}
+
+prompt_value() {
+  local label="$1"
+  local default_value="${2:-}"
+  local required="${3:-false}"
+  local answer
+
+  while true; do
+    if [ -n "$default_value" ]; then
+      printf '%s [%s]: ' "$label" "$default_value" >&2
+    else
+      printf '%s: ' "$label" >&2
+    fi
+
+    read -r answer || true
+    if [ -z "$answer" ]; then
+      answer="$default_value"
+    fi
+
+    if [ "$required" = true ] && [ -z "$answer" ]; then
+      echo "Value is required." >&2
+      continue
+    fi
+
+    printf '%s\n' "$answer"
+    return 0
+  done
+}
+
+prompt_yes_no() {
+  local label="$1"
+  local default_value="${2:-y}"
+  local answer
+
+  while true; do
+    if [ "$default_value" = "y" ]; then
+      printf '%s [Y/n]: ' "$label" >&2
+    else
+      printf '%s [y/N]: ' "$label" >&2
+    fi
+
+    read -r answer || true
+    if [ -z "$answer" ]; then
+      answer="$default_value"
+    fi
+
+    case "${answer,,}" in
+    y | yes)
+      printf 'true\n'
+      return 0
+      ;;
+    n | no)
+      printf 'false\n'
+      return 0
+      ;;
+    *)
+      echo "Please answer yes or no." >&2
+      ;;
+    esac
+  done
+}
+
+prompt_multiline_value() {
+  local label="$1"
+  local required="${2:-false}"
+  local line
+  local value
+
+  while true; do
+    value=""
+    printf '%s (paste content, finish with a blank line or a line containing END):\n' "$label" >&2
+
+    while IFS= read -r line; do
+      if [ -z "$line" ] || [ "$line" = "END" ]; then
+        break
+      fi
+
+      if [ -n "$value" ]; then
+        value+=$'\n'
+      fi
+      value+="$line"
+    done || true
+
+    if [ "$required" = true ] && [ -z "$value" ]; then
+      echo "Value is required." >&2
+      continue
+    fi
+
+    printf '%s' "$value"
+    return 0
+  done
+}
+
+print_yaml_field() {
+  local prefix="$1"
+  local key="$2"
+  local value="$3"
+  local escaped_value="${value//\'/\'\'}"
+
+  printf "%s%s: '%s'\n" "$prefix" "$key" "$escaped_value"
+}
+
+print_yaml_block() {
+  local prefix="$1"
+  local key="$2"
+  local value="$3"
+  local line
+
+  printf '%s%s: |\n' "$prefix" "$key"
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s  %s\n' "$prefix" "$line"
+  done <<<"$value"
+}
+
+list_routes() {
+  run_oc get routes
+}
+
+get_route_names() {
+  run_oc get routes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+}
+
+get_service_names() {
+  run_oc get services -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
+}
+
+select_resource_name() {
+  local resource_label="$1"
+  local resource_names_output="$2"
+  local allow_new="${3:-false}"
+  local default_value="${4:-}"
+  local -a resource_names=()
+  local i
+  local selection
+
+  if [ ! -t 0 ]; then
+    echo "Error: interactive selection requires an interactive terminal" >&2
+    exit 1
+  fi
+
+  while IFS= read -r selection; do
+    if [ -n "$selection" ]; then
+      resource_names+=("$selection")
+    fi
+  done <<<"$resource_names_output"
+
+  if [ ${#resource_names[@]} -eq 0 ]; then
+    if [ "$allow_new" != true ]; then
+      echo "Error: no ${resource_label}s found" >&2
+      exit 1
+    fi
+
+    echo "No existing ${resource_label}s found. Enter a new ${resource_label} name." >&2
+  else
+    echo "Select a ${resource_label}:" >&2
+    for i in "${!resource_names[@]}"; do
+      printf '  %d) %s\n' "$((i + 1))" "${resource_names[$i]}" >&2
+    done
+  fi
+
+  while true; do
+    selection=$(prompt_value "${resource_label^} number or name" "$default_value" true)
+
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+      if [ "$selection" -ge 1 ] && [ "$selection" -le "${#resource_names[@]}" ]; then
+        printf '%s\n' "${resource_names[$((selection - 1))]}"
+        return 0
+      fi
+    else
+      for i in "${!resource_names[@]}"; do
+        if [ "$selection" = "${resource_names[$i]}" ]; then
+          printf '%s\n' "$selection"
+          return 0
+        fi
+      done
+    fi
+
+    if [ "$allow_new" = true ]; then
+      printf '%s\n' "$selection"
+      return 0
+    fi
+
+    echo "Please enter a listed ${resource_label} number or name." >&2
+  done
+}
+
+select_route_name() {
+  select_resource_name "route" "$(get_route_names)"
+}
+
+select_or_enter_route_name() {
+  select_resource_name "route" "$(get_route_names)" true "${1:-}"
+}
+
+select_service_name() {
+  select_resource_name "service" "$(get_service_names)"
+}
+
+read_route() {
+  local route_name="$1"
+
+  run_oc get route "$route_name" -o yaml
+}
+
+apply_route_manifest() {
+  OC_ROUTE_TMPFILE=$(mktemp)
+  trap cleanup_tmpfile EXIT
+
+  {
+    printf 'apiVersion: route.openshift.io/v1\n'
+    printf 'kind: Route\n'
+    printf 'metadata:\n'
+    print_yaml_field '  ' 'name' "$UPDATE_ROUTE_NAME"
+
+    if [ -n "$UPDATE_ROUTE_BALANCE" ] || [ -n "$UPDATE_ROUTE_DISABLE_COOKIES" ] || [ -n "$UPDATE_ROUTE_TIMEOUT" ]; then
+      printf '  annotations:\n'
+      if [ -n "$UPDATE_ROUTE_BALANCE" ]; then
+        print_yaml_field '    ' 'haproxy.router.openshift.io/balance' "$UPDATE_ROUTE_BALANCE"
+      fi
+      if [ -n "$UPDATE_ROUTE_DISABLE_COOKIES" ]; then
+        print_yaml_field '    ' 'haproxy.router.openshift.io/disable_cookies' "$UPDATE_ROUTE_DISABLE_COOKIES"
+      fi
+      if [ -n "$UPDATE_ROUTE_TIMEOUT" ]; then
+        print_yaml_field '    ' 'haproxy.router.openshift.io/timeout' "$UPDATE_ROUTE_TIMEOUT"
+      fi
+    fi
+
+    printf 'spec:\n'
+    print_yaml_field '  ' 'host' "$UPDATE_ROUTE_HOST"
+    if [ -n "$UPDATE_ROUTE_PATH" ]; then
+      print_yaml_field '  ' 'path' "$UPDATE_ROUTE_PATH"
+    fi
+    printf '  port:\n'
+    print_yaml_field '    ' 'targetPort' "$UPDATE_ROUTE_TARGET_PORT"
+
+    printf '  tls:\n'
+    print_yaml_field '    ' 'insecureEdgeTerminationPolicy' "$UPDATE_ROUTE_INSECURE_POLICY"
+    print_yaml_field '    ' 'termination' "$UPDATE_ROUTE_TERMINATION"
+    if [ "$UPDATE_ROUTE_SECURE" = true ]; then
+      print_yaml_block '    ' 'certificate' "$UPDATE_ROUTE_CERTIFICATE"
+      print_yaml_block '    ' 'key' "$UPDATE_ROUTE_KEY"
+      if [ -n "$UPDATE_ROUTE_CA_CERTIFICATE" ]; then
+        print_yaml_block '    ' 'caCertificate' "$UPDATE_ROUTE_CA_CERTIFICATE"
+      fi
+    fi
+
+    printf '  to:\n'
+    print_yaml_field '    ' 'kind' 'Service'
+    print_yaml_field '    ' 'name' "$UPDATE_ROUTE_SERVICE_NAME"
+  } >"$OC_ROUTE_TMPFILE"
+
+  run_oc apply -f "$OC_ROUTE_TMPFILE"
+  cleanup_tmpfile
+  OC_ROUTE_TMPFILE=""
+}
+
+validate_update_values() {
+  local missing=()
+
+  if [ -z "$UPDATE_ROUTE_NAME" ]; then
+    missing+=("--name")
+  fi
+  if [ -z "$UPDATE_ROUTE_HOST" ]; then
+    missing+=("--host")
+  fi
+  if [ -z "$UPDATE_ROUTE_TARGET_PORT" ]; then
+    missing+=("--target-port")
+  fi
+  if [ -z "$UPDATE_ROUTE_SERVICE_NAME" ]; then
+    missing+=("--service")
+  fi
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "Error: missing required update option(s): ${missing[*]}" >&2
+    exit 1
+  fi
+
+  if [ -z "$UPDATE_ROUTE_TERMINATION" ]; then
+    UPDATE_ROUTE_TERMINATION="edge"
+  fi
+  if [ -z "$UPDATE_ROUTE_INSECURE_POLICY" ]; then
+    UPDATE_ROUTE_INSECURE_POLICY="Redirect"
+  fi
+
+  if [ "$UPDATE_ROUTE_SECURE" = true ]; then
+    if [ -z "$UPDATE_ROUTE_CERTIFICATE" ] || [ -z "$UPDATE_ROUTE_KEY" ]; then
+      echo "Error: --secure requires both --certificate/--certificate-file and --key/--key-file" >&2
+      exit 1
+    fi
+  else
+    if [ -n "$UPDATE_ROUTE_CERTIFICATE" ] || [ -n "$UPDATE_ROUTE_KEY" ] || [ -n "$UPDATE_ROUTE_CA_CERTIFICATE" ]; then
+      echo "Error: certificate options require --secure" >&2
+      exit 1
+    fi
+  fi
+}
+
+update_route_interactive() {
+  local default_name="${1:-}"
+
+  if [ ! -t 0 ]; then
+    echo "Error: update requires an interactive terminal for prompts" >&2
+    exit 1
+  fi
+
+  reset_update_values
+
+  UPDATE_ROUTE_NAME=$(select_or_enter_route_name "$default_name")
+  UPDATE_ROUTE_HOST=$(prompt_value "Host" "" true)
+  UPDATE_ROUTE_PATH=$(prompt_value "Path (leave blank to omit)" "")
+  UPDATE_ROUTE_TARGET_PORT=$(prompt_value "Target port" "http" true)
+  UPDATE_ROUTE_SERVICE_NAME=$(select_service_name)
+  UPDATE_ROUTE_BALANCE=$(prompt_value "Annotation haproxy.router.openshift.io/balance (optional)" "roundrobin")
+  UPDATE_ROUTE_DISABLE_COOKIES=$(prompt_value "Annotation haproxy.router.openshift.io/disable_cookies (optional)" "true")
+  UPDATE_ROUTE_TIMEOUT=$(prompt_value "Annotation haproxy.router.openshift.io/timeout (optional)" "600s")
+  UPDATE_ROUTE_TERMINATION=$(prompt_value "TLS termination" "edge" true)
+  UPDATE_ROUTE_INSECURE_POLICY=$(prompt_value "Insecure edge termination policy" "Redirect" true)
+
+  if [ "$(prompt_yes_no "Provide certificate and key for this route" "y")" = "true" ]; then
+    UPDATE_ROUTE_SECURE=true
+    UPDATE_ROUTE_CERTIFICATE=$(prompt_multiline_value "certificate" true)
+    UPDATE_ROUTE_KEY=$(prompt_multiline_value "key" true)
+    UPDATE_ROUTE_CA_CERTIFICATE=$(prompt_multiline_value "caCertificate (leave empty to omit)" false)
+  fi
+
+  apply_route_manifest
+}
+
+update_route_from_flags() {
+  reset_update_values
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -i | --interactive)
+      OC_ROUTE_INTERACTIVE=true
+      shift
+      ;;
+    --name)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_NAME="$2"
+      shift 2
+      ;;
+    --host)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_HOST="$2"
+      shift 2
+      ;;
+    --path)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_PATH="$2"
+      shift 2
+      ;;
+    --target-port)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_TARGET_PORT="$2"
+      shift 2
+      ;;
+    --service | --service-name)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_SERVICE_NAME="$2"
+      shift 2
+      ;;
+    --balance)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_BALANCE="$2"
+      shift 2
+      ;;
+    --disable-cookies)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_DISABLE_COOKIES="$2"
+      shift 2
+      ;;
+    --timeout)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_TIMEOUT="$2"
+      shift 2
+      ;;
+    --secure)
+      UPDATE_ROUTE_SECURE=true
+      shift
+      ;;
+    --termination)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_TERMINATION="$2"
+      shift 2
+      ;;
+    --insecure-policy)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_INSECURE_POLICY="$2"
+      shift 2
+      ;;
+    --certificate)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_CERTIFICATE="$2"
+      shift 2
+      ;;
+    --certificate-file)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_CERTIFICATE=$(read_file_content "$2")
+      shift 2
+      ;;
+    --key)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_KEY="$2"
+      shift 2
+      ;;
+    --key-file)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_KEY=$(read_file_content "$2")
+      shift 2
+      ;;
+    --ca-certificate)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_CA_CERTIFICATE="$2"
+      shift 2
+      ;;
+    --ca-certificate-file)
+      require_option_value "$1" "$@"
+      UPDATE_ROUTE_CA_CERTIFICATE=$(read_file_content "$2")
+      shift 2
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      while [ $# -gt 0 ]; do
+        echo "Error: unexpected argument for update: $1" >&2
+        usage >&2
+        exit 1
+      done
+      ;;
+    -*)
+      echo "Error: unexpected option for update: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [ "$OC_ROUTE_INTERACTIVE" = true ]; then
+        if [ -n "$UPDATE_ROUTE_NAME" ]; then
+          echo "Error: update accepts at most one route name in interactive mode" >&2
+          usage >&2
+          exit 1
+        fi
+        UPDATE_ROUTE_NAME="$1"
+        shift
+      else
+        echo "Error: update requires flags unless --interactive is used" >&2
+        usage >&2
+        exit 1
+      fi
+      ;;
+    esac
+  done
+
+  if [ "$OC_ROUTE_INTERACTIVE" = true ]; then
+    if [ -n "$UPDATE_ROUTE_HOST" ] || [ -n "$UPDATE_ROUTE_PATH" ] || [ -n "$UPDATE_ROUTE_TARGET_PORT" ] || [ -n "$UPDATE_ROUTE_SERVICE_NAME" ] || [ -n "$UPDATE_ROUTE_BALANCE" ] || [ -n "$UPDATE_ROUTE_DISABLE_COOKIES" ] || [ -n "$UPDATE_ROUTE_TIMEOUT" ] || [ "$UPDATE_ROUTE_SECURE" = true ] || [ -n "$UPDATE_ROUTE_TERMINATION" ] || [ -n "$UPDATE_ROUTE_INSECURE_POLICY" ] || [ -n "$UPDATE_ROUTE_CERTIFICATE" ] || [ -n "$UPDATE_ROUTE_KEY" ] || [ -n "$UPDATE_ROUTE_CA_CERTIFICATE" ]; then
+      echo "Error: update flags cannot be combined with --interactive" >&2
+      usage >&2
+      exit 1
+    fi
+    update_route_interactive "$UPDATE_ROUTE_NAME"
+    return 0
+  fi
+
+  validate_update_values
+  apply_route_manifest
+}
+
+handle_read_command() {
+  local route_name=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -i | --interactive)
+      OC_ROUTE_INTERACTIVE=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -*)
+      echo "Error: unexpected option for read: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [ -n "$route_name" ]; then
+        echo "Error: read accepts at most one route name" >&2
+        usage >&2
+        exit 1
+      fi
+      route_name="$1"
+      shift
+      ;;
+    esac
+  done
+
+  if [ "$OC_ROUTE_INTERACTIVE" = true ]; then
+    if [ -n "$route_name" ]; then
+      echo "Error: read does not accept a route name when --interactive is used" >&2
+      usage >&2
+      exit 1
+    fi
+    read_route "$(select_route_name)"
+    return 0
+  fi
+
+  if [ -z "$route_name" ]; then
+    echo "Error: read requires exactly one route name unless --interactive is used" >&2
+    usage >&2
+    exit 1
+  fi
+
+  read_route "$route_name"
+}
+
+main() {
+  local command=""
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    -n | --namespace)
+      if [ $# -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      OC_ROUTE_NAMESPACE="$2"
+      shift 2
+      ;;
+    -i | --interactive)
+      OC_ROUTE_INTERACTIVE=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    list | read | update)
+      command="$1"
+      shift
+      break
+      ;;
+    -*)
+      echo "Error: unexpected option: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      echo "Error: unexpected argument before command: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  if [ -z "$command" ]; then
+    echo "Error: missing command" >&2
+    usage >&2
+    exit 1
+  fi
+
+  require_oc
+
+  case "$command" in
+  list)
+    if [ $# -ne 0 ]; then
+      echo "Error: list does not accept positional arguments" >&2
+      usage >&2
+      exit 1
+    fi
+    list_routes
+    ;;
+  read)
+    handle_read_command "$@"
+    ;;
+  update)
+    update_route_from_flags "$@"
+    ;;
+  esac
+}
+
+main "$@"
