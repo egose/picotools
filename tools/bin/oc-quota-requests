@@ -1,0 +1,754 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERSION_FILE="${SCRIPT_DIR}/../VERSION"
+if [ ! -f "$VERSION_FILE" ]; then
+  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+fi
+
+OC_QUOTA_REQUESTS_NAMESPACE=""
+OC_QUOTA_REQUESTS_QUOTA_NAME="compute-long-running-quota"
+
+usage() {
+  cat <<'EOF'
+Usage: oc-quota-requests [options]
+
+Analyzes OpenShift namespace request quota usage for CPU and memory.
+
+It reads the quota ceiling from `compute-long-running-quota`, sums each pod's
+effective requests, reads current usage from `oc adm top pods`, and prints a
+normalized comparison using millicores and Mi. It also infers which pods are
+likely counted by the selected quota's scopes and excludes Job-owned pods from
+the quota-comparison totals.
+
+Options:
+  -n, --namespace NS    Namespace/project to target
+      --quota-name NAME Quota resource name (default: compute-long-running-quota)
+  -h, --help, help      Show this help message
+  -v, --version, version
+                        Show the tool version
+
+Examples:
+  oc-quota-requests
+  oc-quota-requests --namespace my-project
+  oc-quota-requests --quota-name compute-long-running-quota
+EOF
+}
+
+print_version() {
+  if [ -f "$VERSION_FILE" ]; then
+    tr -d '[:space:]' <"$VERSION_FILE"
+    printf '\n'
+  else
+    echo "unknown"
+  fi
+}
+
+require_oc() {
+  if ! command -v oc >/dev/null 2>&1; then
+    echo "Error: oc is required but not installed" >&2
+    exit 1
+  fi
+}
+
+run_oc() {
+  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
+    oc -n "$OC_QUOTA_REQUESTS_NAMESPACE" "$@"
+  else
+    oc "$@"
+  fi
+}
+
+run_oc_adm_top_pods() {
+  local cmd=(oc adm top pods --no-headers)
+
+  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
+    cmd+=(--namespace "$OC_QUOTA_REQUESTS_NAMESPACE")
+  fi
+
+  "${cmd[@]}"
+}
+
+current_namespace() {
+  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
+    printf '%s\n' "$OC_QUOTA_REQUESTS_NAMESPACE"
+    return 0
+  fi
+
+  oc project -q 2>/dev/null || printf '<current>\n'
+}
+
+trim_whitespace() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+parse_cpu_to_millicores() {
+  local value
+  value=$(trim_whitespace "$1")
+
+  case "$value" in
+  "" | "<none>" | "-")
+    printf '0\n'
+    ;;
+  *n)
+    awk -v value="${value%n}" 'BEGIN { printf "%.0f\n", value / 1000000 }'
+    ;;
+  *u)
+    awk -v value="${value%u}" 'BEGIN { printf "%.0f\n", value / 1000 }'
+    ;;
+  *m)
+    printf '%s\n' "${value%m}"
+    ;;
+  *)
+    awk -v value="$value" 'BEGIN { printf "%.0f\n", value * 1000 }'
+    ;;
+  esac
+}
+
+parse_memory_to_bytes() {
+  local value
+  value=$(trim_whitespace "$1")
+
+  case "$value" in
+  "" | "<none>" | "-")
+    printf '0\n'
+    return 0
+    ;;
+  esac
+
+  awk -v value="$value" '
+    function pow_int(base, exp_value, result, i) {
+      result = 1
+      for (i = 0; i < exp_value; i++) {
+        result *= base
+      }
+      return result
+    }
+
+    BEGIN {
+      if (match(value, /^([0-9]+(\.[0-9]+)?)([A-Za-z]+)?$/, parts) == 0) {
+        exit 1
+      }
+
+      number = parts[1] + 0
+      unit = parts[3]
+      multiplier = 1
+
+      if (unit == "" || unit == "B") {
+        multiplier = 1
+      } else if (unit == "Ki") {
+        multiplier = pow_int(1024, 1)
+      } else if (unit == "Mi") {
+        multiplier = pow_int(1024, 2)
+      } else if (unit == "Gi") {
+        multiplier = pow_int(1024, 3)
+      } else if (unit == "Ti") {
+        multiplier = pow_int(1024, 4)
+      } else if (unit == "Pi") {
+        multiplier = pow_int(1024, 5)
+      } else if (unit == "Ei") {
+        multiplier = pow_int(1024, 6)
+      } else if (unit == "K") {
+        multiplier = pow_int(1000, 1)
+      } else if (unit == "M") {
+        multiplier = pow_int(1000, 2)
+      } else if (unit == "G") {
+        multiplier = pow_int(1000, 3)
+      } else if (unit == "T") {
+        multiplier = pow_int(1000, 4)
+      } else if (unit == "P") {
+        multiplier = pow_int(1000, 5)
+      } else if (unit == "E") {
+        multiplier = pow_int(1000, 6)
+      } else {
+        exit 2
+      }
+
+      printf "%.0f\n", number * multiplier
+    }
+  '
+}
+
+format_millicores() {
+  printf '%sm' "$1"
+}
+
+format_mib() {
+  awk -v bytes="$1" 'BEGIN {
+    mib = bytes / 1048576
+    if (mib == int(mib)) {
+      printf "%dMi", mib
+    } else {
+      printf "%.2fMi", mib
+    }
+  }'
+}
+
+format_percentage() {
+  local used="$1"
+  local total="$2"
+
+  if [ "$total" -eq 0 ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  awk -v used="$used" -v total="$total" 'BEGIN { printf "%.2f%%", (used / total) * 100 }'
+}
+
+value_in_csv() {
+  local needle="$1"
+  local csv="$2"
+  local item
+  local -a CSV_VALUES=()
+
+  if [ -z "$csv" ]; then
+    return 1
+  fi
+
+  IFS=',' read -r -a CSV_VALUES <<<"$csv"
+  for item in "${CSV_VALUES[@]}"; do
+    if [ "$item" = "$needle" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+fetch_quota_scope_rules() {
+  local scopes_output
+  local selectors_output
+  local line
+  local scope_name
+  local operator_name
+  local values
+
+  QUOTA_SCOPE_NAMES=()
+  QUOTA_SCOPE_EXPRESSIONS=()
+
+  scopes_output=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{range .spec.scopes[*]}{.}{"\n"}{end}')
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then
+      QUOTA_SCOPE_NAMES+=("$line")
+    fi
+  done <<<"$scopes_output"
+
+  selectors_output=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{range .spec.scopeSelector.matchExpressions[*]}{.scopeName}{"\t"}{.operator}{"\t"}{range .values[*]}{.}{","}{end}{"\n"}{end}')
+  while IFS=$'\t' read -r scope_name operator_name values; do
+    if [ -z "$scope_name" ] && [ -z "$operator_name" ]; then
+      continue
+    fi
+
+    values="${values%,}"
+    QUOTA_SCOPE_EXPRESSIONS+=("${scope_name}"$'\t'"${operator_name}"$'\t'"${values}")
+  done <<<"$selectors_output"
+}
+
+describe_quota_scope_filters() {
+  local line
+  local scope_name
+  local operator_name
+  local values
+
+  if [ "${#QUOTA_SCOPE_NAMES[@]}" -eq 0 ] && [ "${#QUOTA_SCOPE_EXPRESSIONS[@]}" -eq 0 ]; then
+    printf '  none\n'
+    return 0
+  fi
+
+  for line in "${QUOTA_SCOPE_NAMES[@]}"; do
+    printf '  scope: %s\n' "$line"
+  done
+
+  for line in "${QUOTA_SCOPE_EXPRESSIONS[@]}"; do
+    IFS=$'\t' read -r scope_name operator_name values <<<"$line"
+    if [ -n "$values" ]; then
+      printf '  scopeSelector: %s %s [%s]\n' "$scope_name" "$operator_name" "$values"
+    else
+      printf '  scopeSelector: %s %s\n' "$scope_name" "$operator_name"
+    fi
+  done
+}
+
+evaluate_simple_scope() {
+  local scope_name="$1"
+  local pod_qos="$2"
+  local pod_active_deadline="$3"
+
+  case "$scope_name" in
+  BestEffort)
+    if [ -z "$pod_qos" ]; then
+      printf 'unknown\n'
+    elif [ "$pod_qos" = "BestEffort" ]; then
+      printf 'yes\n'
+    else
+      printf 'no\n'
+    fi
+    ;;
+  NotBestEffort)
+    if [ -z "$pod_qos" ]; then
+      printf 'unknown\n'
+    elif [ "$pod_qos" = "BestEffort" ]; then
+      printf 'no\n'
+    else
+      printf 'yes\n'
+    fi
+    ;;
+  Terminating)
+    if [ -n "$pod_active_deadline" ]; then
+      printf 'yes\n'
+    else
+      printf 'no\n'
+    fi
+    ;;
+  NotTerminating)
+    if [ -n "$pod_active_deadline" ]; then
+      printf 'no\n'
+    else
+      printf 'yes\n'
+    fi
+    ;;
+  *)
+    printf 'unknown\n'
+    ;;
+  esac
+}
+
+evaluate_scope_selector() {
+  local scope_name="$1"
+  local operator_name="$2"
+  local values="$3"
+  local pod_priority_class="$4"
+
+  case "$scope_name" in
+  PriorityClass)
+    case "$operator_name" in
+    In)
+      if value_in_csv "$pod_priority_class" "$values"; then
+        printf 'yes\n'
+      else
+        printf 'no\n'
+      fi
+      ;;
+    NotIn)
+      if value_in_csv "$pod_priority_class" "$values"; then
+        printf 'no\n'
+      else
+        printf 'yes\n'
+      fi
+      ;;
+    Exists)
+      if [ -n "$pod_priority_class" ]; then
+        printf 'yes\n'
+      else
+        printf 'no\n'
+      fi
+      ;;
+    DoesNotExist)
+      if [ -n "$pod_priority_class" ]; then
+        printf 'no\n'
+      else
+        printf 'yes\n'
+      fi
+      ;;
+    *)
+      printf 'unknown\n'
+      ;;
+    esac
+    ;;
+  *)
+    printf 'unknown\n'
+    ;;
+  esac
+}
+
+pod_quota_match_status() {
+  local pod_name="$1"
+  local pod_scope_data
+  local pod_qos
+  local pod_active_deadline
+  local pod_priority_class
+  local pod_owner_kinds
+  local line
+  local scope_name
+  local operator_name
+  local values
+  local state='yes'
+  local evaluation
+
+  pod_scope_data=$(run_oc get pod "$pod_name" -o jsonpath='{.status.qosClass}{"|"}{.spec.activeDeadlineSeconds}{"|"}{.spec.priorityClassName}{"|"}{range .metadata.ownerReferences[*]}{.kind}{","}{end}')
+  IFS='|' read -r pod_qos pod_active_deadline pod_priority_class pod_owner_kinds <<<"$pod_scope_data"
+  pod_owner_kinds="${pod_owner_kinds%,}"
+
+  if value_in_csv 'Job' "$pod_owner_kinds"; then
+    printf 'skip\n'
+    return 0
+  fi
+
+  for line in "${QUOTA_SCOPE_NAMES[@]}"; do
+    evaluation=$(evaluate_simple_scope "$line" "$pod_qos" "$pod_active_deadline")
+
+    case "$evaluation" in
+    no)
+      printf 'no\n'
+      return 0
+      ;;
+    unknown)
+      state='unknown'
+      ;;
+    esac
+  done
+
+  for line in "${QUOTA_SCOPE_EXPRESSIONS[@]}"; do
+    IFS=$'\t' read -r scope_name operator_name values <<<"$line"
+    evaluation=$(evaluate_scope_selector "$scope_name" "$operator_name" "$values" "$pod_priority_class")
+
+    case "$evaluation" in
+    no)
+      printf 'no\n'
+      return 0
+      ;;
+    unknown)
+      state='unknown'
+      ;;
+    esac
+  done
+
+  printf '%s\n' "$state"
+}
+
+sum_request_pairs() {
+  local lines="$1"
+  local total_cpu=0
+  local total_memory=0
+  local cpu_value=""
+  local memory_value=""
+
+  while IFS=$'\t' read -r cpu_value memory_value; do
+    if [ -z "$cpu_value" ] && [ -z "$memory_value" ]; then
+      continue
+    fi
+
+    total_cpu=$((total_cpu + $(parse_cpu_to_millicores "$cpu_value")))
+    total_memory=$((total_memory + $(parse_memory_to_bytes "$memory_value")))
+  done <<<"$lines"
+
+  printf '%s\t%s\n' "$total_cpu" "$total_memory"
+}
+
+max_request_pairs() {
+  local lines="$1"
+  local max_cpu=0
+  local max_memory=0
+  local cpu_value=""
+  local memory_value=""
+  local cpu_millicores=0
+  local memory_bytes=0
+
+  while IFS=$'\t' read -r cpu_value memory_value; do
+    if [ -z "$cpu_value" ] && [ -z "$memory_value" ]; then
+      continue
+    fi
+
+    cpu_millicores=$(parse_cpu_to_millicores "$cpu_value")
+    memory_bytes=$(parse_memory_to_bytes "$memory_value")
+
+    if [ "$cpu_millicores" -gt "$max_cpu" ]; then
+      max_cpu="$cpu_millicores"
+    fi
+
+    if [ "$memory_bytes" -gt "$max_memory" ]; then
+      max_memory="$memory_bytes"
+    fi
+  done <<<"$lines"
+
+  printf '%s\t%s\n' "$max_cpu" "$max_memory"
+}
+
+pod_request_totals() {
+  local pod_name="$1"
+  local container_requests
+  local init_container_requests
+  local overhead_requests
+  local regular_cpu=0
+  local regular_memory=0
+  local init_cpu=0
+  local init_memory=0
+  local overhead_cpu=0
+  local overhead_memory=0
+  local request_totals
+
+  container_requests=$(run_oc get pod "$pod_name" -o jsonpath='{range .spec.containers[*]}{.resources.requests.cpu}{"\t"}{.resources.requests.memory}{"\n"}{end}')
+  request_totals=$(sum_request_pairs "$container_requests")
+  IFS=$'\t' read -r regular_cpu regular_memory <<<"$request_totals"
+
+  init_container_requests=$(run_oc get pod "$pod_name" -o jsonpath='{range .spec.initContainers[*]}{.resources.requests.cpu}{"\t"}{.resources.requests.memory}{"\n"}{end}')
+  request_totals=$(max_request_pairs "$init_container_requests")
+  IFS=$'\t' read -r init_cpu init_memory <<<"$request_totals"
+
+  overhead_requests=$(run_oc get pod "$pod_name" -o jsonpath='{.spec.overhead.cpu}{"\t"}{.spec.overhead.memory}')
+  IFS=$'\t' read -r overhead_cpu overhead_memory <<<"$overhead_requests"
+
+  regular_cpu=$((regular_cpu + $(parse_cpu_to_millicores "$overhead_cpu")))
+  regular_memory=$((regular_memory + $(parse_memory_to_bytes "$overhead_memory")))
+
+  if [ "$init_cpu" -gt "$regular_cpu" ]; then
+    regular_cpu="$init_cpu"
+  fi
+
+  if [ "$init_memory" -gt "$regular_memory" ]; then
+    regular_memory="$init_memory"
+  fi
+
+  printf '%s\t%s\n' "$regular_cpu" "$regular_memory"
+}
+
+print_report() {
+  local namespace_name="$1"
+  local quota_hard_cpu="$2"
+  local quota_hard_memory="$3"
+  local quota_used_cpu="$4"
+  local quota_used_memory="$5"
+  local analyzed_request_cpu="$6"
+  local analyzed_request_memory="$7"
+  local analyzed_usage_cpu="$8"
+  local analyzed_usage_memory="$9"
+  local quota_matching_request_cpu="${10}"
+  local quota_matching_request_memory="${11}"
+  shift 11
+  local pods=("$@")
+  local pod_name
+  local request_cpu
+  local request_memory
+  local usage_cpu
+  local usage_memory
+  local remaining_cpu
+  local remaining_memory
+
+  remaining_cpu=$((quota_hard_cpu - quota_used_cpu))
+  remaining_memory=$((quota_hard_memory - quota_used_memory))
+
+  printf 'Namespace: %s\n' "$namespace_name"
+  printf 'Quota: %s\n\n' "$OC_QUOTA_REQUESTS_QUOTA_NAME"
+
+  printf 'Quota scope filters:\n'
+  describe_quota_scope_filters
+  printf '\n'
+
+  printf 'Quota ceiling:\n'
+  printf '  requests.cpu: %s\n' "$(format_millicores "$quota_hard_cpu")"
+  printf '  requests.memory: %s\n\n' "$(format_mib "$quota_hard_memory")"
+
+  printf 'Quota usage from resource quota:\n'
+  printf '  requests.cpu: %s / %s (%s)\n' \
+    "$(format_millicores "$quota_used_cpu")" \
+    "$(format_millicores "$quota_hard_cpu")" \
+    "$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")"
+  printf '  requests.memory: %s / %s (%s)\n\n' \
+    "$(format_mib "$quota_used_memory")" \
+    "$(format_mib "$quota_hard_memory")" \
+    "$(format_percentage "$quota_used_memory" "$quota_hard_memory")"
+
+  printf 'Pods:\n'
+  printf '%-40s %10s %10s %10s %10s\n' 'POD' 'REQ_CPU' 'USE_CPU' 'REQ_MEM' 'USE_MEM'
+
+  for pod_name in "${pods[@]}"; do
+    if [ "${POD_QUOTA_MATCH_STATE[$pod_name]:-unknown}" = 'skip' ]; then
+      continue
+    fi
+
+    request_cpu="${POD_REQUEST_CPU_MILLICORES[$pod_name]:-0}"
+    request_memory="${POD_REQUEST_MEMORY_BYTES[$pod_name]:-0}"
+    usage_cpu="${POD_USAGE_CPU_MILLICORES[$pod_name]:-}"
+    usage_memory="${POD_USAGE_MEMORY_BYTES[$pod_name]:-}"
+
+    if [ -n "$usage_cpu" ]; then
+      usage_cpu=$(format_millicores "$usage_cpu")
+    else
+      usage_cpu='n/a'
+    fi
+
+    if [ -n "$usage_memory" ]; then
+      usage_memory=$(format_mib "$usage_memory")
+    else
+      usage_memory='n/a'
+    fi
+
+    printf '%-40s %10s %10s %10s %10s\n' \
+      "$pod_name" \
+      "$(format_millicores "$request_cpu")" \
+      "$usage_cpu" \
+      "$(format_mib "$request_memory")" \
+      "$usage_memory"
+  done
+
+  printf '\nTotals:\n'
+  printf '  requests.cpu: %s\n' "$(format_millicores "$analyzed_request_cpu")"
+  printf '  requests.memory: %s\n' "$(format_mib "$analyzed_request_memory")"
+  printf '  usage.cpu: %s\n' "$(format_millicores "$analyzed_usage_cpu")"
+  printf '  usage.memory: %s\n' "$(format_mib "$analyzed_usage_memory")"
+  printf '  quota requests.cpu: %s\n' "$(format_millicores "$quota_matching_request_cpu")"
+  printf '  quota requests.memory: %s\n' "$(format_mib "$quota_matching_request_memory")"
+  printf '  remaining requests.cpu quota: %s\n' "$(format_millicores "$remaining_cpu")"
+  printf '  remaining requests.memory quota: %s\n' "$(format_mib "$remaining_memory")"
+
+  if [ "$quota_matching_request_cpu" -ne "$quota_used_cpu" ] || [ "$quota_matching_request_memory" -ne "$quota_used_memory" ]; then
+    printf '\nNote: quota-matching pod totals still differ from the resource quota status. This can happen from controller lag or unsupported quota scopes.\n'
+  fi
+}
+
+main() {
+  local namespace_name
+  local quota_data
+  local quota_hard_cpu_raw
+  local quota_hard_memory_raw
+  local quota_used_cpu_raw
+  local quota_used_memory_raw
+  local quota_hard_cpu
+  local quota_hard_memory
+  local quota_used_cpu
+  local quota_used_memory
+  local pod_names_output
+  local pod_name
+  local pod_totals
+  local usage_pod_name
+  local usage_cpu_raw
+  local usage_memory_raw
+  local analyzed_request_cpu=0
+  local analyzed_request_memory=0
+  local analyzed_usage_cpu=0
+  local analyzed_usage_memory=0
+  local quota_matching_request_cpu=0
+  local quota_matching_request_memory=0
+  local pod_names=()
+  local pod_match_state
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    -n | --namespace)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      OC_QUOTA_REQUESTS_NAMESPACE="$2"
+      shift 2
+      ;;
+    --quota-name)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      OC_QUOTA_REQUESTS_QUOTA_NAME="$2"
+      shift 2
+      ;;
+    *)
+      echo "Error: unknown argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  require_oc
+  namespace_name=$(current_namespace)
+
+  quota_data=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{.status.hard.requests\.cpu}{"\t"}{.status.hard.requests\.memory}{"\t"}{.status.used.requests\.cpu}{"\t"}{.status.used.requests\.memory}')
+  IFS=$'\t' read -r quota_hard_cpu_raw quota_hard_memory_raw quota_used_cpu_raw quota_used_memory_raw <<<"$quota_data"
+
+  if [ -z "$quota_hard_cpu_raw" ] || [ -z "$quota_hard_memory_raw" ]; then
+    echo "Error: quota $OC_QUOTA_REQUESTS_QUOTA_NAME does not expose requests.cpu and requests.memory" >&2
+    exit 1
+  fi
+
+  quota_hard_cpu=$(parse_cpu_to_millicores "$quota_hard_cpu_raw")
+  quota_hard_memory=$(parse_memory_to_bytes "$quota_hard_memory_raw")
+  quota_used_cpu=$(parse_cpu_to_millicores "$quota_used_cpu_raw")
+  quota_used_memory=$(parse_memory_to_bytes "$quota_used_memory_raw")
+  fetch_quota_scope_rules
+
+  pod_names_output=$(run_oc get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
+  if [ -n "$pod_names_output" ]; then
+    while IFS= read -r pod_name; do
+      if [ -z "$pod_name" ]; then
+        continue
+      fi
+
+      pod_names+=("$pod_name")
+      pod_totals=$(pod_request_totals "$pod_name")
+      IFS=$'\t' read -r POD_REQUEST_CPU_MILLICORES["$pod_name"] POD_REQUEST_MEMORY_BYTES["$pod_name"] <<<"$pod_totals"
+      pod_match_state=$(pod_quota_match_status "$pod_name")
+      POD_QUOTA_MATCH_STATE["$pod_name"]="$pod_match_state"
+
+      case "$pod_match_state" in
+      skip)
+        ;;
+      yes)
+        analyzed_request_cpu=$((analyzed_request_cpu + POD_REQUEST_CPU_MILLICORES["$pod_name"]))
+        analyzed_request_memory=$((analyzed_request_memory + POD_REQUEST_MEMORY_BYTES["$pod_name"]))
+        quota_matching_request_cpu=$((quota_matching_request_cpu + POD_REQUEST_CPU_MILLICORES["$pod_name"]))
+        quota_matching_request_memory=$((quota_matching_request_memory + POD_REQUEST_MEMORY_BYTES["$pod_name"]))
+        ;;
+      *)
+        analyzed_request_cpu=$((analyzed_request_cpu + POD_REQUEST_CPU_MILLICORES["$pod_name"]))
+        analyzed_request_memory=$((analyzed_request_memory + POD_REQUEST_MEMORY_BYTES["$pod_name"]))
+        ;;
+      esac
+    done <<<"$pod_names_output"
+  fi
+
+  while read -r usage_pod_name usage_cpu_raw usage_memory_raw; do
+    if [ -z "$usage_pod_name" ]; then
+      continue
+    fi
+
+    POD_USAGE_CPU_MILLICORES["$usage_pod_name"]=$(parse_cpu_to_millicores "$usage_cpu_raw")
+    POD_USAGE_MEMORY_BYTES["$usage_pod_name"]=$(parse_memory_to_bytes "$usage_memory_raw")
+  done < <(run_oc_adm_top_pods)
+
+  for pod_name in "${pod_names[@]}"; do
+    case "${POD_QUOTA_MATCH_STATE[$pod_name]:-unknown}" in
+    skip)
+      ;;
+    *)
+      analyzed_usage_cpu=$((analyzed_usage_cpu + ${POD_USAGE_CPU_MILLICORES["$pod_name"]:-0}))
+      analyzed_usage_memory=$((analyzed_usage_memory + ${POD_USAGE_MEMORY_BYTES["$pod_name"]:-0}))
+      ;;
+    esac
+  done
+
+  print_report \
+    "$namespace_name" \
+    "$quota_hard_cpu" \
+    "$quota_hard_memory" \
+    "$quota_used_cpu" \
+    "$quota_used_memory" \
+    "$analyzed_request_cpu" \
+    "$analyzed_request_memory" \
+    "$analyzed_usage_cpu" \
+    "$analyzed_usage_memory" \
+    "$quota_matching_request_cpu" \
+    "$quota_matching_request_memory" \
+    "${pod_names[@]}"
+}
+
+declare -a QUOTA_SCOPE_NAMES=()
+declare -a QUOTA_SCOPE_EXPRESSIONS=()
+declare -A POD_REQUEST_CPU_MILLICORES=()
+declare -A POD_REQUEST_MEMORY_BYTES=()
+declare -A POD_USAGE_CPU_MILLICORES=()
+declare -A POD_USAGE_MEMORY_BYTES=()
+declare -A POD_QUOTA_MATCH_STATE=()
+
+main "$@"
