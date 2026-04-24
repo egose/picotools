@@ -1,9 +1,10 @@
-## [0.5.1](https://github.com/egose/picotools/compare/v0.5.0...v0.5.1) (2026-04-21)
+## [0.6.0](https://github.com/egose/picotools/compare/v0.5.1...v0.6.0) (2026-04-22)
 
 ### Features
 
 * add asdf-clean-unused script ([356c393](https://github.com/egose/picotools/commit/356c3938074390de3f52bfc5d990687d2d50a269))
 * add git-clean-task-pr script ([199d049](https://github.com/egose/picotools/commit/199d0495d9257ab2c1f36f69ea764a6d87ba9ea1))
+* add oc-route script ([137069c](https://github.com/egose/picotools/commit/137069c9b2eecb522d5166a2a6e11f2e9f225bcf))
 
 ### Bug Fixes
 
