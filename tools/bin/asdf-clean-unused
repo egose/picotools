@@ -11,17 +11,17 @@ ASDF_CLEAN_UNUSED_TMP_DIR=""
 
 usage() {
   cat <<'EOF'
-	Usage: asdf-clean-unused [--apply] [--ignore-path PATH]... [workspace]
+	Usage: asdf-clean-unused [--yes] [--ignore-path PATH]... [workspace]
 
 Scans a workspace for .tool-versions files, ignoring common generated or
 git-ignored directories such as node_modules, and compares the referenced
 versions to what is currently installed in asdf.
 
 By default this removes unused versions and plugins after prompting for
-confirmation. Use --apply to skip the confirmation prompt.
+confirmation. Use --yes to skip the confirmation prompt.
 
 	Options:
-	  --apply                    Remove unused versions and plugins without prompting
+	  --yes                      Remove unused versions and plugins without prompting
 	  --ignore-path PATH         Ignore an additional path while scanning; repeatable
 	  -h, --help, help           Show this help message
 	  -v, --version, version     Show the tool version
@@ -53,17 +53,18 @@ require_asdf() {
   fi
 }
 
-confirm() {
+confirm_action() {
+  local prompt="$1"
   local answer
 
-  printf 'Continue? [y/N] '
-  read -r answer
-  case "$answer" in
-  y | Y | yes | YES)
+  printf '%s [y/N]: ' "$prompt" >&2
+  read -r answer || true
+  case "${answer,,}" in
+  y | yes)
     return 0
     ;;
   *)
-    echo "Cancelled."
+    echo "Cancelled." >&2
     return 1
     ;;
   esac
@@ -259,7 +260,7 @@ collect_installed_versions() {
 }
 
 main() {
-  local skip_confirmation=false
+  local assume_yes=false
   local workspace=.
   local workspace_set=false
   local -a ignored_paths_raw=()
@@ -267,8 +268,8 @@ main() {
 
   while [ $# -gt 0 ]; do
     case "$1" in
-    --apply)
-      skip_confirmation=true
+    --yes)
+      assume_yes=true
       shift
       ;;
     --ignore-path)
@@ -406,9 +407,9 @@ main() {
     exit 0
   fi
 
-  if [ "$skip_confirmation" != true ]; then
+  if [ "$assume_yes" != true ]; then
     echo
-    confirm || exit 1
+    confirm_action "Proceed with removing the unused asdf versions and plugins?" || exit 1
   fi
 
   while IFS=$'\t' read -r installed_tool version; do

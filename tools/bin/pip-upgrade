@@ -11,12 +11,12 @@ PIP_UPGRADE_TMPFILE=""
 
 usage() {
   cat <<'EOF'
-Usage: pip-upgrade [--apply] [--scope major|minor|patch] [requirements-file]
+Usage: pip-upgrade [--yes] [--scope major|minor|patch] [requirements-file]
 
 Updates exact requirement pins in a requirements file to newer versions on PyPI.
 
 Options:
-  --apply                   Update the requirements file without prompting
+  --yes                     Update the requirements file without prompting
   --scope SCOPE             Allowed upgrade scope: major, minor, or patch
                             (default: major)
   -h, --help, help        Show this help message
@@ -42,17 +42,18 @@ cleanup_tmpfile() {
   fi
 }
 
-confirm() {
+confirm_action() {
+  local prompt="$1"
   local answer
 
-  printf 'Continue? [y/N] '
-  read -r answer
-  case "$answer" in
-  y | Y | yes | YES)
+  printf '%s [y/N]: ' "$prompt" >&2
+  read -r answer || true
+  case "${answer,,}" in
+  y | yes)
     return 0
     ;;
   *)
-    echo "Cancelled."
+    echo "Cancelled." >&2
     return 1
     ;;
   esac
@@ -146,14 +147,14 @@ print(max(candidates))
 
 main() {
   local requirements_file="requirements.txt"
-  local skip_confirmation=false
+  local assume_yes=false
   local scope="major"
   local tmpfile line name operator current_version target_version suffix
 
   while [ $# -gt 0 ]; do
     case "$1" in
-    --apply)
-      skip_confirmation=true
+    --yes)
+      assume_yes=true
       shift
       ;;
     --scope)
@@ -236,8 +237,8 @@ main() {
     exit 0
   fi
 
-  if [ "$skip_confirmation" != true ]; then
-    confirm || exit 1
+  if [ "$assume_yes" != true ]; then
+    confirm_action "Proceed with updating ${requirements_file}?" || exit 1
   fi
 
   cp "$tmpfile" "$requirements_file"
