@@ -70,17 +70,18 @@ get_default_branch() {
   echo ""
 }
 
-confirm() {
+confirm_action() {
+  local prompt="$1"
   local answer
 
-  printf 'Continue? [y/N] '
-  read -r answer
-  case "$answer" in
-  y | Y | yes | YES)
+  printf '%s [y/N]: ' "$prompt" >&2
+  read -r answer || true
+  case "${answer,,}" in
+  y | yes)
     return 0
     ;;
   *)
-    echo "Cancelled."
+    echo "Cancelled." >&2
     return 1
     ;;
   esac
@@ -182,7 +183,7 @@ main() {
   fi
 
   if [ "$assume_yes" != true ]; then
-    confirm || exit 1
+    confirm_action "Proceed with deleting these branches?" || exit 1
   fi
 
   for branch in "${local_branches[@]}"; do
