@@ -93,12 +93,12 @@ jobs:
         rich>=13.0
         EOF
 
-        if output=$(printf 'n\n' | PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --scope patch "$tmp_dir/requirements.txt"); then
+        if output=$(printf 'n\n' | PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --scope patch "$tmp_dir/requirements.txt" 2>&1); then
           printf '%s\n' "$output" >&2
           exit 1
         fi
         case "$output" in
-          *"Continue? [y/N]"*"Cancelled."*)
+          *"Proceed with updating $tmp_dir/requirements.txt? [y/N]:"*"Cancelled."*)
             ;;
           *)
             printf '%s\n' "$output" >&2
@@ -108,7 +108,7 @@ jobs:
         grep -Fx 'requests==2.31.0' "$tmp_dir/requirements.txt"
         grep -Fx 'urllib3==2.2.0 # keep comment' "$tmp_dir/requirements.txt"
 
-        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --apply --scope patch "$tmp_dir/requirements.txt"
+        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --yes --scope patch "$tmp_dir/requirements.txt"
         grep -Fx 'requests==2.31.1' "$tmp_dir/requirements.txt"
         grep -Fx 'urllib3==2.2.1 # keep comment' "$tmp_dir/requirements.txt"
         grep -Fx 'rich>=13.0' "$tmp_dir/requirements.txt"
@@ -118,7 +118,7 @@ jobs:
         urllib3==2.2.0
         EOF
 
-        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --apply --scope minor "$tmp_dir/requirements.txt"
+        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --yes --scope minor "$tmp_dir/requirements.txt"
         grep -Fx 'requests==2.32.0' "$tmp_dir/requirements.txt"
         grep -Fx 'urllib3==2.3.0' "$tmp_dir/requirements.txt"
 
@@ -126,7 +126,7 @@ jobs:
         requests==2.31.0
         EOF
 
-        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --apply --scope major "$tmp_dir/requirements.txt"
+        PATH="$tmp_dir/bin:$PATH" ./tools/bin/pip-upgrade --yes --scope major "$tmp_dir/requirements.txt"
         grep -Fx 'requests==3.0.0' "$tmp_dir/requirements.txt"
 
     - name: Functional Test git-clean-task-pr no editor
