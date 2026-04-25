@@ -139,6 +139,60 @@ gh_api() {
   fi
 }
 
+download_repo_archive() {
+  local owner="$1"
+  local repo_name="$2"
+  local default_branch="$3"
+  local destination="$4"
+  local url="https://api.github.com/repos/${owner}/${repo_name}/zipball/${default_branch}"
+  local auth_header=()
+  local response_code
+  local message
+  local tmp_zip
+  local attempt=1
+  local max_attempts=3
+
+  if [ -n "${GITHUB_PAT:-}" ]; then
+    auth_header=(-H "Authorization: token ${GITHUB_PAT}")
+  fi
+
+  while [ "$attempt" -le "$max_attempts" ]; do
+    tmp_zip=$(mktemp "${destination}.XXXXXX")
+    response_code=$(curl -sS -L --retry 2 --retry-delay 1 --retry-all-errors \
+      -w '%{http_code}' \
+      -o "$tmp_zip" \
+      "${auth_header[@]}" \
+      "$url" || true)
+
+    if [ -n "$response_code" ] && [ "$response_code" -ge 200 ] && [ "$response_code" -lt 300 ]; then
+      if unzip -tq "$tmp_zip" >/dev/null 2>&1; then
+        mv "$tmp_zip" "$destination"
+        return 0
+      fi
+
+      echo "Downloaded archive for ${repo_name} was not a valid zip file." >&2
+    else
+      message=$(jq -r '.message // empty' <"$tmp_zip" 2>/dev/null || true)
+      if [ -n "$message" ]; then
+        echo "Archive download failed for ${repo_name} (HTTP ${response_code}): ${message}" >&2
+      else
+        echo "Archive download failed for ${repo_name} (HTTP ${response_code:-unknown})." >&2
+      fi
+    fi
+
+    rm -f "$tmp_zip"
+
+    if [ "$attempt" -lt "$max_attempts" ]; then
+      echo "Retrying ${repo_name} download (${attempt}/${max_attempts})..." >&2
+      sleep 1
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  return 1
+}
+
 fetch_all_repos() {
   local name="$1"
   local page=1
@@ -244,14 +298,9 @@ main() {
     fi
 
     local zip_path="${REPOS_DIR}/${repo_name}.zip"
-    local zip_url="https://github.com/${org_name}/${repo_name}/archive/refs/heads/${default_branch}.zip"
-
     echo "Downloading ${repo_name}..."
-    local dl_auth=()
-    if [ -n "${GITHUB_PAT:-}" ]; then
-      dl_auth=(-H "Authorization: token ${GITHUB_PAT}")
-    fi
-    if ! curl -sfL -o "$zip_path" "${dl_auth[@]}" "$zip_url"; then
+    if ! download_repo_archive "$org_name" "$repo_name" "$default_branch" "$zip_path"; then
+      rm -f "$zip_path"
       echo "Failed to download ${repo_name}" >&2
       i=$((i + 1))
       continue
