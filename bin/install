@@ -31,6 +31,11 @@ fi
     exit 1
   fi
 
+  if [ ! -f "$install_path/lib/picotools/load.sh" ]; then
+    echo "Release archive is missing lib/picotools helper contents." >&2
+    exit 1
+  fi
+
   chmod +x "$install_path/bin"/* 2>/dev/null || true
 
   echo "$tool_name v$version installation was successful!"

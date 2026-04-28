@@ -36,7 +36,7 @@ jobs:
 
         chmod +x bin/* tools/bin/*
         mkdir -p dist tmp/download tmp/install
-        tar -czf dist/picotools-test.tar.gz -C . VERSION -C tools bin
+        tar -czf dist/picotools-test.tar.gz -C . VERSION lib -C tools bin
         cp dist/picotools-test.tar.gz tmp/download/
 
         ASDF_INSTALL_TYPE=version \
