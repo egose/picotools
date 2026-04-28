@@ -2,10 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION_FILE="${SCRIPT_DIR}/../VERSION"
-if [ ! -f "$VERSION_FILE" ]; then
-  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
 fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands git prompt version
 
 usage() {
   cat <<'EOF'
@@ -25,66 +29,7 @@ EOF
 }
 
 print_version() {
-  if [ -f "$VERSION_FILE" ]; then
-    tr -d '[:space:]' <"$VERSION_FILE"
-    printf '\n'
-  else
-    echo "unknown"
-  fi
-}
-
-require_git_repo() {
-  if ! command -v git >/dev/null 2>&1; then
-    echo "Error: git is required but not installed" >&2
-    exit 1
-  fi
-
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Error: current directory is not a git repository" >&2
-    exit 1
-  fi
-}
-
-get_default_branch() {
-  local remote="$1"
-  local default_ref default_branch line
-
-  default_ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
-  if [ -n "$default_ref" ]; then
-    echo "${default_ref#"${remote}"/}"
-    return 0
-  fi
-
-  while IFS= read -r line; do
-    case "$line" in
-    *"HEAD branch:"*)
-      default_branch=${line##*: }
-      if [ -n "$default_branch" ]; then
-        echo "$default_branch"
-        return 0
-      fi
-      ;;
-    esac
-  done < <(git remote show "$remote" 2>/dev/null || true)
-
-  echo ""
-}
-
-confirm_action() {
-  local prompt="$1"
-  local answer
-
-  printf '%s [y/N]: ' "$prompt" >&2
-  read -r answer || true
-  case "${answer,,}" in
-  y | yes)
-    return 0
-    ;;
-  *)
-    echo "Cancelled." >&2
-    return 1
-    ;;
-  esac
+  picotools_print_version "$SCRIPT_DIR"
 }
 
 main() {
@@ -118,7 +63,7 @@ main() {
     esac
   done
 
-  require_git_repo
+  picotools_require_git_repo
 
   if ! git remote get-url "$remote" >/dev/null 2>&1; then
     echo "Error: remote '$remote' does not exist" >&2
@@ -135,7 +80,7 @@ main() {
   git fetch "$remote" --prune
 
   local default_branch
-  default_branch=$(get_default_branch "$remote")
+  default_branch=$(picotools_git_default_branch "$remote")
   if [ -z "$default_branch" ]; then
     echo "Error: could not determine the default branch for remote '$remote'" >&2
     exit 1
@@ -183,7 +128,7 @@ main() {
   fi
 
   if [ "$assume_yes" != true ]; then
-    confirm_action "Proceed with deleting these branches?" || exit 1
+    picotools_confirm_action "Proceed with deleting these branches?" || exit 1
   fi
 
   for branch in "${local_branches[@]}"; do

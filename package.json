@@ -18,6 +18,8 @@
     "tools"
   ],
   "scripts": {
+    "test": "bats tests/*.bats",
+    "test:git-context": "bats tests/git-context.bats",
     "release": "release-it",
     "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -n .conventional-changelog.mjs -s -r 0 --skip-unstable"
   },

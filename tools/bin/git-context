@@ -1,0 +1,968 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" prompt table version
+
+usage() {
+  cat <<'EOF'
+Usage: git-context <command>
+
+Commands:
+  create    Create a saved git context
+  update    Update a saved git context
+  list      List saved git contexts
+  read      Show detailed information for a saved git context
+  set       Apply a saved git context to the current repository
+  delete    Delete a saved git context
+
+Options:
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+default_pull_rebase() {
+  printf '%s\n' false
+}
+
+default_rebase_autostash() {
+  printf '%s\n' false
+}
+
+default_push_default() {
+  printf '%s\n' simple
+}
+
+default_push_autosetupremote() {
+  printf '%s\n' false
+}
+
+default_core_editor() {
+  printf '%s\n' vim
+}
+
+default_gpg_program() {
+  printf '%s\n' gpg
+}
+
+context_dir() {
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-contexts"
+}
+
+validate_context_name() {
+  local name="$1"
+
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "Error: context name must match [A-Za-z0-9._-]+" >&2
+    exit 1
+  fi
+}
+
+context_file() {
+  local name="$1"
+  printf '%s/%s.gitconfig\n' "$(context_dir)" "$name"
+}
+
+ensure_context_dir() {
+  mkdir -p "$(context_dir)"
+}
+
+prompt_value() {
+  picotools_prompt_value "$@"
+}
+
+prompt_yes_no() {
+  picotools_prompt_yes_no "$@"
+}
+
+prompt_update_fields() {
+  local allow_gpg_program="$1"
+  local current_gpg_program="$2"
+  local current_autocrlf="$3"
+  local current_file_mode="$4"
+  local current_pull_rebase="$5"
+  local current_rebase_autostash="$6"
+  local current_push_default="$7"
+  local current_push_autosetupremote="$8"
+  local current_core_editor="$9"
+  local selection normalized item
+  local update_gpg_program=no update_autocrlf=no update_file_mode=no
+  local update_pull_rebase=no update_rebase_autostash=no update_push_default=no
+  local update_push_autosetupremote=no update_core_editor=no
+
+  while true; do
+    echo 'Optional settings:' >&2
+    if [ "$allow_gpg_program" = 'yes' ]; then
+      printf '  1. GPG Program [%s]\n' "$current_gpg_program" >&2
+    else
+      printf '  1. GPG Program [-] (requires GPG signing enabled)\n' >&2
+    fi
+    printf '  2. Autocrlf [%s]\n' "$current_autocrlf" >&2
+    printf '  3. FileMode [%s]\n' "$current_file_mode" >&2
+    printf '  4. Pull Rebase [%s]\n' "$current_pull_rebase" >&2
+    printf '  5. Rebase AutoStash [%s]\n' "$current_rebase_autostash" >&2
+    printf '  6. Push Default [%s]\n' "$current_push_default" >&2
+    printf '  7. Push AutoSetupRemote [%s]\n' "$current_push_autosetupremote" >&2
+    printf '  8. Core Editor [%s]\n' "$current_core_editor" >&2
+    printf 'Select options to update (comma-separated numbers): ' >&2
+
+    read -r selection || true
+    normalized=${selection//[[:space:]]/}
+    update_gpg_program=no
+    update_autocrlf=no
+    update_file_mode=no
+    update_pull_rebase=no
+    update_rebase_autostash=no
+    update_push_default=no
+    update_push_autosetupremote=no
+    update_core_editor=no
+
+    if [ -z "$normalized" ]; then
+      echo 'Please choose at least one option.' >&2
+      continue
+    fi
+
+    IFS=',' read -r -a items <<<"$normalized"
+    for item in "${items[@]}"; do
+      case "$item" in
+      1)
+        if [ "$allow_gpg_program" != 'yes' ]; then
+          echo 'GPG Program can only be updated when GPG signing is enabled for the context.' >&2
+          continue 2
+        fi
+        update_gpg_program=yes
+        ;;
+      2)
+        update_autocrlf=yes
+        ;;
+      3)
+        update_file_mode=yes
+        ;;
+      4)
+        update_pull_rebase=yes
+        ;;
+      5)
+        update_rebase_autostash=yes
+        ;;
+      6)
+        update_push_default=yes
+        ;;
+      7)
+        update_push_autosetupremote=yes
+        ;;
+      8)
+        update_core_editor=yes
+        ;;
+      *)
+        echo "Error: invalid selection '$item'" >&2
+        continue 2
+        ;;
+      esac
+    done
+
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$update_gpg_program" \
+      "$update_autocrlf" \
+      "$update_file_mode" \
+      "$update_pull_rebase" \
+      "$update_rebase_autostash" \
+      "$update_push_default" \
+      "$update_push_autosetupremote" \
+      "$update_core_editor"
+    return 0
+  done
+}
+
+write_context_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  git config -f "$file" "$key" "$value"
+}
+
+read_context_value() {
+  local file="$1"
+  local key="$2"
+
+  git config -f "$file" --get "$key"
+}
+
+read_context_value_optional() {
+  local file="$1"
+  local key="$2"
+
+  git config -f "$file" --get "$key" 2>/dev/null || true
+}
+
+read_context_value_with_default() {
+  local file="$1"
+  local key="$2"
+  local default_value="$3"
+  local value
+
+  value=$(read_context_value_optional "$file" "$key")
+  if [ -n "$value" ]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' "$default_value"
+  fi
+}
+
+read_managed_context_value() {
+  local file="$1"
+  local key="$2"
+
+  case "$key" in
+  commit.gpgsign | tag.gpgsign)
+    read_context_value_with_default "$file" "$key" false
+    ;;
+  core.autocrlf)
+    read_context_value_with_default "$file" "$key" false
+    ;;
+  core.fileMode)
+    read_context_value_with_default "$file" "$key" true
+    ;;
+  pull.rebase)
+    read_context_value_with_default "$file" "$key" "$(default_pull_rebase)"
+    ;;
+  rebase.autoStash)
+    read_context_value_with_default "$file" "$key" "$(default_rebase_autostash)"
+    ;;
+  push.default)
+    read_context_value_with_default "$file" "$key" "$(default_push_default)"
+    ;;
+  push.autoSetupRemote)
+    read_context_value_with_default "$file" "$key" "$(default_push_autosetupremote)"
+    ;;
+  core.editor)
+    read_context_value_with_default "$file" "$key" "$(default_core_editor)"
+    ;;
+  *)
+    read_context_value "$file" "$key"
+    ;;
+  esac
+}
+
+context_uses_gpg() {
+  local file="$1"
+
+  [ "$(read_managed_context_value "$file" commit.gpgsign)" = 'true' ]
+}
+
+public_ssh_key_path() {
+  local ssh_key_path="$1"
+
+  if [ -n "$ssh_key_path" ] && [ -f "$ssh_key_path.pub" ]; then
+    printf '%s\n' "$ssh_key_path.pub"
+  fi
+}
+
+print_public_ssh_key() {
+  local public_key_path="$1"
+
+  printf '\nPublic SSH Key (%s):\n' "$public_key_path"
+  printf '%s\n' "$(<"$public_key_path")"
+}
+
+context_name_from_file() {
+  local file="$1"
+
+  basename "$file" .gitconfig
+}
+
+write_local_value() {
+  local key="$1"
+  local value="$2"
+
+  unset_local_value "$key"
+  git config --local "$key" "$value"
+}
+
+unset_local_value() {
+  local key="$1"
+
+  git config --local --unset-all "$key" 2>/dev/null || true
+}
+
+saved_context_files() {
+  local dir
+
+  dir=$(context_dir)
+  if [ ! -d "$dir" ] || ! compgen -G "$dir/*.gitconfig" >/dev/null; then
+    return 1
+  fi
+
+  printf '%s\n' "$dir"/*.gitconfig | sort
+}
+
+display_context_value() {
+  local value="${1:-}"
+
+  if [ -n "$value" ]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' '-'
+  fi
+}
+
+format_context_summary_row() {
+  local file="$1"
+  local name ssh_enabled gpg_enabled user_name email ssh_command
+
+  name=$(context_name_from_file "$file")
+  user_name=$(git config -f "$file" --get user.name)
+  email=$(git config -f "$file" --get user.email)
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+
+  if [ -n "$ssh_command" ]; then
+    ssh_enabled=yes
+  else
+    ssh_enabled=no
+  fi
+
+  if context_uses_gpg "$file"; then
+    gpg_enabled=yes
+  else
+    gpg_enabled=no
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\n' \
+    "$name" \
+    "$user_name" \
+    "$email" \
+    "$ssh_enabled" \
+    "$gpg_enabled"
+}
+
+print_context_detail() {
+  local file="$1"
+  local name user_name email ssh_command ssh_key_path signing_key gpg_program
+  local autocrlf file_mode pull_rebase rebase_autostash push_default
+  local push_autosetupremote core_editor commit_gpgsign tag_gpgsign
+  local public_key_path show_public_key
+
+  name=$(context_name_from_file "$file")
+  user_name=$(read_context_value "$file" user.name)
+  email=$(read_context_value "$file" user.email)
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  signing_key=$(read_context_value_optional "$file" user.signingkey)
+  gpg_program=$(read_context_value_optional "$file" gpg.program)
+  commit_gpgsign=$(read_managed_context_value "$file" commit.gpgsign)
+  tag_gpgsign=$(read_managed_context_value "$file" tag.gpgsign)
+  autocrlf=$(read_managed_context_value "$file" core.autocrlf)
+  file_mode=$(read_managed_context_value "$file" core.fileMode)
+  pull_rebase=$(read_managed_context_value "$file" pull.rebase)
+  rebase_autostash=$(read_managed_context_value "$file" rebase.autoStash)
+  push_default=$(read_managed_context_value "$file" push.default)
+  push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
+  core_editor=$(read_managed_context_value "$file" core.editor)
+
+  print_two_column_table \
+    $'Name	'"$name" \
+    $'User	'"$user_name" \
+    $'Email	'"$email" \
+    $'SSH	'"$([ -n "$ssh_command" ] && printf yes || printf no)" \
+    $'SSH Key	'"$(display_context_value "$ssh_key_path")" \
+    $'SSH Command	'"$(display_context_value "$ssh_command")" \
+    $'GPG	'"$([ "$commit_gpgsign" = 'true' ] && printf yes || printf no)" \
+    $'Signing Key	'"$(display_context_value "$signing_key")" \
+    $'Commit GPG Sign	'"$commit_gpgsign" \
+    $'Tag GPG Sign	'"$tag_gpgsign" \
+    $'GPG Program	'"$(display_context_value "$gpg_program")" \
+    $'Autocrlf	'"$autocrlf" \
+    $'FileMode	'"$file_mode" \
+    $'Pull Rebase	'"$pull_rebase" \
+    $'Rebase AutoStash	'"$rebase_autostash" \
+    $'Push Default	'"$push_default" \
+    $'Push AutoSetupRemote	'"$push_autosetupremote" \
+    $'Core Editor	'"$core_editor"
+
+  public_key_path=$(public_ssh_key_path "$ssh_key_path")
+
+  if [ -n "$public_key_path" ]; then
+    show_public_key=$(prompt_yes_no 'Display public SSH key?' no)
+    if [ "$show_public_key" = 'yes' ]; then
+      print_public_ssh_key "$public_key_path"
+    fi
+  fi
+}
+
+print_two_column_table() {
+  picotools_print_two_column_table "$@"
+}
+
+build_ssh_command() {
+  local ssh_key_path="$1"
+  local ssh_command
+
+  printf -v ssh_command 'ssh -i %q -o IdentitiesOnly=yes' "$ssh_key_path"
+  printf '%s\n' "$ssh_command"
+}
+
+next_generated_ssh_key_path() {
+  local context_name="$1"
+  local ssh_dir normalized_name base_path ssh_key_path suffix
+
+  ssh_dir="$HOME/.ssh"
+  normalized_name=${context_name//[^A-Za-z0-9]/_}
+  normalized_name=${normalized_name,,}
+  base_path="$ssh_dir/id_ed25519_$normalized_name"
+  ssh_key_path="$base_path"
+  suffix=1
+
+  while [ -e "$ssh_key_path" ] || [ -e "$ssh_key_path.pub" ]; do
+    ssh_key_path="${base_path}_$suffix"
+    suffix=$((suffix + 1))
+  done
+
+  printf '%s\n' "$ssh_key_path"
+}
+
+extract_ssh_key_path() {
+  local ssh_command="$1"
+  local ssh_key_path
+
+  if [ -z "$ssh_command" ]; then
+    return 0
+  fi
+
+  case "$ssh_command" in
+  'ssh -i '*" -o IdentitiesOnly=yes")
+    ssh_key_path=${ssh_command#'ssh -i '}
+    ssh_key_path=${ssh_key_path%' -o IdentitiesOnly=yes'}
+    ;;
+  *)
+    return 0
+    ;;
+  esac
+
+  case "$ssh_key_path" in
+  *"'"* | *'"'* | *"\$("* | *[\`]*)
+    return 0
+    ;;
+  esac
+
+  ssh_key_path=${ssh_key_path//\\/\\}
+  ssh_key_path=${ssh_key_path//\ / }
+  case "$ssh_key_path" in
+  *\\*)
+    return 0
+    ;;
+  esac
+
+  printf '%s\n' "$ssh_key_path"
+}
+
+require_existing_file() {
+  local path="$1"
+  local description="$2"
+
+  if [ ! -f "$path" ]; then
+    echo "Error: $description does not exist: $path" >&2
+    exit 1
+  fi
+}
+
+delete_ssh_key_files() {
+  local ssh_key_path="$1"
+
+  if [ -z "$ssh_key_path" ]; then
+    return 0
+  fi
+
+  rm -f "$ssh_key_path" "$ssh_key_path.pub"
+}
+
+delete_gpg_key() {
+  local signing_key="$1"
+  local gpg_program="${2:-gpg}"
+
+  if [ -z "$signing_key" ]; then
+    return 0
+  fi
+
+  "$gpg_program" --batch --yes --delete-secret-and-public-key "$signing_key"
+}
+
+generate_ssh_key() {
+  local email="$1"
+  local context_name="$2"
+  local ssh_key_path
+
+  ssh_key_path=$(next_generated_ssh_key_path "$context_name")
+  mkdir -p "$(dirname "$ssh_key_path")"
+
+  ssh-keygen -t ed25519 -C "$email" -f "$ssh_key_path" >&2
+  require_existing_file "$ssh_key_path" 'Generated SSH private key path'
+
+  printf '%s\n' "$ssh_key_path"
+}
+
+resolve_ssh_command() {
+  local email="$1"
+  local context_name="$2"
+  local current_path="${3:-}"
+  local label ssh_key_path
+
+  label='SSH private key path (leave blank to generate)'
+  if [ -n "$current_path" ]; then
+    label="$label [current: $current_path]"
+  fi
+
+  ssh_key_path=$(prompt_value "$label")
+  if [ -n "$ssh_key_path" ]; then
+    require_existing_file "$ssh_key_path" 'SSH private key path'
+  else
+    if ! ssh_key_path=$(generate_ssh_key "$email" "$context_name"); then
+      return 1
+    fi
+  fi
+
+  build_ssh_command "$ssh_key_path"
+}
+
+generate_signing_key() {
+  local user_name="$1"
+  local email="$2"
+  local signing_key
+  local batch_file
+  local status_file
+  local line
+
+  batch_file=$(mktemp)
+  status_file=$(mktemp)
+  {
+    printf '%s\n' 'Key-Type: RSA'
+    printf '%s\n' 'Key-Length: 3072'
+    printf '%s\n' 'Key-Usage: sign cert'
+    printf '%s\n' 'Subkey-Type: RSA'
+    printf '%s\n' 'Subkey-Length: 3072'
+    printf '%s\n' 'Subkey-Usage: encrypt'
+    printf '%s\n' "Name-Real: $user_name"
+    printf '%s\n' "Name-Email: $email"
+    printf '%s\n' 'Expire-Date: 0'
+    printf '%s\n' '%commit'
+  } >"$batch_file"
+
+  exec 3>"$status_file"
+  if ! gpg --batch --status-fd 3 --generate-key "$batch_file"; then
+    exec 3>&-
+    rm -f "$batch_file"
+    rm -f "$status_file"
+    return 1
+  fi
+  exec 3>&-
+
+  rm -f "$batch_file"
+  while IFS= read -r line; do
+    case "$line" in
+    '[GNUPG:] KEY_CREATED '*)
+      signing_key=${line##* }
+      ;;
+    esac
+  done <"$status_file"
+  rm -f "$status_file"
+
+  if [ -z "$signing_key" ]; then
+    echo 'Error: failed to determine generated GPG signing key' >&2
+    return 1
+  fi
+
+  printf '%s\n' "$signing_key"
+}
+
+resolve_signing_key() {
+  local current_key="${1:-}"
+  local user_name="$2"
+  local email="$3"
+  local label signing_key
+
+  label='GPG signing key (leave blank to generate)'
+  if [ -n "$current_key" ]; then
+    label="$label [current: $current_key]"
+  fi
+
+  signing_key=$(prompt_value "$label")
+  if [ -z "$signing_key" ]; then
+    if ! signing_key=$(generate_signing_key "$user_name" "$email"); then
+      return 1
+    fi
+  fi
+
+  printf '%s\n' "$signing_key"
+}
+
+save_context() {
+  local file="$1"
+  local user_name="$2"
+  local email="$3"
+  local use_ssh="$4"
+  local ssh_command="$5"
+  local use_gpg="$6"
+  local signing_key="$7"
+  local gpg_program="$8"
+  local autocrlf="$9"
+  local file_mode="${10}"
+  local pull_rebase="${11}"
+  local rebase_autostash="${12}"
+  local push_default="${13}"
+  local push_autosetupremote="${14}"
+  local core_editor="${15}"
+
+  rm -f "$file"
+
+  write_context_value "$file" user.name "$user_name"
+  write_context_value "$file" user.email "$email"
+
+  if [ "$use_ssh" = 'yes' ]; then
+    write_context_value "$file" core.sshCommand "$ssh_command"
+  fi
+
+  if [ "$use_gpg" = 'yes' ]; then
+    write_context_value "$file" user.signingkey "$signing_key"
+    write_context_value "$file" commit.gpgsign true
+    write_context_value "$file" tag.gpgsign true
+    write_context_value "$file" gpg.program "$gpg_program"
+  else
+    write_context_value "$file" commit.gpgsign false
+    write_context_value "$file" tag.gpgsign false
+  fi
+
+  write_context_value "$file" core.autocrlf "$autocrlf"
+  write_context_value "$file" core.fileMode "$file_mode"
+  write_context_value "$file" pull.rebase "$pull_rebase"
+  write_context_value "$file" rebase.autoStash "$rebase_autostash"
+  write_context_value "$file" push.default "$push_default"
+  write_context_value "$file" push.autoSetupRemote "$push_autosetupremote"
+  write_context_value "$file" core.editor "$core_editor"
+}
+
+create_context() {
+  local name user_name email use_ssh use_gpg file autocrlf file_mode overwrite
+  local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
+  local ssh_command='' signing_key='' gpg_program=''
+
+  name=$(prompt_value 'Context name')
+  validate_context_name "$name"
+  file=$(context_file "$name")
+  ensure_context_dir
+
+  if [ -f "$file" ]; then
+    overwrite=$(prompt_yes_no "Context '$name' already exists. Overwrite?" no)
+    if [ "$overwrite" != 'yes' ]; then
+      echo 'Cancelled.' >&2
+      exit 1
+    fi
+  fi
+
+  user_name=$(prompt_value 'Git user name')
+  email=$(prompt_value 'Git email')
+  use_ssh=$(prompt_yes_no 'Use SSH connection?' no)
+
+  if [ "$use_ssh" = 'yes' ]; then
+    if ! ssh_command=$(resolve_ssh_command "$email" "$name"); then
+      exit 1
+    fi
+  fi
+
+  use_gpg=$(prompt_yes_no 'Use GPG signing?' no)
+
+  if [ "$use_gpg" = 'yes' ]; then
+    if ! signing_key=$(resolve_signing_key '' "$user_name" "$email"); then
+      exit 1
+    fi
+    gpg_program=$(default_gpg_program)
+  fi
+
+  autocrlf=false
+  file_mode=true
+  pull_rebase=$(default_pull_rebase)
+  rebase_autostash=$(default_rebase_autostash)
+  push_default=$(default_push_default)
+  push_autosetupremote=$(default_push_autosetupremote)
+  core_editor=$(default_core_editor)
+
+  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor"
+
+  echo "Saved context '$name'."
+}
+
+list_contexts() {
+  local file
+  local -a rows=()
+
+  if ! saved_context_files >/dev/null; then
+    echo 'No git contexts found.'
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    rows+=("$(format_context_summary_row "$file")")
+  done < <(saved_context_files)
+
+  picotools_print_table $'Name\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
+}
+
+read_context() {
+  local file
+
+  file=$(select_context_file)
+  print_context_detail "$file"
+}
+
+select_context_file() {
+  local index=1 selection file name
+  local files=()
+
+  if ! saved_context_files >/dev/null; then
+    echo 'No git contexts found.' >&2
+    exit 1
+  fi
+
+  while IFS= read -r file; do
+    files+=("$file")
+    name=$(context_name_from_file "$file")
+    printf '%d. %s\n' "$index" "$name" >&2
+    index=$((index + 1))
+  done < <(saved_context_files)
+
+  printf 'Select context: ' >&2
+  read -r selection || true
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
+    echo 'Error: invalid selection' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${files[$((selection - 1))]}"
+}
+
+delete_context() {
+  local file confirm delete_ssh delete_gpg ssh_key_path signing_key gpg_program
+
+  file=$(select_context_file)
+  confirm=$(prompt_yes_no "Delete '$(context_name_from_file "$file")'?" no)
+  if [ "$confirm" != 'yes' ]; then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
+
+  signing_key=$(read_context_value_optional "$file" user.signingkey)
+  gpg_program=$(read_context_value_optional "$file" gpg.program)
+  if [ -z "$gpg_program" ]; then
+    gpg_program=$(default_gpg_program)
+  fi
+
+  if [ -n "$signing_key" ]; then
+    delete_gpg=$(prompt_yes_no "Delete GPG signing key '$signing_key'?" no)
+    if [ "$delete_gpg" = 'yes' ]; then
+      delete_gpg_key "$signing_key" "$gpg_program"
+    fi
+  fi
+
+  ssh_key_path=$(extract_ssh_key_path "$(read_context_value_optional "$file" core.sshCommand)")
+  if [ -n "$ssh_key_path" ]; then
+    delete_ssh=$(prompt_yes_no "Delete SSH key files '$ssh_key_path' and '$ssh_key_path.pub'?" no)
+    if [ "$delete_ssh" = 'yes' ]; then
+      delete_ssh_key_files "$ssh_key_path"
+    fi
+  fi
+
+  rm -f "$file"
+  echo 'Deleted context.'
+}
+
+ensure_git_repository() {
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" != 'true' ]; then
+    echo 'Error: set must be run inside a Git repository' >&2
+    exit 1
+  fi
+}
+
+apply_context() {
+  local file="$1"
+  local signing_key gpg_program ssh_command
+
+  write_local_value user.name "$(read_context_value "$file" user.name)"
+  write_local_value user.email "$(read_context_value "$file" user.email)"
+  write_local_value commit.gpgsign "$(read_managed_context_value "$file" commit.gpgsign)"
+  write_local_value tag.gpgsign "$(read_managed_context_value "$file" tag.gpgsign)"
+  write_local_value core.autocrlf "$(read_managed_context_value "$file" core.autocrlf)"
+  write_local_value core.fileMode "$(read_managed_context_value "$file" core.fileMode)"
+  write_local_value pull.rebase "$(read_managed_context_value "$file" pull.rebase)"
+  write_local_value rebase.autoStash "$(read_managed_context_value "$file" rebase.autoStash)"
+  write_local_value push.default "$(read_managed_context_value "$file" push.default)"
+  write_local_value push.autoSetupRemote "$(read_managed_context_value "$file" push.autoSetupRemote)"
+  write_local_value core.editor "$(read_managed_context_value "$file" core.editor)"
+
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  if [ -n "$ssh_command" ]; then
+    write_local_value core.sshCommand "$ssh_command"
+  else
+    unset_local_value core.sshCommand
+  fi
+
+  signing_key=$(read_context_value_optional "$file" user.signingkey)
+  if [ -n "$signing_key" ]; then
+    write_local_value user.signingkey "$signing_key"
+  else
+    unset_local_value user.signingkey
+  fi
+
+  gpg_program=$(read_context_value_optional "$file" gpg.program)
+  if [ -n "$gpg_program" ]; then
+    write_local_value gpg.program "$gpg_program"
+  else
+    unset_local_value gpg.program
+  fi
+}
+
+set_context() {
+  local file
+
+  ensure_git_repository
+  file=$(select_context_file)
+  apply_context "$file"
+  echo "Applied context '$(context_name_from_file "$file")'."
+}
+
+update_context() {
+  local file name user_name email ssh_command use_ssh
+  local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
+  local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
+  local update_gpg_program update_autocrlf update_file_mode update_pull_rebase
+  local update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor
+  local selected_fields
+
+  file=$(select_context_file)
+  name=$(context_name_from_file "$file")
+  user_name=$(read_context_value "$file" user.name)
+  email=$(read_context_value "$file" user.email)
+
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  if [ -n "$ssh_command" ]; then
+    use_ssh=yes
+  else
+    use_ssh=no
+  fi
+
+  commit_gpgsign=$(read_managed_context_value "$file" commit.gpgsign)
+  if [ "$commit_gpgsign" = 'true' ]; then
+    use_gpg=yes
+  else
+    use_gpg=no
+  fi
+
+  signing_key=$(read_context_value_optional "$file" user.signingkey)
+  gpg_program=$(read_context_value_optional "$file" gpg.program)
+  autocrlf=$(read_managed_context_value "$file" core.autocrlf)
+  file_mode=$(read_managed_context_value "$file" core.fileMode)
+  pull_rebase=$(read_managed_context_value "$file" pull.rebase)
+  rebase_autostash=$(read_managed_context_value "$file" rebase.autoStash)
+  push_default=$(read_managed_context_value "$file" push.default)
+  push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
+  core_editor=$(read_managed_context_value "$file" core.editor)
+
+  selected_fields=$(prompt_update_fields "$use_gpg" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor")
+  IFS=$'\t' read -r update_gpg_program update_autocrlf update_file_mode update_pull_rebase update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor <<<"$selected_fields"
+
+  if [ "$update_gpg_program" = 'yes' ]; then
+    gpg_program=$(prompt_value 'gpg.program' "$gpg_program")
+    if [ -z "$gpg_program" ]; then
+      gpg_program=$(default_gpg_program)
+    fi
+  fi
+
+  if [ "$update_autocrlf" = 'yes' ]; then
+    autocrlf=$(prompt_value 'core.autocrlf' "$autocrlf")
+  fi
+
+  if [ "$update_file_mode" = 'yes' ]; then
+    file_mode=$(prompt_value 'core.fileMode' "$file_mode")
+  fi
+
+  if [ "$update_pull_rebase" = 'yes' ]; then
+    pull_rebase=$(prompt_value 'pull.rebase' "$pull_rebase")
+  fi
+
+  if [ "$update_rebase_autostash" = 'yes' ]; then
+    rebase_autostash=$(prompt_value 'rebase.autoStash' "$rebase_autostash")
+  fi
+
+  if [ "$update_push_default" = 'yes' ]; then
+    push_default=$(prompt_value 'push.default' "$push_default")
+  fi
+
+  if [ "$update_push_autosetupremote" = 'yes' ]; then
+    push_autosetupremote=$(prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
+  fi
+
+  if [ "$update_core_editor" = 'yes' ]; then
+    core_editor=$(prompt_value 'core.editor' "$core_editor")
+  fi
+
+  if [ "$use_gpg" = 'yes' ] && [ -z "$gpg_program" ]; then
+    gpg_program=$(default_gpg_program)
+  fi
+
+  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor"
+  echo "Updated context '$name'."
+}
+
+main() {
+  case "${1:-}" in
+  -h | --help | help | "")
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  create)
+    shift
+    create_context "$@"
+    ;;
+  list)
+    shift
+    list_contexts "$@"
+    ;;
+  read)
+    shift
+    read_context "$@"
+    ;;
+  delete)
+    shift
+    delete_context "$@"
+    ;;
+  set)
+    shift
+    set_context "$@"
+    ;;
+  update)
+    shift
+    update_context "$@"
+    ;;
+  *)
+    echo "Error: unknown command '$1'" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"
