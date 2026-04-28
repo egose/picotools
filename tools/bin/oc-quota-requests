@@ -2,10 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION_FILE="${SCRIPT_DIR}/../VERSION"
-if [ ! -f "$VERSION_FILE" ]; then
-  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
 fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands openshift string table version
 
 OC_QUOTA_REQUESTS_NAMESPACE=""
 OC_QUOTA_REQUESTS_QUOTA_NAME="compute-long-running-quota"
@@ -37,37 +41,15 @@ EOF
 }
 
 print_version() {
-  if [ -f "$VERSION_FILE" ]; then
-    tr -d '[:space:]' <"$VERSION_FILE"
-    printf '\n'
-  else
-    echo "unknown"
-  fi
-}
-
-require_oc() {
-  if ! command -v oc >/dev/null 2>&1; then
-    echo "Error: oc is required but not installed" >&2
-    exit 1
-  fi
+  picotools_print_version "$SCRIPT_DIR"
 }
 
 run_oc() {
-  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
-    oc -n "$OC_QUOTA_REQUESTS_NAMESPACE" "$@"
-  else
-    oc "$@"
-  fi
+  picotools_oc "$OC_QUOTA_REQUESTS_NAMESPACE" "$@"
 }
 
 run_oc_adm_top_pods() {
-  local cmd=(oc adm top pods --no-headers)
-
-  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
-    cmd+=(--namespace "$OC_QUOTA_REQUESTS_NAMESPACE")
-  fi
-
-  "${cmd[@]}"
+  picotools_oc_adm_top_pods "$OC_QUOTA_REQUESTS_NAMESPACE"
 }
 
 current_namespace() {
@@ -79,16 +61,9 @@ current_namespace() {
   oc project -q 2>/dev/null || printf '<current>\n'
 }
 
-trim_whitespace() {
-  local value="$1"
-  value="${value#"${value%%[![:space:]]*}"}"
-  value="${value%"${value##*[![:space:]]}"}"
-  printf '%s\n' "$value"
-}
-
 parse_cpu_to_millicores() {
   local value
-  value=$(trim_whitespace "$1")
+  value=$(picotools_trim_whitespace "$1")
 
   case "$value" in
   "" | "<none>" | "-")
@@ -111,7 +86,7 @@ parse_cpu_to_millicores() {
 
 parse_memory_to_bytes() {
   local value
-  value=$(trim_whitespace "$1")
+  value=$(picotools_trim_whitespace "$1")
 
   case "$value" in
   "" | "<none>" | "-")
@@ -200,6 +175,14 @@ format_percentage() {
   awk -v used="$used" -v total="$total" 'BEGIN { printf "%.2f%%", (used / total) * 100 }'
 }
 
+print_table() {
+  picotools_print_table "$@"
+}
+
+print_two_column_table() {
+  picotools_print_two_column_table "$@"
+}
+
 value_in_csv() {
   local needle="$1"
   local csv="$2"
@@ -254,24 +237,27 @@ describe_quota_scope_filters() {
   local scope_name
   local operator_name
   local values
+  local -a rows=()
 
   if [ "${#QUOTA_SCOPE_NAMES[@]}" -eq 0 ] && [ "${#QUOTA_SCOPE_EXPRESSIONS[@]}" -eq 0 ]; then
-    printf '  none\n'
+    print_table $'Type\tRule' $'none\t-'
     return 0
   fi
 
   for line in "${QUOTA_SCOPE_NAMES[@]}"; do
-    printf '  scope: %s\n' "$line"
+    rows+=("scope\t${line}")
   done
 
   for line in "${QUOTA_SCOPE_EXPRESSIONS[@]}"; do
     IFS=$'\t' read -r scope_name operator_name values <<<"$line"
     if [ -n "$values" ]; then
-      printf '  scopeSelector: %s %s [%s]\n' "$scope_name" "$operator_name" "$values"
+      rows+=("scopeSelector\t${scope_name} ${operator_name} [${values}]")
     else
-      printf '  scopeSelector: %s %s\n' "$scope_name" "$operator_name"
+      rows+=("scopeSelector\t${scope_name} ${operator_name}")
     fi
   done
+
+  print_table $'Type\tRule' "${rows[@]}"
 }
 
 evaluate_simple_scope() {
@@ -528,33 +514,43 @@ print_report() {
   local usage_memory
   local remaining_cpu
   local remaining_memory
+  local -a overview_rows=()
+  local -a quota_rows=()
+  local -a pod_rows=()
+  local -a total_rows=()
 
   remaining_cpu=$((quota_hard_cpu - quota_used_cpu))
   remaining_memory=$((quota_hard_memory - quota_used_memory))
 
-  printf 'Namespace: %s\n' "$namespace_name"
-  printf 'Quota: %s\n\n' "$OC_QUOTA_REQUESTS_QUOTA_NAME"
+  overview_rows=(
+    "Namespace\t${namespace_name}"
+    "Quota\t${OC_QUOTA_REQUESTS_QUOTA_NAME}"
+  )
+
+  quota_rows=(
+    "requests.cpu\t$(format_millicores "$quota_used_cpu")\t$(format_millicores "$quota_hard_cpu")\t$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")\t$(format_millicores "$remaining_cpu")"
+    "requests.memory\t$(format_mib "$quota_used_memory")\t$(format_mib "$quota_hard_memory")\t$(format_percentage "$quota_used_memory" "$quota_hard_memory")\t$(format_mib "$remaining_memory")"
+  )
+
+  total_rows=(
+    "Analyzed requests\t$(format_millicores "$analyzed_request_cpu")\t$(format_mib "$analyzed_request_memory")"
+    "Analyzed usage\t$(format_millicores "$analyzed_usage_cpu")\t$(format_mib "$analyzed_usage_memory")"
+    "Quota-matching requests\t$(format_millicores "$quota_matching_request_cpu")\t$(format_mib "$quota_matching_request_memory")"
+    "Remaining quota\t$(format_millicores "$remaining_cpu")\t$(format_mib "$remaining_memory")"
+  )
+
+  print_two_column_table "${overview_rows[@]}"
+  printf '\n'
 
   printf 'Quota scope filters:\n'
   describe_quota_scope_filters
   printf '\n'
 
-  printf 'Quota ceiling:\n'
-  printf '  requests.cpu: %s\n' "$(format_millicores "$quota_hard_cpu")"
-  printf '  requests.memory: %s\n\n' "$(format_mib "$quota_hard_memory")"
-
   printf 'Quota usage from resource quota:\n'
-  printf '  requests.cpu: %s / %s (%s)\n' \
-    "$(format_millicores "$quota_used_cpu")" \
-    "$(format_millicores "$quota_hard_cpu")" \
-    "$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")"
-  printf '  requests.memory: %s / %s (%s)\n\n' \
-    "$(format_mib "$quota_used_memory")" \
-    "$(format_mib "$quota_hard_memory")" \
-    "$(format_percentage "$quota_used_memory" "$quota_hard_memory")"
+  print_table $'Resource\tUsed\tLimit\tUsage\tRemaining' "${quota_rows[@]}"
+  printf '\n'
 
   printf 'Pods:\n'
-  printf '%-40s %10s %10s %10s %10s\n' 'POD' 'REQ_CPU' 'USE_CPU' 'REQ_MEM' 'USE_MEM'
 
   for pod_name in "${pods[@]}"; do
     if [ "${POD_QUOTA_MATCH_STATE[$pod_name]:-unknown}" = 'skip' ]; then
@@ -578,23 +574,13 @@ print_report() {
       usage_memory='n/a'
     fi
 
-    printf '%-40s %10s %10s %10s %10s\n' \
-      "$pod_name" \
-      "$(format_millicores "$request_cpu")" \
-      "$usage_cpu" \
-      "$(format_mib "$request_memory")" \
-      "$usage_memory"
+    pod_rows+=("${pod_name}\t$(format_millicores "$request_cpu")\t${usage_cpu}\t$(format_mib "$request_memory")\t${usage_memory}")
   done
 
+  print_table $'Pod\tReq CPU\tUse CPU\tReq Mem\tUse Mem' "${pod_rows[@]}"
+
   printf '\nTotals:\n'
-  printf '  requests.cpu: %s\n' "$(format_millicores "$analyzed_request_cpu")"
-  printf '  requests.memory: %s\n' "$(format_mib "$analyzed_request_memory")"
-  printf '  usage.cpu: %s\n' "$(format_millicores "$analyzed_usage_cpu")"
-  printf '  usage.memory: %s\n' "$(format_mib "$analyzed_usage_memory")"
-  printf '  quota requests.cpu: %s\n' "$(format_millicores "$quota_matching_request_cpu")"
-  printf '  quota requests.memory: %s\n' "$(format_mib "$quota_matching_request_memory")"
-  printf '  remaining requests.cpu quota: %s\n' "$(format_millicores "$remaining_cpu")"
-  printf '  remaining requests.memory quota: %s\n' "$(format_mib "$remaining_memory")"
+  print_table $'Metric\tCPU\tMemory' "${total_rows[@]}"
 
   if [ "$quota_matching_request_cpu" -ne "$quota_used_cpu" ] || [ "$quota_matching_request_memory" -ne "$quota_used_memory" ]; then
     printf '\nNote: quota-matching pod totals still differ from the resource quota status. This can happen from controller lag or unsupported quota scopes.\n'
@@ -661,7 +647,7 @@ main() {
     esac
   done
 
-  require_oc
+  picotools_require_oc
   namespace_name=$(current_namespace)
 
   quota_data=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{.status.hard.requests\.cpu}{"\t"}{.status.hard.requests\.memory}{"\t"}{.status.used.requests\.cpu}{"\t"}{.status.used.requests\.memory}')

@@ -2,10 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION_FILE="${SCRIPT_DIR}/../VERSION"
-if [ ! -f "$VERSION_FILE" ]; then
-  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
 fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" prompt table version
 
 usage() {
   cat <<'EOF'
@@ -26,12 +30,7 @@ EOF
 }
 
 print_version() {
-  if [ -f "$VERSION_FILE" ]; then
-    tr -d '[:space:]' <"$VERSION_FILE"
-    printf '\n'
-  else
-    echo "unknown"
-  fi
+  picotools_print_version "$SCRIPT_DIR"
 }
 
 default_pull_rebase() {
@@ -81,57 +80,11 @@ ensure_context_dir() {
 }
 
 prompt_value() {
-  local label="$1"
-  local default_value="${2:-}"
-  local answer
-
-  if [ -n "$default_value" ]; then
-    printf '%s [%s]: ' "$label" "$default_value" >&2
-  else
-    printf '%s: ' "$label" >&2
-  fi
-
-  read -r answer || true
-  if [ -n "$answer" ]; then
-    printf '%s\n' "$answer"
-  else
-    printf '%s\n' "$default_value"
-  fi
+  picotools_prompt_value "$@"
 }
 
 prompt_yes_no() {
-  local label="$1"
-  local default_value="$2"
-  local prompt answer normalized
-
-  if [ "$default_value" = "yes" ]; then
-    prompt='[Y/n]'
-  else
-    prompt='[y/N]'
-  fi
-
-  while true; do
-    printf '%s %s: ' "$label" "$prompt" >&2
-    read -r answer || true
-    normalized=${answer,,}
-
-    if [ -z "$normalized" ]; then
-      normalized="$default_value"
-    fi
-
-    case "$normalized" in
-    y | yes)
-      printf 'yes\n'
-      return 0
-      ;;
-    n | no)
-      printf 'no\n'
-      return 0
-      ;;
-    esac
-
-    echo 'Please answer yes or no.' >&2
-  done
+  picotools_prompt_yes_no "$@"
 }
 
 prompt_update_fields() {
@@ -448,53 +401,8 @@ print_context_detail() {
   fi
 }
 
-print_table_separator() {
-  local -n widths_ref="$1"
-  local index padding
-
-  for index in "${!widths_ref[@]}"; do
-    padding=$(printf '%*s' "$((widths_ref[index] + 2))" '')
-    printf '+%s' "${padding// /-}"
-  done
-  printf '+\n'
-}
-
-print_table_row() {
-  local -n widths_ref="$1"
-  shift
-  local index fields=("$@")
-
-  for index in "${!fields[@]}"; do
-    printf '| %-*s ' "${widths_ref[$index]}" "${fields[$index]}"
-  done
-  printf '|\n'
-}
-
 print_two_column_table() {
-  local -a rows=("$@")
-  local row key value
-  local -a widths=(5 5)
-
-  for row in "${rows[@]}"; do
-    IFS=$'\t' read -r key value <<<"$row"
-    if [ "${#key}" -gt "${widths[0]}" ]; then
-      widths[0]="${#key}"
-    fi
-    if [ "${#value}" -gt "${widths[1]}" ]; then
-      widths[1]="${#value}"
-    fi
-  done
-
-  print_table_separator widths
-  print_table_row widths 'Field' 'Value'
-  print_table_separator widths
-
-  for row in "${rows[@]}"; do
-    IFS=$'\t' read -r key value <<<"$row"
-    print_table_row widths "$key" "$value"
-  done
-
-  print_table_separator widths
+  picotools_print_two_column_table "$@"
 }
 
 build_ssh_command() {
@@ -794,44 +702,19 @@ create_context() {
 }
 
 list_contexts() {
-  local file row
-  local field i
-  local -a headers widths fields
+  local file
+  local -a rows=()
 
   if ! saved_context_files >/dev/null; then
     echo 'No git contexts found.'
     return 0
   fi
 
-  headers=('Name' 'User' 'Email' 'SSH' 'GPG')
-  widths=()
-
-  for field in "${headers[@]}"; do
-    widths+=("${#field}")
-  done
-
   while IFS= read -r file; do
-    row=$(format_context_summary_row "$file")
-    IFS=$'\t' read -r -a fields <<<"$row"
-
-    for i in "${!fields[@]}"; do
-      if [ "${#fields[i]}" -gt "${widths[i]}" ]; then
-        widths[i]="${#fields[i]}"
-      fi
-    done
+    rows+=("$(format_context_summary_row "$file")")
   done < <(saved_context_files)
 
-  print_table_separator widths
-  print_table_row widths "${headers[@]}"
-  print_table_separator widths
-
-  while IFS= read -r file; do
-    row=$(format_context_summary_row "$file")
-    IFS=$'\t' read -r -a fields <<<"$row"
-    print_table_row widths "${fields[@]}"
-  done < <(saved_context_files)
-
-  print_table_separator widths
+  picotools_print_table $'Name\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
 }
 
 read_context() {

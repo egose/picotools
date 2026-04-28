@@ -1,39 +1,17 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-resolve_github_coordinates() {
-  local plugin_path remote_url repo
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" github
 
-  plugin_path="${ASDF_PLUGIN_PATH:-$(cd "$(dirname "$0")/.." && pwd)}"
-  remote_url=$(git -C "$plugin_path" config --get remote.origin.url 2>/dev/null || true)
-
-  case "$remote_url" in
-  git@github.com:*.git)
-    repo="${remote_url#git@github.com:}"
-    repo="${repo%.git}"
-    ;;
-  ssh://git@github.com/*)
-    repo="${remote_url#ssh://git@github.com/}"
-    repo="${repo%.git}"
-    ;;
-  https://github.com/*.git)
-    repo="${remote_url#https://github.com/}"
-    repo="${repo%.git}"
-    ;;
-  https://github.com/*)
-    repo="${remote_url#https://github.com/}"
-    ;;
-  *)
-    echo "Unable to determine GitHub repository from plugin remote: ${remote_url:-<missing>}" >&2
-    echo "Set ASDF_PICOTOOLS_GITHUB_REPOSITORY=owner/repo to override." >&2
-    exit 1
-    ;;
-  esac
-
-  printf '%s\n' "$repo"
-}
-
-github_coordinates="${ASDF_PICOTOOLS_GITHUB_REPOSITORY:-$(resolve_github_coordinates)}"
+github_coordinates="${ASDF_PICOTOOLS_GITHUB_REPOSITORY:-$(picotools_resolve_github_coordinates "$SCRIPT_DIR")}"
 releases_url="https://api.github.com/repos/${github_coordinates}/releases"
 
 # Use an array for headers to handle spaces/quotes safely

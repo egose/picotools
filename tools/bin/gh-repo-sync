@@ -2,10 +2,14 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VERSION_FILE="${SCRIPT_DIR}/../VERSION"
-if [ ! -f "$VERSION_FILE" ]; then
-  VERSION_FILE="${SCRIPT_DIR}/../../VERSION"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
 fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands version
 
 REPOS_DIR="${PWD}/repos"
 CACHE_FILE="${PWD}/repo-updates.json"
@@ -29,31 +33,13 @@ EOF
 }
 
 print_version() {
-  if [ -f "$VERSION_FILE" ]; then
-    tr -d '[:space:]' <"$VERSION_FILE"
-    printf '\n'
-  else
-    echo "unknown"
-  fi
+  picotools_print_version "$SCRIPT_DIR"
 }
 
 # --- PAT management ---
 
 check_required_tools() {
-  local missing=()
-  local tool
-
-  for tool in "${REQUIRED_TOOLS[@]}"; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      missing+=("$tool")
-    fi
-  done
-
-  if [ "${#missing[@]}" -gt 0 ]; then
-    printf 'Error: missing required tools: %s\n' "${missing[*]}" >&2
-    printf 'Install them and run gh-repo-sync again.\n' >&2
-    exit 1
-  fi
+  picotools_require_commands "${REQUIRED_TOOLS[@]}"
 }
 
 load_pat() {
