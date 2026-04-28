@@ -245,15 +245,15 @@ describe_quota_scope_filters() {
   fi
 
   for line in "${QUOTA_SCOPE_NAMES[@]}"; do
-    rows+=("scope\t${line}")
+    rows+=("scope"$'\t'"${line}")
   done
 
   for line in "${QUOTA_SCOPE_EXPRESSIONS[@]}"; do
     IFS=$'\t' read -r scope_name operator_name values <<<"$line"
     if [ -n "$values" ]; then
-      rows+=("scopeSelector\t${scope_name} ${operator_name} [${values}]")
+      rows+=("scopeSelector"$'\t'"${scope_name} ${operator_name} [${values}]")
     else
-      rows+=("scopeSelector\t${scope_name} ${operator_name}")
+      rows+=("scopeSelector"$'\t'"${scope_name} ${operator_name}")
     fi
   done
 
@@ -523,20 +523,20 @@ print_report() {
   remaining_memory=$((quota_hard_memory - quota_used_memory))
 
   overview_rows=(
-    "Namespace\t${namespace_name}"
-    "Quota\t${OC_QUOTA_REQUESTS_QUOTA_NAME}"
+    "Namespace"$'\t'"${namespace_name}"
+    "Quota"$'\t'"${OC_QUOTA_REQUESTS_QUOTA_NAME}"
   )
 
   quota_rows=(
-    "requests.cpu\t$(format_millicores "$quota_used_cpu")\t$(format_millicores "$quota_hard_cpu")\t$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")\t$(format_millicores "$remaining_cpu")"
-    "requests.memory\t$(format_mib "$quota_used_memory")\t$(format_mib "$quota_hard_memory")\t$(format_percentage "$quota_used_memory" "$quota_hard_memory")\t$(format_mib "$remaining_memory")"
+    "requests.cpu"$'\t'"$(format_millicores "$quota_used_cpu")"$'\t'"$(format_millicores "$quota_hard_cpu")"$'\t'"$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")"$'\t'"$(format_millicores "$remaining_cpu")"
+    "requests.memory"$'\t'"$(format_mib "$quota_used_memory")"$'\t'"$(format_mib "$quota_hard_memory")"$'\t'"$(format_percentage "$quota_used_memory" "$quota_hard_memory")"$'\t'"$(format_mib "$remaining_memory")"
   )
 
   total_rows=(
-    "Analyzed requests\t$(format_millicores "$analyzed_request_cpu")\t$(format_mib "$analyzed_request_memory")"
-    "Analyzed usage\t$(format_millicores "$analyzed_usage_cpu")\t$(format_mib "$analyzed_usage_memory")"
-    "Quota-matching requests\t$(format_millicores "$quota_matching_request_cpu")\t$(format_mib "$quota_matching_request_memory")"
-    "Remaining quota\t$(format_millicores "$remaining_cpu")\t$(format_mib "$remaining_memory")"
+    "Analyzed requests"$'\t'"$(format_millicores "$analyzed_request_cpu")"$'\t'"$(format_mib "$analyzed_request_memory")"
+    "Analyzed usage"$'\t'"$(format_millicores "$analyzed_usage_cpu")"$'\t'"$(format_mib "$analyzed_usage_memory")"
+    "Quota-matching requests"$'\t'"$(format_millicores "$quota_matching_request_cpu")"$'\t'"$(format_mib "$quota_matching_request_memory")"
+    "Remaining quota"$'\t'"$(format_millicores "$remaining_cpu")"$'\t'"$(format_mib "$remaining_memory")"
   )
 
   print_two_column_table "${overview_rows[@]}"
@@ -574,7 +574,7 @@ print_report() {
       usage_memory='n/a'
     fi
 
-    pod_rows+=("${pod_name}\t$(format_millicores "$request_cpu")\t${usage_cpu}\t$(format_mib "$request_memory")\t${usage_memory}")
+    pod_rows+=("${pod_name}"$'\t'"$(format_millicores "$request_cpu")"$'\t'"${usage_cpu}"$'\t'"$(format_mib "$request_memory")"$'\t'"${usage_memory}")
   done
 
   print_table $'Pod\tReq CPU\tUse CPU\tReq Mem\tUse Mem' "${pod_rows[@]}"
