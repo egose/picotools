@@ -292,12 +292,14 @@ run_tool() {
   assert_contains "$output" 'gpt-5,gpt-4o,o3-mini' 'list should show normalized model values'
 }
 
-@test "create supports azure-cognitive-services and gemini" {
+@test "create supports azure-cognitive-services, gemini, and custom" {
   local output
 
   printf 'vision\n2\nexample-vision\nvision, document-intelligence\nvision-secret\n' |
     run_tool create >/dev/null 2>&1
   printf 'gemini-main\n3\ngemini-2.5-pro, gemini-2.5-flash\ngemini-secret\n' |
+    run_tool create >/dev/null 2>&1
+  printf 'custom-main\n4\nhttps://custom.example.com/openai/v1\ncustom-model, custom-model-2\ncustom-secret\n' |
     run_tool create >/dev/null 2>&1
 
   assert_config_value "$(profile_file_path vision)" provider.type 'azure-cognitive-services' 'create should support azure-cognitive-services'
@@ -309,9 +311,17 @@ run_tool() {
   assert_config_value "$(profile_file_path gemini-main)" provider.models 'gemini-2.5-pro,gemini-2.5-flash' 'gemini should store the normalized model list'
   assert_file_exists "$(token_file_path gemini-main)" 'gemini should store a token file'
 
+  assert_config_value "$(profile_file_path custom-main)" provider.type 'custom' 'create should support custom'
+  assert_config_value "$(profile_file_path custom-main)" provider.endpointUrl 'https://custom.example.com/openai/v1/' 'custom should store a normalized endpoint URL'
+  assert_config_value "$(profile_file_path custom-main)" provider.models 'custom-model,custom-model-2' 'custom should store the normalized model list'
+  assert_eq "$(git config -f "$(profile_file_path custom-main)" --get provider.resourceName 2>/dev/null || true)" '' 'custom should not store a resource name'
+  assert_file_exists "$(token_file_path custom-main)" 'custom should store a token file'
+
   output=$(run_tool list)
   assert_contains "$output" 'vision' 'list should include azure-cognitive-services profiles'
   assert_contains "$output" 'gemini-main' 'list should include gemini profiles'
+  assert_contains "$output" 'custom-main' 'list should include custom profiles'
+  assert_contains "$output" 'https://custom.example.com/openai/v1/' 'list should show the custom endpoint URL'
 }
 
 @test "profiles and models commands expose saved configuration" {
@@ -440,6 +450,34 @@ run_tool() {
   assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello Gemini"' 'ask should send the prompted user message'
 }
 
+@test "ask sends chat completion to custom endpoint" {
+  local stub_bin curl_url_log curl_auth_log curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_url_log="$TMP_HOME/curl-url.log"
+  curl_auth_log="$TMP_HOME/curl-auth.log"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'custom-main\n4\nhttps://custom.example.com/openai/v1\ncustom-model, custom-model-2\ncustom-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$curl_url_log" \
+    CURL_AUTH_LOG="$curl_auth_log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"custom answer"}}]}' \
+    "$TOOL" ask custom-main --model custom-model-2 --message 'Hello Custom')
+
+  assert_eq "$output" 'custom answer' 'ask should print the custom response text'
+  assert_eq "$(<"$curl_url_log")" 'https://custom.example.com/openai/v1/chat/completions' 'ask should use the configured custom endpoint URL'
+  assert_eq "$(<"$curl_auth_log")" 'Authorization: Bearer custom-secret' 'ask should send the custom API key as a bearer token'
+  assert_contains "$(<"$curl_body_log")" '"model":"custom-model-2"' 'ask should send the selected custom model'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello Custom"' 'ask should send the prompted custom user message'
+}
+
 @test "ask CLI defaults to the first configured model" {
   local stub_bin curl_body_log output
 
@@ -472,11 +510,12 @@ run_tool() {
   profile_file="$(profile_file_path work-openai)"
   token_file="$(token_file_path work-openai)"
 
-  printf '1\n3\ngemini-2.5-flash, gemini-2.5-pro\ny\nreplacement-token\n' | run_tool update >/dev/null 2>&1
+  printf '1\n4\nhttps://custom.example.com/openai/v1\ncustom-model-1, custom-model-2\ny\nreplacement-token\n' | run_tool update >/dev/null 2>&1
 
-  assert_config_value "$profile_file" provider.type 'gemini' 'update should allow changing the provider type'
+  assert_config_value "$profile_file" provider.type 'custom' 'update should allow changing the provider type'
   assert_eq "$(git config -f "$profile_file" --get provider.resourceName 2>/dev/null || true)" '' 'update should remove resourceName when unused by the new provider type'
-  assert_config_value "$profile_file" provider.models 'gemini-2.5-flash,gemini-2.5-pro' 'update should store the normalized model list'
+  assert_config_value "$profile_file" provider.endpointUrl 'https://custom.example.com/openai/v1/' 'update should store the custom endpoint URL'
+  assert_config_value "$profile_file" provider.models 'custom-model-1,custom-model-2' 'update should store the normalized model list'
   assert_eq "$(<"$token_file")" 'replacement-token' 'update should replace the stored token when requested'
 }
 
@@ -489,11 +528,12 @@ run_tool() {
   profile_file="$(profile_file_path work-openai)"
   token_file="$(token_file_path work-openai)"
 
-  printf '1\nu\n3\ngemini-2.5-flash, gemini-2.5-pro\ny\nreplacement-token\n' | run_tool list >/dev/null 2>&1
+  printf '1\nu\n4\nhttps://custom.example.com/openai/v1\ncustom-model-1, custom-model-2\ny\nreplacement-token\n' | run_tool list >/dev/null 2>&1
 
-  assert_config_value "$profile_file" provider.type 'gemini' 'list update should allow changing the provider type'
+  assert_config_value "$profile_file" provider.type 'custom' 'list update should allow changing the provider type'
   assert_eq "$(git config -f "$profile_file" --get provider.resourceName 2>/dev/null || true)" '' 'list update should remove resourceName when unused by the new provider type'
-  assert_config_value "$profile_file" provider.models 'gemini-2.5-flash,gemini-2.5-pro' 'list update should store the normalized model list'
+  assert_config_value "$profile_file" provider.endpointUrl 'https://custom.example.com/openai/v1/' 'list update should store the custom endpoint URL'
+  assert_config_value "$profile_file" provider.models 'custom-model-1,custom-model-2' 'list update should store the normalized model list'
   assert_eq "$(<"$token_file")" 'replacement-token' 'list update should replace the stored token when requested'
 }
 
@@ -534,6 +574,7 @@ run_tool() {
 
   assert_contains "$output" 'Provider types:' 'create should show the numbered provider menu'
   assert_contains "$output" '1. Azure OpenAI' 'create should show readable provider labels'
-  assert_contains "$output" 'Please choose 1, 2, or 3.' 'create should reject unsupported provider selections before continuing'
+  assert_contains "$output" '4. Custom' 'create should show the custom provider label'
+  assert_contains "$output" 'Please choose 1, 2, 3, or 4.' 'create should reject unsupported provider selections before continuing'
   assert_file_exists "$(profile_file_path broken)" 'create should continue after a valid provider type is entered'
 }

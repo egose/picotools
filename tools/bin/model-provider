@@ -65,9 +65,9 @@ validate_provider_type() {
   local provider_type="$1"
 
   case "$provider_type" in
-  azure-openai | azure-cognitive-services | gemini) ;;
+  azure-openai | azure-cognitive-services | gemini | custom) ;;
   *)
-    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini" >&2
+    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini, custom" >&2
     exit 1
     ;;
   esac
@@ -85,6 +85,9 @@ provider_type_label() {
     ;;
   gemini)
     printf '%s\n' 'Gemini'
+    ;;
+  custom)
+    printf '%s\n' 'Custom'
     ;;
   *)
     printf '%s\n' "$provider_type"
@@ -105,6 +108,9 @@ provider_type_from_selection() {
   3)
     printf '%s\n' 'gemini'
     ;;
+  4)
+    printf '%s\n' 'custom'
+    ;;
   *)
     return 1
     ;;
@@ -123,6 +129,9 @@ provider_type_default_selection() {
     ;;
   gemini)
     printf '%s\n' '3'
+    ;;
+  custom)
+    printf '%s\n' '4'
     ;;
   *)
     printf '%s\n' '1'
@@ -232,6 +241,11 @@ provider_resource_name_value() {
   read_profile_value_optional "$file" provider.resourceName
 }
 
+provider_endpoint_url_value() {
+  local file="$1"
+  read_profile_value_optional "$file" provider.endpointUrl
+}
+
 provider_has_resource_name() {
   local provider_type="$1"
 
@@ -244,20 +258,51 @@ provider_has_resource_name() {
   return 1
 }
 
+provider_has_endpoint_url() {
+  local provider_type="$1"
+
+  case "$provider_type" in
+  custom)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+normalize_endpoint_url_value() {
+  local value="$1"
+
+  value=${value#"${value%%[![:space:]]*}"}
+  value=${value%"${value##*[![:space:]]}"}
+
+  if [ -n "$value" ] && [[ "$value" != */ ]]; then
+    value+='/'
+  fi
+
+  printf '%s\n' "$value"
+}
+
 provider_endpoint() {
   local provider_type="$1"
   local resource_name="$2"
-
-  if [ -z "$resource_name" ]; then
-    return 0
-  fi
+  local endpoint_url="${3:-}"
 
   case "$provider_type" in
   azure-openai)
+    if [ -z "$resource_name" ]; then
+      return 0
+    fi
     printf 'https://%s.openai.azure.com/\n' "$resource_name"
     ;;
   azure-cognitive-services)
+    if [ -z "$resource_name" ]; then
+      return 0
+    fi
     printf 'https://%s.cognitiveservices.azure.com/\n' "$resource_name"
+    ;;
+  custom)
+    printf '%s\n' "$endpoint_url"
     ;;
   esac
 }
@@ -265,6 +310,7 @@ provider_endpoint() {
 provider_openai_base_url() {
   local provider_type="$1"
   local resource_name="$2"
+  local endpoint_url="${3:-}"
 
   case "$provider_type" in
   azure-openai)
@@ -275,6 +321,9 @@ provider_openai_base_url() {
     ;;
   gemini)
     printf '%s\n' 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    ;;
+  custom)
+    printf '%s\n' "$endpoint_url"
     ;;
   *)
     echo "Error: unsupported provider type '$provider_type'" >&2
@@ -397,12 +446,13 @@ provider_chat_completion() {
   local model="$2"
   local system_message="$3"
   local user_message="$4"
-  local name provider_type resource_name base_url token payload tmpfile http_code response_text error_message
+  local name provider_type resource_name endpoint_url base_url token payload tmpfile http_code response_text error_message
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
   resource_name=$(provider_resource_name_value "$file")
-  base_url=$(provider_openai_base_url "$provider_type" "$resource_name")
+  endpoint_url=$(provider_endpoint_url_value "$file")
+  base_url=$(provider_openai_base_url "$provider_type" "$resource_name" "$endpoint_url")
   token=$(read_token "$name")
   payload=$(jq -n \
     --arg model "$model" \
@@ -483,6 +533,7 @@ prompt_provider_type() {
     printf '  1. %s\n' 'Azure OpenAI' >&2
     printf '  2. %s\n' 'Azure Cognitive Services' >&2
     printf '  3. %s\n' 'Gemini' >&2
+    printf '  4. %s\n' 'Custom' >&2
     printf 'Select provider type [%s]: ' "$default_selection" >&2
     read -r selection || true
 
@@ -495,37 +546,48 @@ prompt_provider_type() {
       return 0
     fi
 
-    echo 'Please choose 1, 2, or 3.' >&2
+    echo 'Please choose 1, 2, 3, or 4.' >&2
   done
 }
 
 prompt_profile_fields() {
   local provider_type="$1"
   local current_resource_name="${2:-}"
-  local current_models="${3:-}"
-  local resource_name='' models=''
+  local current_endpoint_url="${3:-}"
+  local current_models="${4:-}"
+  local resource_name='' endpoint_url='' models=''
 
   if provider_has_resource_name "$provider_type"; then
     resource_name=$(prompt_value 'Resource name' "$current_resource_name" true)
   fi
 
+  if provider_has_endpoint_url "$provider_type"; then
+    endpoint_url=$(prompt_value 'Endpoint URL' "$current_endpoint_url" true)
+    endpoint_url=$(normalize_endpoint_url_value "$endpoint_url")
+  fi
+
   models=$(prompt_value 'Models (comma-separated)' "$current_models" true)
   models=$(normalize_models_value "$models")
 
-  printf '%s\001%s\n' "$resource_name" "$models"
+  printf '%s\001%s\001%s\n' "$resource_name" "$endpoint_url" "$models"
 }
 
 save_profile() {
   local file="$1"
   local provider_type="$2"
   local resource_name="$3"
-  local models="$4"
+  local endpoint_url="$4"
+  local models="$5"
 
   rm -f "$file"
   write_profile_value "$file" provider.type "$provider_type"
 
   if [ -n "$resource_name" ]; then
     write_profile_value "$file" provider.resourceName "$resource_name"
+  fi
+
+  if [ -n "$endpoint_url" ]; then
+    write_profile_value "$file" provider.endpointUrl "$endpoint_url"
   fi
 
   if [ -n "$models" ]; then
@@ -563,11 +625,16 @@ select_profile_file() {
 format_profile_summary_row() {
   local file="$1"
   local index="$2"
-  local name provider_type resource_name models token_status
+  local name provider_type resource_name endpoint_url location models token_status
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
   resource_name=$(provider_resource_name_value "$file")
+  endpoint_url=$(provider_endpoint_url_value "$file")
+  location="$resource_name"
+  if [ -z "$location" ]; then
+    location="$endpoint_url"
+  fi
   models=$(provider_models_value "$file")
 
   if token_exists "$name"; then
@@ -580,19 +647,20 @@ format_profile_summary_row() {
     "$index" \
     "$name" \
     "$(provider_type_label "$provider_type")" \
-    "$(display_value "$resource_name")" \
+    "$(display_value "$location")" \
     "$(display_value "$models")" \
     "$token_status"
 }
 
 print_profile_detail() {
   local file="$1"
-  local name provider_type resource_name endpoint models token_status token_path
+  local name provider_type resource_name endpoint_url endpoint models token_status token_path
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
   resource_name=$(provider_resource_name_value "$file")
-  endpoint=$(provider_endpoint "$provider_type" "$resource_name")
+  endpoint_url=$(provider_endpoint_url_value "$file")
+  endpoint=$(provider_endpoint "$provider_type" "$resource_name" "$endpoint_url")
   models=$(provider_models_value "$file")
   token_path=$(token_file "$name")
 
@@ -606,6 +674,7 @@ print_profile_detail() {
     $'Name	'"$name" \
     $'Type	'"$(provider_type_label "$provider_type")" \
     $'Resource Name	'"$(display_value "$resource_name")" \
+    $'Endpoint URL	'"$(display_value "$endpoint_url")" \
     $'Endpoint	'"$(display_value "$endpoint")" \
     $'Models	'"$(display_value "$models")" \
     $'Token Stored	'"$token_status" \
@@ -614,7 +683,7 @@ print_profile_detail() {
 }
 
 create_profile() {
-  local name file overwrite provider_type token resource_name models selected_fields
+  local name file overwrite provider_type token resource_name endpoint_url models selected_fields
 
   name=$(prompt_value 'Profile name' '' true)
   validate_profile_name "$name"
@@ -631,10 +700,10 @@ create_profile() {
 
   provider_type=$(prompt_provider_type)
   selected_fields=$(prompt_profile_fields "$provider_type")
-  IFS=$'\001' read -r resource_name models <<<"$selected_fields"
+  IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
   token=$(prompt_value 'API key' '' true)
 
-  save_profile "$file" "$provider_type" "$resource_name" "$models"
+  save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
   write_token "$name" "$token"
   echo "Saved model provider profile '$name'."
 }
@@ -752,19 +821,20 @@ prompt_profile_action() {
 
 update_profile_file() {
   local file="$1"
-  local name provider_type resource_name models selected_fields
+  local name provider_type resource_name endpoint_url models selected_fields
   local update_token token
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
   resource_name=$(provider_resource_name_value "$file")
+  endpoint_url=$(provider_endpoint_url_value "$file")
   models=$(provider_models_value "$file")
 
   provider_type=$(prompt_provider_type "$provider_type")
-  selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$models")
-  IFS=$'\001' read -r resource_name models <<<"$selected_fields"
+  selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$endpoint_url" "$models")
+  IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
 
-  save_profile "$file" "$provider_type" "$resource_name" "$models"
+  save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
 
   update_token=$(prompt_yes_no 'Update API key?' no)
   if [ "$update_token" = 'yes' ]; then
