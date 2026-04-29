@@ -20,11 +20,17 @@ Commands:
   update    Update a saved model provider profile
   list      List saved model provider profiles and show selected details
   read      Show detailed information for a saved model provider profile
+  ask       Send a prompt to a model provider profile
   delete    Delete a saved model provider profile
 
 Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
+
+Ask:
+  model-provider ask
+  model-provider ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
+  model-provider ask <profile> --user-message TEXT [--model MODEL] [--system-message TEXT]
 EOF
 }
 
@@ -252,6 +258,186 @@ provider_endpoint() {
     printf 'https://%s.cognitiveservices.azure.com/\n' "$resource_name"
     ;;
   esac
+}
+
+provider_openai_base_url() {
+  local provider_type="$1"
+  local resource_name="$2"
+
+  case "$provider_type" in
+  azure-openai)
+    printf 'https://%s.openai.azure.com/openai/v1/\n' "$resource_name"
+    ;;
+  azure-cognitive-services)
+    printf 'https://%s.cognitiveservices.azure.com/openai/v1/\n' "$resource_name"
+    ;;
+  gemini)
+    printf '%s\n' 'https://generativelanguage.googleapis.com/v1beta/openai/'
+    ;;
+  *)
+    echo "Error: unsupported provider type '$provider_type'" >&2
+    exit 1
+    ;;
+  esac
+}
+
+read_token() {
+  local name="$1"
+  local file
+
+  file=$(token_file "$name")
+  if [ ! -f "$file" ]; then
+    echo "Error: API key not found for profile '$name'" >&2
+    exit 1
+  fi
+
+  tr -d '\r\n' <"$file"
+}
+
+require_existing_profile_file() {
+  local name="$1"
+  local file
+
+  file=$(profile_file "$name")
+  if [ ! -f "$file" ]; then
+    echo "Error: profile not found: $name" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$file"
+}
+
+require_ask_tools() {
+  local tool
+
+  for tool in curl jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "Error: required tool not found: $tool" >&2
+      exit 1
+    fi
+  done
+}
+
+select_profile_model() {
+  local file="$1"
+  local selection
+  local model_list
+  local model_item
+  local index=1
+  local -a model_items=()
+
+  model_list=$(provider_models_value "$file")
+  IFS=',' read -r -a model_items <<<"$model_list"
+
+  if [ "${#model_items[@]}" -eq 0 ]; then
+    echo 'Error: no models configured for the selected profile' >&2
+    exit 1
+  fi
+
+  echo 'Models:' >&2
+  for model_item in "${model_items[@]}"; do
+    printf '  %d. %s\n' "$index" "$model_item" >&2
+    index=$((index + 1))
+  done
+
+  printf 'Select model [1]: ' >&2
+  read -r selection || true
+
+  if [ -z "$selection" ]; then
+    selection=1
+  fi
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#model_items[@]}" ]; then
+    echo 'Error: invalid model selection' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${model_items[$((selection - 1))]}"
+}
+
+default_profile_model() {
+  local file="$1"
+  local model_list
+  local -a model_items=()
+
+  model_list=$(provider_models_value "$file")
+  IFS=',' read -r -a model_items <<<"$model_list"
+
+  if [ "${#model_items[@]}" -eq 0 ] || [ -z "${model_items[0]}" ]; then
+    echo 'Error: no models configured for the selected profile' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${model_items[0]}"
+}
+
+profile_has_model() {
+  local file="$1"
+  local requested_model="$2"
+  local model_list
+  local model_item
+  local -a model_items=()
+
+  model_list=$(provider_models_value "$file")
+  IFS=',' read -r -a model_items <<<"$model_list"
+
+  for model_item in "${model_items[@]}"; do
+    if [ "$model_item" = "$requested_model" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+provider_chat_completion() {
+  local file="$1"
+  local model="$2"
+  local system_message="$3"
+  local user_message="$4"
+  local name provider_type resource_name base_url token payload tmpfile http_code response_text error_message
+
+  name=$(profile_name_from_file "$file")
+  provider_type=$(read_profile_value "$file" provider.type)
+  resource_name=$(provider_resource_name_value "$file")
+  base_url=$(provider_openai_base_url "$provider_type" "$resource_name")
+  token=$(read_token "$name")
+  payload=$(jq -n \
+    --arg model "$model" \
+    --arg system_message "$system_message" \
+    --arg user_message "$user_message" \
+    '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}')
+  tmpfile=$(mktemp)
+
+  http_code=$(curl -sS -o "$tmpfile" -w '%{http_code}' \
+    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $token" \
+    -d "$payload" \
+    "${base_url}chat/completions") || {
+    rm -f "$tmpfile"
+    exit 1
+  }
+
+  if [[ "$http_code" != 2* ]]; then
+    error_message=$(jq -r '.error.message // .message // empty' <"$tmpfile" 2>/dev/null || true)
+    rm -f "$tmpfile"
+    if [ -n "$error_message" ]; then
+      echo "Error: $error_message" >&2
+    else
+      echo "Error: request failed with HTTP $http_code" >&2
+    fi
+    exit 1
+  fi
+
+  response_text=$(jq -r '.choices[0].message.content // empty' <"$tmpfile")
+  rm -f "$tmpfile"
+
+  if [ -z "$response_text" ]; then
+    echo 'Error: response did not contain message content' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$response_text"
 }
 
 token_exists() {
@@ -585,6 +771,85 @@ delete_profile() {
   delete_profile_file "$file"
 }
 
+ask_provider_interactive() {
+  local file model system_message user_message
+
+  require_ask_tools
+  file=$(select_profile_file)
+  model=$(select_profile_model "$file")
+  system_message=$(prompt_value 'System message' 'You are a helpful assistant.')
+  user_message=$(prompt_value 'User message' '' true)
+  provider_chat_completion "$file" "$model" "$system_message" "$user_message"
+}
+
+ask_provider_cli() {
+  local profile_name="$1"
+  shift
+  local file model='' system_message='You are a helpful assistant.' user_message=''
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --model)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --model requires a value' >&2
+        exit 1
+      fi
+      model="$2"
+      shift 2
+      ;;
+    --system-message)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --system-message requires a value' >&2
+        exit 1
+      fi
+      system_message="$2"
+      shift 2
+      ;;
+    --message | --user-message)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: $1 requires a value" >&2
+        exit 1
+      fi
+      user_message="$2"
+      shift 2
+      ;;
+    *)
+      echo "Error: unknown ask option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  if [ -z "$user_message" ]; then
+    echo 'Error: ask requires --message or --user-message' >&2
+    exit 1
+  fi
+
+  require_ask_tools
+  file=$(require_existing_profile_file "$profile_name")
+
+  if [ -n "$model" ]; then
+    if ! profile_has_model "$file" "$model"; then
+      echo "Error: model not configured for profile '$profile_name': $model" >&2
+      exit 1
+    fi
+  else
+    model=$(default_profile_model "$file")
+  fi
+
+  provider_chat_completion "$file" "$model" "$system_message" "$user_message"
+}
+
+ask_provider() {
+  if [ "$#" -eq 0 ]; then
+    ask_provider_interactive
+    return 0
+  fi
+
+  ask_provider_cli "$@"
+}
+
 main() {
   case "${1:-}" in
   -h | --help | help | '')
@@ -610,6 +875,10 @@ main() {
   read)
     shift
     read_profile "$@"
+    ;;
+  ask)
+    shift
+    ask_provider "$@"
     ;;
   delete)
     shift

@@ -20,7 +20,7 @@ The following scripts are included in `tools/bin`:
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
-`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. The first version supports `azure-openai`, `azure-cognitive-services`, and `gemini` profiles with `create`, `update`, `list`, `read`, and `delete`. `list` shows the saved profiles and can display a selected profile's details inline.
+`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, and `gemini` profiles with `create`, `update`, `list`, `read`, `ask`, and `delete`. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--model MODEL` to override the default first configured model, and `--system-message TEXT` to override the default system prompt. `--user-message` is accepted as an alias for `--message`.
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 

@@ -90,6 +90,123 @@ token_file_path() {
   printf '%s/%s.token\n' "$DATA_DIR" "$1"
 }
 
+write_curl_stub() {
+  local stub_bin="$1"
+
+  mkdir -p "$stub_bin"
+  cat >"$stub_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+output_file=''
+url=''
+body=''
+auth=''
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+  -o)
+    output_file="$2"
+    shift 2
+    ;;
+  -w)
+    shift 2
+    ;;
+  -H)
+    if [[ "$2" == Authorization:* ]]; then
+      auth="$2"
+    fi
+    shift 2
+    ;;
+  -d)
+    body="$2"
+    shift 2
+    ;;
+  -*)
+    shift
+    ;;
+  *)
+    url="$1"
+    shift
+    ;;
+  esac
+done
+
+printf '%s\n' "$url" >"$CURL_URL_LOG"
+printf '%s\n' "$auth" >"$CURL_AUTH_LOG"
+printf '%s\n' "$body" >"$CURL_BODY_LOG"
+printf '%s\n' "$CURL_RESPONSE_BODY" >"$output_file"
+printf '200'
+EOF
+  chmod +x "$stub_bin/curl"
+}
+
+write_jq_stub() {
+  local stub_bin="$1"
+
+  mkdir -p "$stub_bin"
+  cat >"$stub_bin/jq" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${1:-}" = '-n' ]; then
+  model=''
+  system_message=''
+  user_message=''
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --arg)
+      case "$2" in
+      model)
+        model="$3"
+        ;;
+      system_message)
+        system_message="$3"
+        ;;
+      user_message)
+        user_message="$3"
+        ;;
+      esac
+      shift 3
+      ;;
+    *)
+      shift
+      ;;
+    esac
+  done
+
+  printf '{"model":"%s","messages":[{"role":"system","content":"%s"},{"role":"user","content":"%s"}]}' "$model" "$system_message" "$user_message"
+  exit 0
+fi
+
+if [ "${1:-}" = '-r' ]; then
+  filter="$2"
+  input=$(cat)
+
+  case "$filter" in
+  '.choices[0].message.content // empty')
+    content=${input#*\"content\":\"}
+    content=${content%%\"*}
+    printf '%s\n' "$content"
+    exit 0
+    ;;
+  '.error.message // .message // empty')
+    if [[ "$input" == *\"message\":\"* ]]; then
+      content=${input#*\"message\":\"}
+      content=${content%%\"*}
+      printf '%s\n' "$content"
+    fi
+    exit 0
+    ;;
+  esac
+fi
+
+exit 1
+EOF
+  chmod +x "$stub_bin/jq"
+}
+
 run_tool() {
   "$TOOL" "$@"
 }
@@ -217,6 +334,116 @@ run_tool() {
 
   detail_output=$(printf '1\n' | run_tool read)
   assert_contains "$detail_output" 'work openai' 'read should show profile names with spaces'
+}
+
+@test "ask sends chat completion to azure-openai" {
+  local stub_bin curl_url_log curl_auth_log curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_url_log="$TMP_HOME/curl-url.log"
+  curl_auth_log="$TMP_HOME/curl-auth.log"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$curl_url_log" \
+    CURL_AUTH_LOG="$curl_auth_log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"azure answer"}}]}' \
+    "$TOOL" ask work-openai --model gpt-4o --message 'Hello from test')
+
+  assert_eq "$output" 'azure answer' 'ask should print the response text'
+  assert_eq "$(<"$curl_url_log")" 'https://example-openai.openai.azure.com/openai/v1/chat/completions' 'ask should use the Azure OpenAI base URL'
+  assert_eq "$(<"$curl_auth_log")" 'Authorization: Bearer secret-openai-token' 'ask should send the stored API key as a bearer token'
+  assert_contains "$(<"$curl_body_log")" '"model":"gpt-4o"' 'ask should send the selected model'
+  assert_contains "$(<"$curl_body_log")" '"role":"system","content":"You are a helpful assistant."' 'ask should send the default system message'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello from test"' 'ask should send the prompted user message'
+}
+
+@test "ask supports interactive mode with no arguments" {
+  local stub_bin curl_url_log curl_auth_log curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_url_log="$TMP_HOME/curl-url.log"
+  curl_auth_log="$TMP_HOME/curl-auth.log"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(printf '1\n2\n\nHello from interactive mode\n' |
+    PATH="$stub_bin:$PATH" \
+      CURL_URL_LOG="$curl_url_log" \
+      CURL_AUTH_LOG="$curl_auth_log" \
+      CURL_BODY_LOG="$curl_body_log" \
+      CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"interactive answer"}}]}' \
+      "$TOOL" ask)
+
+  assert_eq "$output" 'interactive answer' 'interactive ask should print the response text'
+  assert_eq "$(<"$curl_url_log")" 'https://example-openai.openai.azure.com/openai/v1/chat/completions' 'interactive ask should use the Azure OpenAI base URL'
+  assert_contains "$(<"$curl_body_log")" '"model":"gpt-4o"' 'interactive ask should send the selected model'
+  assert_contains "$(<"$curl_body_log")" '"role":"system","content":"You are a helpful assistant."' 'interactive ask should send the default system message'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello from interactive mode"' 'interactive ask should send the prompted user message'
+}
+
+@test "ask sends chat completion to gemini" {
+  local stub_bin curl_url_log curl_auth_log curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_url_log="$TMP_HOME/curl-url.log"
+  curl_auth_log="$TMP_HOME/curl-auth.log"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'gemini-main\n3\ngemini-2.5-pro, gemini-2.5-flash\ngemini-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$curl_url_log" \
+    CURL_AUTH_LOG="$curl_auth_log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"gemini answer"}}]}' \
+    "$TOOL" ask gemini-main --system-message 'Talk like a pirate' --user-message 'Hello Gemini')
+
+  assert_eq "$output" 'gemini answer' 'ask should print the Gemini response text'
+  assert_eq "$(<"$curl_url_log")" 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' 'ask should use the Gemini OpenAI-compatible base URL'
+  assert_eq "$(<"$curl_auth_log")" 'Authorization: Bearer gemini-secret' 'ask should send the Gemini API key as a bearer token'
+  assert_contains "$(<"$curl_body_log")" '"model":"gemini-2.5-pro"' 'ask should default to the first configured model'
+  assert_contains "$(<"$curl_body_log")" '"role":"system","content":"Talk like a pirate"' 'ask should send the custom system message'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello Gemini"' 'ask should send the prompted user message'
+}
+
+@test "ask CLI defaults to the first configured model" {
+  local stub_bin curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'gemini-main\n3\ngemini-2.5-pro, gemini-2.5-flash\ngemini-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$TMP_HOME/curl-url.log" \
+    CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"gemini answer"}}]}' \
+    "$TOOL" ask gemini-main --message 'Hello Gemini')
+
+  assert_eq "$output" 'gemini answer' 'ask should print the response text when defaulting the model'
+  assert_contains "$(<"$curl_body_log")" '"model":"gemini-2.5-pro"' 'ask should default to the first configured model'
 }
 
 @test "update rewrites metadata and can replace the token" {
