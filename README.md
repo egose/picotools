@@ -14,10 +14,13 @@ The following scripts are included in `tools/bin`:
 | `oc-route` | Lists, reads, and interactively applies OpenShift route manifests |
 | `oc-quota-requests` | Analyzes OpenShift namespace CPU and memory request quota usage |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
+| `model-provider` | Stores named model provider profiles with config and token data kept separately |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
+
+`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. The first version supports `azure-openai`, `azure-cognitive-services`, and `gemini` profiles with `create`, `update`, `list`, `read`, and `delete`. `list` shows the saved profiles and can display a selected profile's details inline.
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
@@ -70,6 +73,7 @@ pip-upgrade
 oc-route
 oc-quota-requests
 gh-repo-sync
+model-provider
 git-clean-branches
 git-clean-task-pr
 ```

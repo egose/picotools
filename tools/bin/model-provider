@@ -1,0 +1,626 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" prompt table version
+
+usage() {
+  cat <<'EOF'
+Usage: model-provider <command>
+
+Commands:
+  create    Create a saved model provider profile
+  update    Update a saved model provider profile
+  list      List saved model provider profiles and show selected details
+  read      Show detailed information for a saved model provider profile
+  delete    Delete a saved model provider profile
+
+Options:
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+config_dir() {
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/model-provider"
+}
+
+data_dir() {
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/model-provider"
+}
+
+ensure_storage_dirs() {
+  mkdir -p "$(config_dir)" "$(data_dir)"
+}
+
+validate_profile_name() {
+  local name="$1"
+
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+([[:space:]][A-Za-z0-9._-]+)*$ ]]; then
+    echo "Error: profile name may contain letters, numbers, spaces, dots, underscores, and hyphens" >&2
+    exit 1
+  fi
+}
+
+validate_provider_type() {
+  local provider_type="$1"
+
+  case "$provider_type" in
+  azure-openai | azure-cognitive-services | gemini) ;;
+  *)
+    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini" >&2
+    exit 1
+    ;;
+  esac
+}
+
+provider_type_label() {
+  local provider_type="$1"
+
+  case "$provider_type" in
+  azure-openai)
+    printf '%s\n' 'Azure OpenAI'
+    ;;
+  azure-cognitive-services)
+    printf '%s\n' 'Azure Cognitive Services'
+    ;;
+  gemini)
+    printf '%s\n' 'Gemini'
+    ;;
+  *)
+    printf '%s\n' "$provider_type"
+    ;;
+  esac
+}
+
+provider_type_from_selection() {
+  local selection="$1"
+
+  case "$selection" in
+  1)
+    printf '%s\n' 'azure-openai'
+    ;;
+  2)
+    printf '%s\n' 'azure-cognitive-services'
+    ;;
+  3)
+    printf '%s\n' 'gemini'
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+}
+
+provider_type_default_selection() {
+  local provider_type="${1:-}"
+
+  case "$provider_type" in
+  azure-openai)
+    printf '%s\n' '1'
+    ;;
+  azure-cognitive-services)
+    printf '%s\n' '2'
+    ;;
+  gemini)
+    printf '%s\n' '3'
+    ;;
+  *)
+    printf '%s\n' '1'
+    ;;
+  esac
+}
+
+profile_file() {
+  local name="$1"
+  printf '%s/%s.conf\n' "$(config_dir)" "$name"
+}
+
+token_file() {
+  local name="$1"
+  printf '%s/%s.token\n' "$(data_dir)" "$name"
+}
+
+saved_profile_files() {
+  local dir
+
+  dir=$(config_dir)
+  if [ ! -d "$dir" ] || ! compgen -G "$dir/*.conf" >/dev/null; then
+    return 1
+  fi
+
+  printf '%s\n' "$dir"/*.conf | sort
+}
+
+profile_name_from_file() {
+  local file="$1"
+  basename "$file" .conf
+}
+
+write_profile_value() {
+  local file="$1"
+  local key="$2"
+  local value="$3"
+
+  git config -f "$file" "$key" "$value"
+}
+
+unset_profile_value() {
+  local file="$1"
+  local key="$2"
+
+  git config -f "$file" --unset-all "$key" 2>/dev/null || true
+}
+
+read_profile_value() {
+  local file="$1"
+  local key="$2"
+
+  git config -f "$file" --get "$key"
+}
+
+read_profile_value_optional() {
+  local file="$1"
+  local key="$2"
+
+  git config -f "$file" --get "$key" 2>/dev/null || true
+}
+
+display_value() {
+  local value="${1:-}"
+
+  if [ -n "$value" ]; then
+    printf '%s\n' "$value"
+  else
+    printf '%s\n' '-'
+  fi
+}
+
+normalize_models_value() {
+  local value="$1"
+  local -a parts=()
+  local -a normalized_parts=()
+  local part normalized_part joined=''
+
+  IFS=',' read -r -a parts <<<"$value"
+
+  for part in "${parts[@]}"; do
+    normalized_part=${part#"${part%%[![:space:]]*}"}
+    normalized_part=${normalized_part%"${normalized_part##*[![:space:]]}"}
+
+    if [ -n "$normalized_part" ]; then
+      normalized_parts+=("$normalized_part")
+    fi
+  done
+
+  for part in "${normalized_parts[@]}"; do
+    if [ -n "$joined" ]; then
+      joined+=','
+    fi
+    joined+="$part"
+  done
+
+  printf '%s\n' "$joined"
+}
+
+provider_models_value() {
+  local file="$1"
+  read_profile_value_optional "$file" provider.models
+}
+
+provider_resource_name_value() {
+  local file="$1"
+  read_profile_value_optional "$file" provider.resourceName
+}
+
+provider_has_resource_name() {
+  local provider_type="$1"
+
+  case "$provider_type" in
+  azure-openai | azure-cognitive-services)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+provider_endpoint() {
+  local provider_type="$1"
+  local resource_name="$2"
+
+  if [ -z "$resource_name" ]; then
+    return 0
+  fi
+
+  case "$provider_type" in
+  azure-openai)
+    printf 'https://%s.openai.azure.com/\n' "$resource_name"
+    ;;
+  azure-cognitive-services)
+    printf 'https://%s.cognitiveservices.azure.com/\n' "$resource_name"
+    ;;
+  esac
+}
+
+token_exists() {
+  local name="$1"
+
+  [ -f "$(token_file "$name")" ]
+}
+
+write_token() {
+  local name="$1"
+  local token="$2"
+  local file
+
+  file=$(token_file "$name")
+  mkdir -p "$(dirname "$file")"
+  umask 077
+  printf '%s\n' "$token" >"$file"
+}
+
+delete_token() {
+  local name="$1"
+  rm -f "$(token_file "$name")"
+}
+
+prompt_value() {
+  picotools_prompt_value "$@"
+}
+
+prompt_yes_no() {
+  picotools_prompt_yes_no "$@"
+}
+
+prompt_provider_type() {
+  local current_value="${1:-}"
+  local selection default_selection provider_type
+
+  default_selection=$(provider_type_default_selection "$current_value")
+
+  while true; do
+    echo 'Provider types:' >&2
+    printf '  1. %s\n' 'Azure OpenAI' >&2
+    printf '  2. %s\n' 'Azure Cognitive Services' >&2
+    printf '  3. %s\n' 'Gemini' >&2
+    printf 'Select provider type [%s]: ' "$default_selection" >&2
+    read -r selection || true
+
+    if [ -z "$selection" ]; then
+      selection="$default_selection"
+    fi
+
+    if provider_type=$(provider_type_from_selection "$selection"); then
+      printf '%s\n' "$provider_type"
+      return 0
+    fi
+
+    echo 'Please choose 1, 2, or 3.' >&2
+  done
+}
+
+prompt_profile_fields() {
+  local provider_type="$1"
+  local current_resource_name="${2:-}"
+  local current_models="${3:-}"
+  local resource_name='' models=''
+
+  if provider_has_resource_name "$provider_type"; then
+    resource_name=$(prompt_value 'Resource name' "$current_resource_name" true)
+  fi
+
+  models=$(prompt_value 'Models (comma-separated)' "$current_models" true)
+  models=$(normalize_models_value "$models")
+
+  printf '%s\001%s\n' "$resource_name" "$models"
+}
+
+save_profile() {
+  local file="$1"
+  local provider_type="$2"
+  local resource_name="$3"
+  local models="$4"
+
+  rm -f "$file"
+  write_profile_value "$file" provider.type "$provider_type"
+
+  if [ -n "$resource_name" ]; then
+    write_profile_value "$file" provider.resourceName "$resource_name"
+  fi
+
+  if [ -n "$models" ]; then
+    write_profile_value "$file" provider.models "$models"
+  fi
+}
+
+select_profile_file() {
+  local index=1 selection file name
+  local files=()
+
+  if ! saved_profile_files >/dev/null; then
+    echo 'No model provider profiles found.' >&2
+    exit 1
+  fi
+
+  while IFS= read -r file; do
+    files+=("$file")
+    name=$(profile_name_from_file "$file")
+    printf '%d. %s\n' "$index" "$name" >&2
+    index=$((index + 1))
+  done < <(saved_profile_files)
+
+  printf 'Select profile: ' >&2
+  read -r selection || true
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
+    echo 'Error: invalid selection' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${files[$((selection - 1))]}"
+}
+
+format_profile_summary_row() {
+  local file="$1"
+  local index="$2"
+  local name provider_type resource_name models token_status
+
+  name=$(profile_name_from_file "$file")
+  provider_type=$(read_profile_value "$file" provider.type)
+  resource_name=$(provider_resource_name_value "$file")
+  models=$(provider_models_value "$file")
+
+  if token_exists "$name"; then
+    token_status=yes
+  else
+    token_status=no
+  fi
+
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$index" \
+    "$name" \
+    "$(provider_type_label "$provider_type")" \
+    "$(display_value "$resource_name")" \
+    "$(display_value "$models")" \
+    "$token_status"
+}
+
+print_profile_detail() {
+  local file="$1"
+  local name provider_type resource_name endpoint models token_status token_path
+
+  name=$(profile_name_from_file "$file")
+  provider_type=$(read_profile_value "$file" provider.type)
+  resource_name=$(provider_resource_name_value "$file")
+  endpoint=$(provider_endpoint "$provider_type" "$resource_name")
+  models=$(provider_models_value "$file")
+  token_path=$(token_file "$name")
+
+  if token_exists "$name"; then
+    token_status=yes
+  else
+    token_status=no
+  fi
+
+  picotools_print_two_column_table \
+    $'Name	'"$name" \
+    $'Type	'"$(provider_type_label "$provider_type")" \
+    $'Resource Name	'"$(display_value "$resource_name")" \
+    $'Endpoint	'"$(display_value "$endpoint")" \
+    $'Models	'"$(display_value "$models")" \
+    $'Token Stored	'"$token_status" \
+    $'Config File	'"$file" \
+    $'Token File	'"$token_path"
+}
+
+create_profile() {
+  local name file overwrite provider_type token resource_name models selected_fields
+
+  name=$(prompt_value 'Profile name' '' true)
+  validate_profile_name "$name"
+  ensure_storage_dirs
+  file=$(profile_file "$name")
+
+  if [ -f "$file" ]; then
+    overwrite=$(prompt_yes_no "Profile '$name' already exists. Overwrite?" no)
+    if [ "$overwrite" != 'yes' ]; then
+      echo 'Cancelled.' >&2
+      exit 1
+    fi
+  fi
+
+  provider_type=$(prompt_provider_type)
+  selected_fields=$(prompt_profile_fields "$provider_type")
+  IFS=$'\001' read -r resource_name models <<<"$selected_fields"
+  token=$(prompt_value 'API key' '' true)
+
+  save_profile "$file" "$provider_type" "$resource_name" "$models"
+  write_token "$name" "$token"
+  echo "Saved model provider profile '$name'."
+}
+
+list_profiles() {
+  local file selection action
+  local index=1
+  local -a files=()
+  local -a rows=()
+
+  if ! saved_profile_files >/dev/null; then
+    echo 'No model provider profiles found.'
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    files+=("$file")
+    rows+=("$(format_profile_summary_row "$file" "$index")")
+    index=$((index + 1))
+  done < <(saved_profile_files)
+
+  picotools_print_table $'#	Name	Type	Resource	Models	Token' "${rows[@]}"
+
+  printf 'Select profile for details (leave blank to exit): ' >&2
+  read -r selection || true
+
+  if [ -z "$selection" ]; then
+    return 0
+  fi
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
+    echo 'Error: invalid selection' >&2
+    exit 1
+  fi
+
+  print_profile_detail "${files[$((selection - 1))]}"
+  if ! action=$(prompt_profile_action); then
+    return 0
+  fi
+
+  case "$action" in
+  u)
+    update_profile_file "${files[$((selection - 1))]}"
+    ;;
+  d)
+    delete_profile_file "${files[$((selection - 1))]}"
+    ;;
+  esac
+}
+
+read_profile() {
+  local file
+
+  file=$(select_profile_file)
+  print_profile_detail "$file"
+}
+
+prompt_profile_action() {
+  local action
+
+  while true; do
+    echo 'Actions:' >&2
+    printf '  u. %s\n' 'Update selected profile' >&2
+    printf '  d. %s\n' 'Delete selected profile' >&2
+    printf 'Choose action (leave blank to exit): ' >&2
+    read -r action || true
+    action=${action,,}
+
+    if [ -z "$action" ]; then
+      return 1
+    fi
+
+    case "$action" in
+    u | d)
+      printf '%s\n' "$action"
+      return 0
+      ;;
+    esac
+
+    echo 'Please choose u or d.' >&2
+  done
+}
+
+update_profile_file() {
+  local file="$1"
+  local name provider_type resource_name models selected_fields
+  local update_token token
+
+  name=$(profile_name_from_file "$file")
+  provider_type=$(read_profile_value "$file" provider.type)
+  resource_name=$(provider_resource_name_value "$file")
+  models=$(provider_models_value "$file")
+
+  provider_type=$(prompt_provider_type "$provider_type")
+  selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$models")
+  IFS=$'\001' read -r resource_name models <<<"$selected_fields"
+
+  save_profile "$file" "$provider_type" "$resource_name" "$models"
+
+  update_token=$(prompt_yes_no 'Update API key?' no)
+  if [ "$update_token" = 'yes' ]; then
+    token=$(prompt_value 'API key' '' true)
+    write_token "$name" "$token"
+  fi
+
+  echo "Updated model provider profile '$name'."
+}
+
+delete_profile_file() {
+  local file="$1"
+  local name confirm
+
+  name=$(profile_name_from_file "$file")
+  confirm=$(prompt_yes_no "Delete '$name'?" no)
+  if [ "$confirm" != 'yes' ]; then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
+
+  rm -f "$file"
+  delete_token "$name"
+  echo 'Deleted model provider profile.'
+}
+
+update_profile() {
+  local file
+
+  file=$(select_profile_file)
+  update_profile_file "$file"
+}
+
+delete_profile() {
+  local file
+
+  file=$(select_profile_file)
+  delete_profile_file "$file"
+}
+
+main() {
+  case "${1:-}" in
+  -h | --help | help | '')
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  create)
+    shift
+    create_profile "$@"
+    ;;
+  update)
+    shift
+    update_profile "$@"
+    ;;
+  list)
+    shift
+    list_profiles "$@"
+    ;;
+  read)
+    shift
+    read_profile "$@"
+    ;;
+  delete)
+    shift
+    delete_profile "$@"
+    ;;
+  *)
+    echo "Error: unknown command '$1'" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"

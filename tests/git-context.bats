@@ -226,7 +226,7 @@ assert_create_fails() {
 }
 
 @test "create list and delete context" {
-  local output context_file
+  local output detail_output context_file
 
   context_file="$(context_file_path personal)"
 
@@ -236,12 +236,25 @@ assert_create_fails() {
   assert_file_exists "$context_file" 'create should save the named context'
 
   output=$(run_tool list)
+  assert_contains "$output" '| # ' 'list should print an index column'
   assert_contains "$output" '| Name' 'list should print a table header'
   assert_contains "$output" 'personal' 'list should include the context name'
   assert_contains "$output" 'Jane Dev' 'list should include the user name'
   assert_contains "$output" 'jane@example.com' 'list should include the email'
   assert_contains "$output" ' no ' 'list should show disabled optional features'
   assert_not_contains "$output" 'Autocrlf' 'list should not include the detailed optional settings columns'
+
+  detail_output=$(printf '1\n\n' | run_tool list 2>&1)
+  assert_contains "$detail_output" '| Field ' 'list selection should render a detail table'
+  assert_contains "$detail_output" '| Name ' 'list selection should include the context name field'
+  assert_contains "$detail_output" 'personal' 'list selection should include the context name'
+  assert_contains "$detail_output" 'Jane Dev' 'list selection should include the user name'
+  assert_contains "$detail_output" 'jane@example.com' 'list selection should include the email'
+  assert_contains "$detail_output" 'Actions:' 'list selection should show the action menu'
+  assert_contains "$detail_output" 'p. Display public SSH key' 'list selection should describe the public key action'
+  assert_contains "$detail_output" 's. Set selected context in current repository' 'list selection should describe the set action'
+  assert_contains "$detail_output" 'u. Update selected context' 'list selection should describe the update action'
+  assert_contains "$detail_output" 'd. Delete selected context' 'list selection should describe the delete action'
 
   printf '1\ny\n' | run_tool delete >/dev/null 2>&1
 
@@ -321,6 +334,52 @@ EOF
   assert_contains "$output" ' yes ' 'list should include enabled optional feature states'
   assert_not_contains "$output" "$ssh_key_path" 'list should not include the detailed SSH key path'
   assert_not_contains "$output" 'ABC123' 'list should not include the detailed signing key'
+}
+
+@test "list can update a selected context" {
+  local context_file
+
+  context_file="$(context_file_path work)"
+
+  printf 'work\nJane Dev\njane@example.com\nno\nno\n' |
+    run_tool create >/dev/null 2>&1
+
+  printf '1\nu\n8\nnano\n' | run_tool list >/dev/null 2>&1
+
+  assert_git_config_file_value "$context_file" core.editor nano 'list update should rewrite the selected context'
+}
+
+@test "list can set a selected context in a repository" {
+  local context_file repo
+
+  context_file="$(context_file_path work)"
+  repo="$TMP_HOME/repo"
+
+  printf 'work\nJane Dev\njane@example.com\nno\nno\n' |
+    run_tool create >/dev/null 2>&1
+  init_repo "$repo"
+
+  (
+    cd "$repo" || return 1
+    printf '1\ns\n' | run_tool list >/dev/null 2>&1
+  )
+
+  assert_git_local_value "$repo" user.name 'Jane Dev' 'list set should apply the selected context user name'
+  assert_git_local_value "$repo" user.email 'jane@example.com' 'list set should apply the selected context email'
+  assert_git_local_value "$repo" core.editor 'vim' 'list set should apply managed default values'
+}
+
+@test "list can delete a selected context" {
+  local context_file
+
+  context_file="$(context_file_path personal)"
+
+  printf 'personal\nJane Dev\njane@example.com\nno\nno\n' |
+    run_tool create >/dev/null 2>&1
+
+  printf '1\nd\ny\n' | run_tool list >/dev/null 2>&1
+
+  assert_file_not_exists "$context_file" 'list delete should remove the selected context file'
 }
 
 @test "read context displays detailed values" {

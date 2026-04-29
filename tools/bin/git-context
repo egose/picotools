@@ -320,6 +320,7 @@ display_context_value() {
 
 format_context_summary_row() {
   local file="$1"
+  local index="$2"
   local name ssh_enabled gpg_enabled user_name email ssh_command
 
   name=$(context_name_from_file "$file")
@@ -339,7 +340,8 @@ format_context_summary_row() {
     gpg_enabled=no
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$index" \
     "$name" \
     "$user_name" \
     "$email" \
@@ -349,6 +351,7 @@ format_context_summary_row() {
 
 print_context_detail() {
   local file="$1"
+  local prompt_public_key="${2:-yes}"
   local name user_name email ssh_command ssh_key_path signing_key gpg_program
   local autocrlf file_mode pull_rebase rebase_autostash push_default
   local push_autosetupremote core_editor commit_gpgsign tag_gpgsign
@@ -393,7 +396,7 @@ print_context_detail() {
 
   public_key_path=$(public_ssh_key_path "$ssh_key_path")
 
-  if [ -n "$public_key_path" ]; then
+  if [ "$prompt_public_key" = 'yes' ] && [ -n "$public_key_path" ]; then
     show_public_key=$(prompt_yes_no 'Display public SSH key?' no)
     if [ "$show_public_key" = 'yes' ]; then
       print_public_ssh_key "$public_key_path"
@@ -702,7 +705,9 @@ create_context() {
 }
 
 list_contexts() {
-  local file
+  local file selection action
+  local index=1
+  local -a files=()
   local -a rows=()
 
   if ! saved_context_files >/dev/null; then
@@ -711,10 +716,44 @@ list_contexts() {
   fi
 
   while IFS= read -r file; do
-    rows+=("$(format_context_summary_row "$file")")
+    files+=("$file")
+    rows+=("$(format_context_summary_row "$file" "$index")")
+    index=$((index + 1))
   done < <(saved_context_files)
 
-  picotools_print_table $'Name\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
+  picotools_print_table $'#\tName\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
+
+  printf 'Select context for details (leave blank to exit): ' >&2
+  read -r selection || true
+
+  if [ -z "$selection" ]; then
+    return 0
+  fi
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
+    echo 'Error: invalid selection' >&2
+    exit 1
+  fi
+
+  print_context_detail "${files[$((selection - 1))]}" no
+  if ! action=$(prompt_context_action); then
+    return 0
+  fi
+
+  case "$action" in
+  p)
+    print_context_public_key "${files[$((selection - 1))]}"
+    ;;
+  s)
+    set_context_file "${files[$((selection - 1))]}"
+    ;;
+  u)
+    update_context_file "${files[$((selection - 1))]}"
+    ;;
+  d)
+    delete_context_file "${files[$((selection - 1))]}"
+    ;;
+  esac
 }
 
 read_context() {
@@ -722,6 +761,50 @@ read_context() {
 
   file=$(select_context_file)
   print_context_detail "$file"
+}
+
+prompt_context_action() {
+  local action
+
+  while true; do
+    echo 'Actions:' >&2
+    printf '  p. %s\n' 'Display public SSH key' >&2
+    printf '  s. %s\n' 'Set selected context in current repository' >&2
+    printf '  u. %s\n' 'Update selected context' >&2
+    printf '  d. %s\n' 'Delete selected context' >&2
+    printf 'Choose action (leave blank to exit): ' >&2
+    read -r action || true
+    action=${action,,}
+
+    if [ -z "$action" ]; then
+      return 1
+    fi
+
+    case "$action" in
+    p | s | u | d)
+      printf '%s\n' "$action"
+      return 0
+      ;;
+    esac
+
+    echo 'Please choose p, s, u, or d.' >&2
+  done
+}
+
+print_context_public_key() {
+  local file="$1"
+  local ssh_command ssh_key_path public_key_path
+
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  public_key_path=$(public_ssh_key_path "$ssh_key_path")
+
+  if [ -z "$public_key_path" ]; then
+    echo 'No public SSH key found.' >&2
+    return 0
+  fi
+
+  print_public_ssh_key "$public_key_path"
 }
 
 select_context_file() {
@@ -751,10 +834,10 @@ select_context_file() {
   printf '%s\n' "${files[$((selection - 1))]}"
 }
 
-delete_context() {
-  local file confirm delete_ssh delete_gpg ssh_key_path signing_key gpg_program
+delete_context_file() {
+  local file="$1"
+  local confirm delete_ssh delete_gpg ssh_key_path signing_key gpg_program
 
-  file=$(select_context_file)
   confirm=$(prompt_yes_no "Delete '$(context_name_from_file "$file")'?" no)
   if [ "$confirm" != 'yes' ]; then
     echo 'Cancelled.' >&2
@@ -784,6 +867,13 @@ delete_context() {
 
   rm -f "$file"
   echo 'Deleted context.'
+}
+
+delete_context() {
+  local file
+
+  file=$(select_context_file)
+  delete_context_file "$file"
 }
 
 ensure_git_repository() {
@@ -836,19 +926,26 @@ set_context() {
 
   ensure_git_repository
   file=$(select_context_file)
+  set_context_file "$file"
+}
+
+set_context_file() {
+  local file="$1"
+
+  ensure_git_repository
   apply_context "$file"
   echo "Applied context '$(context_name_from_file "$file")'."
 }
 
-update_context() {
-  local file name user_name email ssh_command use_ssh
+update_context_file() {
+  local file="$1"
+  local name user_name email ssh_command use_ssh
   local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
   local update_gpg_program update_autocrlf update_file_mode update_pull_rebase
   local update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor
   local selected_fields
 
-  file=$(select_context_file)
   name=$(context_name_from_file "$file")
   user_name=$(read_context_value "$file" user.name)
   email=$(read_context_value "$file" user.email)
@@ -921,6 +1018,13 @@ update_context() {
 
   save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor"
   echo "Updated context '$name'."
+}
+
+update_context() {
+  local file
+
+  file=$(select_context_file)
+  update_context_file "$file"
 }
 
 main() {
