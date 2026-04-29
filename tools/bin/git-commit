@@ -1,0 +1,535 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" prompt version
+
+ALLOWED_TYPES='feat fix docs refactor chore perf test'
+
+usage() {
+  cat <<'EOF'
+Usage: git-commit [command]
+
+Commands:
+  configure  Select the model profile and model to use
+
+Without a command, `git-commit` analyzes the current git workspace, asks the
+configured model for conventional commit suggestions, and creates one or more
+commits.
+
+Options:
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+config_dir() {
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-commit"
+}
+
+config_file() {
+  printf '%s/config\n' "$(config_dir)"
+}
+
+ensure_config_dir() {
+  mkdir -p "$(config_dir)"
+}
+
+write_config_value() {
+  local key="$1"
+  local value="$2"
+
+  ensure_config_dir
+  git config -f "$(config_file)" "$key" "$value"
+}
+
+read_config_value_optional() {
+  local key="$1"
+
+  git config -f "$(config_file)" --get "$key" 2>/dev/null || true
+}
+
+prompt_value() {
+  picotools_prompt_value "$@"
+}
+
+prompt_yes_no() {
+  picotools_prompt_yes_no "$@"
+}
+
+model_provider_command() {
+  local candidate
+
+  if [ -n "${MODEL_PROVIDER_BIN:-}" ]; then
+    printf '%s\n' "$MODEL_PROVIDER_BIN"
+    return 0
+  fi
+
+  candidate="${SCRIPT_DIR}/model-provider"
+  if [ -x "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if command -v model-provider >/dev/null 2>&1; then
+    command -v model-provider
+    return 0
+  fi
+
+  echo 'Error: unable to locate model-provider' >&2
+  exit 1
+}
+
+run_model_provider() {
+  local tool
+
+  tool=$(model_provider_command)
+  "$tool" "$@"
+}
+
+require_git_repository() {
+  if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" != 'true' ]; then
+    echo 'Error: git-commit must be run inside a Git repository' >&2
+    exit 1
+  fi
+}
+
+require_dependencies() {
+  local tool
+
+  for tool in git jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "Error: required tool not found: $tool" >&2
+      exit 1
+    fi
+  done
+
+  model_provider_command >/dev/null
+}
+
+require_runtime_dependencies() {
+  require_git_repository
+  require_dependencies
+}
+
+select_from_list() {
+  local header="$1"
+  local prompt="$2"
+  shift 2
+  local selection
+  local index=1
+  local -a items=("$@")
+
+  if [ "${#items[@]}" -eq 0 ]; then
+    echo "Error: no options available for $header" >&2
+    exit 1
+  fi
+
+  printf '%s:\n' "$header" >&2
+  for item in "${items[@]}"; do
+    printf '  %d. %s\n' "$index" "$item" >&2
+    index=$((index + 1))
+  done
+
+  printf '%s [1]: ' "$prompt" >&2
+  read -r selection || true
+
+  if [ -z "$selection" ]; then
+    selection=1
+  fi
+
+  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#items[@]}" ]; then
+    echo 'Error: invalid selection' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "${items[$((selection - 1))]}"
+}
+
+configure_tool() {
+  local profile model
+  local -a profiles=()
+  local -a models=()
+
+  model_provider_command >/dev/null
+  mapfile -t profiles < <(run_model_provider profiles)
+  if [ "${#profiles[@]}" -eq 0 ]; then
+    echo 'Error: no model-provider profiles found' >&2
+    exit 1
+  fi
+
+  profile=$(select_from_list 'Profiles' 'Select profile' "${profiles[@]}")
+  mapfile -t models < <(run_model_provider models "$profile")
+  if [ "${#models[@]}" -eq 0 ]; then
+    echo "Error: no models configured for profile '$profile'" >&2
+    exit 1
+  fi
+
+  model=$(select_from_list 'Models' 'Select model' "${models[@]}")
+  write_config_value model.profile "$profile"
+  write_config_value model.name "$model"
+  echo "Configured git-commit with profile '$profile' and model '$model'."
+}
+
+load_configuration() {
+  local profile model
+
+  profile=$(read_config_value_optional model.profile)
+  model=$(read_config_value_optional model.name)
+
+  if [ -z "$profile" ] || [ -z "$model" ]; then
+    echo 'Warning: git-commit is not configured. Run git-commit configure.' >&2
+    exit 1
+  fi
+
+  printf '%s\t%s\n' "$profile" "$model"
+}
+
+ensure_changes_exist() {
+  local status
+
+  status=$(git status --porcelain)
+  if [ -z "$status" ]; then
+    echo 'Error: no file changes found in the current git workspace' >&2
+    exit 1
+  fi
+}
+
+ensure_no_staged_changes() {
+  local staged_status unstage_changes
+
+  staged_status=$(git diff --cached --name-only)
+  if [ -n "$staged_status" ]; then
+    unstage_changes=$(prompt_yes_no 'Staged changes detected. Unstage them with git restore --staged :/?' no)
+    if [ "$unstage_changes" = 'yes' ]; then
+      git restore --staged :/
+      return 0
+    fi
+
+    echo 'Error: git-commit requires no pre-staged changes. Unstage them first.' >&2
+    exit 1
+  fi
+}
+
+current_branch_name() {
+  local branch
+
+  branch=$(git branch --show-current)
+  if [ -z "$branch" ]; then
+    echo 'Error: detached HEAD is not supported' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$branch"
+}
+
+derive_scope_from_branch() {
+  local branch="$1"
+  local last_segment
+
+  last_segment=${branch##*/}
+  if [[ "$last_segment" =~ ^([0-9]+)([_-].*)?$ ]]; then
+    printf '%s\n' "${BASH_REMATCH[1]}"
+    return 0
+  fi
+
+  printf '%s\n' "$last_segment"
+}
+
+collect_changed_files() {
+  local file
+  local has_head=false
+  local -A seen=()
+  local -a files=()
+
+  if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    has_head=true
+  fi
+
+  if [ "$has_head" = true ]; then
+    while IFS= read -r file; do
+      if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+        seen[$file]=1
+        files+=("$file")
+      fi
+    done < <(git diff --name-only HEAD --)
+  else
+    while IFS= read -r file; do
+      if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+        seen[$file]=1
+        files+=("$file")
+      fi
+    done < <(git diff --name-only --cached --)
+  fi
+
+  while IFS= read -r file; do
+    if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+      seen[$file]=1
+      files+=("$file")
+    fi
+  done < <(git ls-files --others --exclude-standard)
+
+  printf '%s\n' "${files[@]}"
+}
+
+collect_changes_diff() {
+  local file
+  local has_head=false
+  local diff_output=''
+
+  if git rev-parse --verify HEAD >/dev/null 2>&1; then
+    has_head=true
+  fi
+
+  if [ "$has_head" = true ]; then
+    diff_output=$(git diff --no-ext-diff --binary HEAD --)
+  else
+    diff_output=$(git diff --no-ext-diff --binary --cached --)
+  fi
+
+  while IFS= read -r file; do
+    if [ -n "$file" ]; then
+      diff_output+=$'\n'
+      diff_output+=$(git diff --no-ext-diff --binary --no-index /dev/null "$file" || true)
+    fi
+  done < <(git ls-files --others --exclude-standard)
+
+  printf '%s\n' "$diff_output"
+}
+
+commit_planning_system_message() {
+  cat <<'EOF'
+You are an expert software engineer creating conventional commit plans.
+
+Return JSON only with this exact shape:
+{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}]}
+
+Rules:
+- Allowed types: feat, fix, docs, refactor, chore, perf, test
+- The message must be the commit subject suffix only. Do not include the type or scope prefix.
+- Prefer one commit unless the changes clearly belong to distinct tasks.
+- Prefer separate commits when reusable supporting changes are independently useful from the consuming feature.
+- When one tool or shared capability is extended to support a new tool, prefer one commit for the supporting capability and another for the new consuming feature when the split is coherent.
+- If you return multiple commits, each changed file must appear in exactly one commit.
+- Use file paths exactly as provided.
+- Do not include markdown fences or commentary.
+EOF
+}
+
+build_commit_planning_message() {
+  local branch="$1"
+  local scope="$2"
+  local changed_files="$3"
+  local diff_output="$4"
+
+  printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n' \
+    'Analyze these current git workspace changes and propose conventional commit plan JSON.' \
+    'Current branch:' "$branch" \
+    'Derived scope:' "$scope" \
+    'Changed files:' "$changed_files" \
+    'Unified diff:' "$diff_output"
+}
+
+valid_commit_type() {
+  local type="$1"
+  local allowed_type
+
+  for allowed_type in $ALLOWED_TYPES; do
+    if [ "$type" = "$allowed_type" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+plan_commit_count() {
+  local plan_json="$1"
+
+  printf '%s' "$plan_json" | jq -r '.commits | length'
+}
+
+validate_multi_commit_plan() {
+  local plan_json="$1"
+  local changed_files="$2"
+  local count commit_index file
+  local -A changed_file_set=()
+  local -A planned_file_set=()
+  local -a commit_files=()
+
+  while IFS= read -r file; do
+    if [ -n "$file" ]; then
+      changed_file_set[$file]=1
+    fi
+  done <<<"$changed_files"
+
+  count=$(plan_commit_count "$plan_json")
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]?")
+    if [ "${#commit_files[@]}" -eq 0 ]; then
+      echo "Error: commit plan item $((commit_index + 1)) must include files" >&2
+      exit 1
+    fi
+
+    for file in "${commit_files[@]}"; do
+      if [ -z "${changed_file_set[$file]:-}" ]; then
+        echo "Error: commit plan referenced an unknown changed file: $file" >&2
+        exit 1
+      fi
+      if [ -n "${planned_file_set[$file]:-}" ]; then
+        echo "Error: commit plan assigned the same file to multiple commits: $file" >&2
+        exit 1
+      fi
+      planned_file_set[$file]=1
+    done
+
+    commit_index=$((commit_index + 1))
+  done
+
+  for file in "${!changed_file_set[@]}"; do
+    if [ -z "${planned_file_set[$file]:-}" ]; then
+      echo "Error: commit plan did not cover changed file: $file" >&2
+      exit 1
+    fi
+  done
+}
+
+format_commit_title() {
+  local type="$1"
+  local scope="$2"
+  local message="$3"
+
+  printf '%s(%s): %s\n' "$type" "$scope" "$message"
+}
+
+print_git_add_command() {
+  if [ "$#" -eq 0 ]; then
+    echo 'git add -A :/'
+    return 0
+  fi
+
+  local file
+  printf 'git add --'
+  for file in "$@"; do
+    printf ' %q' ":/$file"
+  done
+  printf '\n'
+}
+
+print_git_commit_command() {
+  local title="$1"
+  local escaped_title
+
+  escaped_title=${title//\\/\\\\}
+  escaped_title=${escaped_title//"/\\"/}
+  printf 'git commit -m "%s"\n' "$escaped_title"
+}
+
+print_commit_plan() {
+  local plan_json="$1"
+  local scope="$2"
+  local changed_files="$3"
+  local count commit_index type message title
+  local -a commit_files=()
+
+  count=$(plan_commit_count "$plan_json")
+  if [ "$count" -gt 1 ]; then
+    validate_multi_commit_plan "$plan_json" "$changed_files"
+  fi
+
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
+    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
+
+    if ! valid_commit_type "$type"; then
+      echo "Error: invalid commit type in plan: $type" >&2
+      exit 1
+    fi
+
+    if [ -z "$message" ]; then
+      echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
+      exit 1
+    fi
+
+    title=$(format_commit_title "$type" "$scope" "$message")
+
+    if [ "$count" -eq 1 ]; then
+      print_git_add_command
+    else
+      mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]")
+      printf 'Commit %d:\n' "$((commit_index + 1))"
+      print_git_add_command "${commit_files[@]}"
+    fi
+
+    print_git_commit_command "$title"
+    if [ "$commit_index" -lt $((count - 1)) ]; then
+      printf '\n'
+    fi
+    commit_index=$((commit_index + 1))
+  done
+}
+
+run_commit_tool() {
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json
+
+  require_git_repository
+  ensure_no_staged_changes
+  ensure_changes_exist
+  config_values=$(load_configuration)
+  IFS=$'\t' read -r profile model <<<"$config_values"
+  require_dependencies
+  branch=$(current_branch_name)
+  scope=$(derive_scope_from_branch "$branch")
+  changed_files=$(collect_changed_files)
+  diff_output=$(collect_changes_diff)
+  system_message=$(commit_planning_system_message)
+  user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
+  plan_json=$(run_model_provider ask "$profile" --model "$model" --system-message "$system_message" --message "$user_message")
+
+  if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
+    echo 'Error: model-provider ask did not return valid commit plan JSON' >&2
+    exit 1
+  fi
+
+  print_commit_plan "$plan_json" "$scope" "$changed_files"
+}
+
+main() {
+  case "${1:-}" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  configure)
+    shift
+    configure_tool "$@"
+    ;;
+  '')
+    run_commit_tool
+    ;;
+  *)
+    echo "Error: unknown command '$1'" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"
