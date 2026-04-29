@@ -1,8 +1,9 @@
-## [0.9.0](https://github.com/egose/picotools/compare/v0.8.0...v0.9.0) (2026-04-29)
+## [0.10.0](https://github.com/egose/picotools/compare/v0.9.0...v0.10.0) (2026-04-29)
 
 ### Features
 
 * add asdf-clean-unused script ([356c393](https://github.com/egose/picotools/commit/356c3938074390de3f52bfc5d990687d2d50a269))
+* add custom provider support to model-provider ([088de86](https://github.com/egose/picotools/commit/088de8644ba19224d5330cba24ee7e76c6d33f70))
 * add git-clean-task-pr script ([199d049](https://github.com/egose/picotools/commit/199d0495d9257ab2c1f36f69ea764a6d87ba9ea1))
 * add git-commit tool ([1886558](https://github.com/egose/picotools/commit/1886558cb108f3a65361bcde0449a2c474db1a47))
 * add git-context script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
