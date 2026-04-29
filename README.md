@@ -14,10 +14,16 @@ The following scripts are included in `tools/bin`:
 | `oc-route` | Lists, reads, and interactively applies OpenShift route manifests |
 | `oc-quota-requests` | Analyzes OpenShift namespace CPU and memory request quota usage |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
+| `model-provider` | Stores named model provider profiles with config and token data kept separately |
+| `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
+
+`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, and `gemini` profiles with `create`, `update`, `list`, `read`, `ask`, and `delete`. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--model MODEL` to override the default first configured model, and `--system-message TEXT` to override the default system prompt. `--user-message` is accepted as an alias for `--message`.
+
+`git-commit` stores its selected model profile and model under `~/.config/git-commit/config`. Run `git-commit configure` first, then run `git-commit` inside a Git repository to ask the configured model for a conventional-commit plan and print the `git add` and `git commit -m ...` commands for one or more commits from the current workspace changes. If staged changes already exist, it can optionally unstage them with `git restore --staged :/` before generating the preview.
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
@@ -70,6 +76,8 @@ pip-upgrade
 oc-route
 oc-quota-requests
 gh-repo-sync
+model-provider
+git-commit
 git-clean-branches
 git-clean-task-pr
 ```

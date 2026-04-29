@@ -13,7 +13,7 @@ picotools_source_modules "$SCRIPT_DIR" commands version
 
 REPOS_DIR="${PWD}/repos"
 CACHE_FILE="${PWD}/repo-updates.json"
-PAT_FILE="${HOME}/.config/gh-repo-sync/pat"
+PAT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/gh-repo-sync/pat"
 PER_PAGE=100
 
 REQUIRED_TOOLS=(curl jq unzip)
