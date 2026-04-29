@@ -20,6 +20,8 @@ Commands:
   update    Update a saved model provider profile
   list      List saved model provider profiles and show selected details
   read      Show detailed information for a saved model provider profile
+  profiles  List saved model provider profile names
+  models    List configured models for a profile
   ask       Send a prompt to a model provider profile
   delete    Delete a saved model provider profile
 
@@ -690,6 +692,38 @@ read_profile() {
   print_profile_detail "$file"
 }
 
+list_profile_names() {
+  local file
+
+  if ! saved_profile_files >/dev/null; then
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    profile_name_from_file "$file"
+  done < <(saved_profile_files)
+}
+
+list_profile_models() {
+  local profile_name="${1:-}"
+  local file model_list
+  local model_item
+  local -a model_items=()
+
+  if [ -z "$profile_name" ]; then
+    echo 'Error: models requires a profile name' >&2
+    exit 1
+  fi
+
+  file=$(require_existing_profile_file "$profile_name")
+  model_list=$(provider_models_value "$file")
+  IFS=',' read -r -a model_items <<<"$model_list"
+
+  for model_item in "${model_items[@]}"; do
+    printf '%s\n' "$model_item"
+  done
+}
+
 prompt_profile_action() {
   local action
 
@@ -875,6 +909,14 @@ main() {
   read)
     shift
     read_profile "$@"
+    ;;
+  profiles)
+    shift
+    list_profile_names "$@"
+    ;;
+  models)
+    shift
+    list_profile_models "$@"
     ;;
   ask)
     shift

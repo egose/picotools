@@ -314,6 +314,23 @@ run_tool() {
   assert_contains "$output" 'gemini-main' 'list should include gemini profiles'
 }
 
+@test "profiles and models commands expose saved configuration" {
+  local output
+
+  printf 'vision\n2\nexample-vision\nvision, document-intelligence\nvision-secret\n' |
+    run_tool create >/dev/null 2>&1
+  printf 'gemini-main\n3\ngemini-2.5-pro, gemini-2.5-flash\ngemini-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(run_tool profiles)
+  assert_contains "$output" 'vision' 'profiles should include azure-cognitive-services profiles'
+  assert_contains "$output" 'gemini-main' 'profiles should include gemini profiles'
+
+  output=$(run_tool models gemini-main)
+  assert_contains "$output" 'gemini-2.5-pro' 'models should include the first configured model'
+  assert_contains "$output" 'gemini-2.5-flash' 'models should include the second configured model'
+}
+
 @test "create supports profile names with spaces" {
   local profile_file token_file output detail_output
 
