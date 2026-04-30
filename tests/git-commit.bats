@@ -147,6 +147,43 @@ EOF
   chmod +x "$stub_path"
 }
 
+create_pre_commit_stub() {
+  local stub_path="$1"
+
+  cat >"$stub_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+attempt=1
+if [ -n "${PRE_COMMIT_ATTEMPTS_FILE:-}" ]; then
+  if [ -f "$PRE_COMMIT_ATTEMPTS_FILE" ]; then
+    attempt=$(( $(<"$PRE_COMMIT_ATTEMPTS_FILE") + 1 ))
+  fi
+  printf '%s\n' "$attempt" >"$PRE_COMMIT_ATTEMPTS_FILE"
+fi
+
+if [ -n "${PRE_COMMIT_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$PRE_COMMIT_LOG"
+fi
+
+if [ -n "${PRE_COMMIT_FAIL_FIRST:-}" ] && [ "$attempt" -le "$PRE_COMMIT_FAIL_FIRST" ]; then
+  exit 1
+fi
+EOF
+  chmod +x "$stub_path"
+}
+
+install_pre_commit_hook() {
+  local repo="$1"
+
+  mkdir -p "$repo/.git/hooks"
+  cat >"$repo/.git/hooks/pre-commit" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+  chmod +x "$repo/.git/hooks/pre-commit"
+}
+
 run_configure_with_stub() {
   local stub_path="$1"
   local input_file
@@ -192,6 +229,7 @@ create_initial_commit() {
   output=$(MODEL_PROVIDER_BIN="$stub_path" "$TOOL" --help)
   assert_contains "$output" 'Usage: git-commit [command]' 'help should describe usage'
   assert_contains "$output" 'configure  Select the model profile and model to use' 'help should list configure'
+  assert_contains "$output" '--apply' 'help should list apply mode'
 
   printf '2\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
   assert_file_exists "$(git_commit_config_file)" 'configure should create a config file'
@@ -345,4 +383,227 @@ create_initial_commit() {
   assert_eq "$head_subject" 'chore(init): initial commit' 'git-commit should not create grouped commits automatically'
   staged_after=$(git -C "$repo" diff --cached --name-only)
   assert_eq "$staged_after" '' 'git-commit should not stage grouped files automatically in preview mode'
+}
+
+@test "omits scope when branch name has no slash" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b dv
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "chore: update readme"' 'git-commit should omit scope when branch name has no slash'
+}
+
+@test "uses explicit --scope override instead of branch-derived scope" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" --scope override 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should use the explicit scope override'
+}
+
+@test "uses explicit --scope=value override instead of branch-derived scope" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" --scope=override 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should accept --scope=value'
+}
+
+@test "omits scope when --no-scope is provided" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" --no-scope 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat: update readme"' 'git-commit should omit scope when --no-scope is provided'
+}
+
+@test "runs pre-commit on changed files when hook exists" {
+  local stub_path jq_stub pre_commit_stub repo output pre_commit_log
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  pre_commit_stub="$TMP_HOME/pre-commit"
+  pre_commit_log="$TMP_HOME/pre-commit.log"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_pre_commit_stub "$pre_commit_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  install_pre_commit_hook "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    PRE_COMMIT_LOG="$pre_commit_log" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should continue after successful pre-commit checks'
+  assert_contains "$(<"$pre_commit_log")" 'run --files README.md notes.txt' 'git-commit should run pre-commit for changed files when a hook exists'
+}
+
+@test "retries pre-commit up to two more times after failures" {
+  local stub_path jq_stub pre_commit_stub repo output pre_commit_log pre_commit_attempts
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  pre_commit_stub="$TMP_HOME/pre-commit"
+  pre_commit_log="$TMP_HOME/pre-commit.log"
+  pre_commit_attempts="$TMP_HOME/pre-commit.attempts"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_pre_commit_stub "$pre_commit_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  install_pre_commit_hook "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    PRE_COMMIT_LOG="$pre_commit_log" \
+    PRE_COMMIT_ATTEMPTS_FILE="$pre_commit_attempts" \
+    PRE_COMMIT_FAIL_FIRST=2 \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should continue after pre-commit succeeds on a retry'
+  assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
+  assert_contains "$(<"$pre_commit_log")" 'run --files README.md' 'git-commit should keep retrying the same changed files'
+}
+
+@test "applies a single planned commit with --apply" {
+  local stub_path jq_stub repo output head_subject status_after
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit in apply mode'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply mode'
+  assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply mode'
+}
+
+@test "applies grouped commits with --apply" {
+  local stub_path jq_stub repo output head_subject previous_subject status_after
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b fix/445566_2
+  mkdir -p "$repo/src" "$repo/tests"
+  printf 'code change\n' >"$repo/src/app.txt"
+  printf 'test change\n' >"$repo/tests/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update application logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for application logic","files":["tests/app.txt"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
+  assert_eq "$head_subject" 'test(445566): add coverage for application logic' 'git-commit should create the last grouped commit in apply mode'
+  assert_eq "$previous_subject" 'fix(445566): update application logic' 'git-commit should create grouped commits in order'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after grouped apply mode'
+  assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
+  assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
 }

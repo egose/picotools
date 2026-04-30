@@ -27,6 +27,9 @@ commits.
 Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
+  --apply                   Stage files and create the generated commit plan
+  --scope <value>           Override commit scope for generated titles
+  --no-scope                Omit scope from generated titles
 EOF
 }
 
@@ -238,6 +241,11 @@ derive_scope_from_branch() {
   local branch="$1"
   local last_segment
 
+  if [[ "$branch" != */* ]]; then
+    printf '\n'
+    return 0
+  fi
+
   last_segment=${branch##*/}
   if [[ "$last_segment" =~ ^([0-9]+)([_-].*)?$ ]]; then
     printf '%s\n' "${BASH_REMATCH[1]}"
@@ -245,6 +253,50 @@ derive_scope_from_branch() {
   fi
 
   printf '%s\n' "$last_segment"
+}
+
+pre_commit_hook_path() {
+  git rev-parse --git-path hooks/pre-commit
+}
+
+run_pre_commit_checks() {
+  local changed_files="$1"
+  local hook_path file attempt=1
+  local max_attempts=3
+  local -a files=()
+
+  hook_path=$(pre_commit_hook_path)
+  if [ ! -f "$hook_path" ]; then
+    return 0
+  fi
+
+  if ! command -v pre-commit >/dev/null 2>&1; then
+    echo "Error: pre-commit hook exists but 'pre-commit' is not installed" >&2
+    exit 1
+  fi
+
+  while IFS= read -r file; do
+    if [ -n "$file" ]; then
+      files+=("$file")
+    fi
+  done <<<"$changed_files"
+
+  if [ "${#files[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  while true; do
+    if pre-commit run --files "${files[@]}"; then
+      return 0
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      echo "Error: pre-commit checks failed after $max_attempts attempts" >&2
+      exit 1
+    fi
+
+    attempt=$((attempt + 1))
+  done
 }
 
 collect_changed_files() {
@@ -333,6 +385,10 @@ build_commit_planning_message() {
   local changed_files="$3"
   local diff_output="$4"
 
+  if [ -z "$scope" ]; then
+    scope='(none)'
+  fi
+
   printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n' \
     'Analyze these current git workspace changes and propose conventional commit plan JSON.' \
     'Current branch:' "$branch" \
@@ -411,7 +467,75 @@ format_commit_title() {
   local scope="$2"
   local message="$3"
 
-  printf '%s(%s): %s\n' "$type" "$scope" "$message"
+  if [ -n "$scope" ]; then
+    printf '%s(%s): %s\n' "$type" "$scope" "$message"
+    return 0
+  fi
+
+  printf '%s: %s\n' "$type" "$message"
+}
+
+parse_run_options() {
+  local scope_override=''
+  local no_scope=false
+  local apply_commits=false
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --apply)
+      apply_commits=true
+      shift
+      ;;
+    --scope)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --scope requires a value' >&2
+        exit 1
+      fi
+      scope_override="$2"
+      no_scope=false
+      shift 2
+      ;;
+    --scope=*)
+      scope_override="${1#--scope=}"
+      if [ -z "$scope_override" ]; then
+        echo 'Error: --scope requires a value' >&2
+        exit 1
+      fi
+      no_scope=false
+      shift
+      ;;
+    --no-scope)
+      scope_override=''
+      no_scope=true
+      shift
+      ;;
+    *)
+      echo "Error: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  printf '%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits"
+}
+
+resolve_scope() {
+  local branch="$1"
+  local scope_override="$2"
+  local no_scope="$3"
+
+  if [ "$no_scope" = 'true' ]; then
+    printf '\n'
+    return 0
+  fi
+
+  if [ -n "$scope_override" ]; then
+    printf '%s\n' "$scope_override"
+    return 0
+  fi
+
+  derive_scope_from_branch "$branch"
 }
 
 print_git_add_command() {
@@ -482,18 +606,68 @@ print_commit_plan() {
   done
 }
 
+execute_commit_plan() {
+  local plan_json="$1"
+  local scope="$2"
+  local changed_files="$3"
+  local count commit_index type message title
+  local -a commit_files=()
+
+  count=$(plan_commit_count "$plan_json")
+  if [ "$count" -gt 1 ]; then
+    validate_multi_commit_plan "$plan_json" "$changed_files"
+  fi
+
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
+    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
+
+    if ! valid_commit_type "$type"; then
+      echo "Error: invalid commit type in plan: $type" >&2
+      exit 1
+    fi
+
+    if [ -z "$message" ]; then
+      echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
+      exit 1
+    fi
+
+    title=$(format_commit_title "$type" "$scope" "$message")
+
+    if [ "$count" -eq 1 ]; then
+      git add -A :/
+    else
+      mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]")
+      git add -- "${commit_files[@]/#/:/}"
+    fi
+
+    git commit -m "$title"
+    commit_index=$((commit_index + 1))
+  done
+}
+
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits
+  local -a option_values=()
+
+  mapfile -t option_values < <(parse_run_options "$@")
+  scope_override="${option_values[0]:-}"
+  no_scope="${option_values[1]:-false}"
+  apply_commits="${option_values[2]:-false}"
 
   require_git_repository
   ensure_no_staged_changes
   ensure_changes_exist
+  changed_files=$(collect_changed_files)
+  run_pre_commit_checks "$changed_files"
+  ensure_changes_exist
+  changed_files=$(collect_changed_files)
   config_values=$(load_configuration)
   IFS=$'\t' read -r profile model <<<"$config_values"
   require_dependencies
   branch=$(current_branch_name)
-  scope=$(derive_scope_from_branch "$branch")
-  changed_files=$(collect_changed_files)
+  scope=$(resolve_scope "$branch" "$scope_override" "$no_scope")
   diff_output=$(collect_changes_diff)
   system_message=$(commit_planning_system_message)
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
@@ -502,6 +676,11 @@ run_commit_tool() {
   if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
     echo 'Error: model-provider ask did not return valid commit plan JSON' >&2
     exit 1
+  fi
+
+  if [ "$apply_commits" = 'true' ]; then
+    execute_commit_plan "$plan_json" "$scope" "$changed_files"
+    return 0
   fi
 
   print_commit_plan "$plan_json" "$scope" "$changed_files"
@@ -521,8 +700,8 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '')
-    run_commit_tool
+  '' | --apply | --scope | --scope=* | --no-scope)
+    run_commit_tool "$@"
     ;;
   *)
     echo "Error: unknown command '$1'" >&2
