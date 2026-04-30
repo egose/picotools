@@ -28,6 +28,7 @@ Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
   --apply                   Stage files and create the generated commit plan
+  --pre-commit-retries <n>  Retry failed pre-commit checks this many times
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
 EOF
@@ -261,8 +262,9 @@ pre_commit_hook_path() {
 
 run_pre_commit_checks() {
   local changed_files="$1"
+  local retry_count="$2"
   local hook_path file attempt=1
-  local max_attempts=3
+  local max_attempts=$((retry_count + 1))
   local -a files=()
 
   hook_path=$(pre_commit_hook_path)
@@ -479,11 +481,36 @@ parse_run_options() {
   local scope_override=''
   local no_scope=false
   local apply_commits=false
+  local pre_commit_retries=2
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
     --apply)
       apply_commits=true
+      shift
+      ;;
+    --pre-commit-retries)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --pre-commit-retries requires a value' >&2
+        exit 1
+      fi
+      if ! [[ "$2" =~ ^[0-9]+$ ]]; then
+        echo 'Error: --pre-commit-retries must be a non-negative integer' >&2
+        exit 1
+      fi
+      pre_commit_retries="$2"
+      shift 2
+      ;;
+    --pre-commit-retries=*)
+      pre_commit_retries="${1#--pre-commit-retries=}"
+      if [ -z "$pre_commit_retries" ]; then
+        echo 'Error: --pre-commit-retries requires a value' >&2
+        exit 1
+      fi
+      if ! [[ "$pre_commit_retries" =~ ^[0-9]+$ ]]; then
+        echo 'Error: --pre-commit-retries must be a non-negative integer' >&2
+        exit 1
+      fi
       shift
       ;;
     --scope)
@@ -517,7 +544,7 @@ parse_run_options() {
     esac
   done
 
-  printf '%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits"
+  printf '%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$pre_commit_retries"
 }
 
 resolve_scope() {
@@ -648,19 +675,20 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits pre_commit_retries
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
   scope_override="${option_values[0]:-}"
   no_scope="${option_values[1]:-false}"
   apply_commits="${option_values[2]:-false}"
+  pre_commit_retries="${option_values[3]:-2}"
 
   require_git_repository
   ensure_no_staged_changes
   ensure_changes_exist
   changed_files=$(collect_changed_files)
-  run_pre_commit_checks "$changed_files"
+  run_pre_commit_checks "$changed_files" "$pre_commit_retries"
   ensure_changes_exist
   changed_files=$(collect_changed_files)
   config_values=$(load_configuration)
@@ -700,7 +728,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --apply | --scope | --scope=* | --no-scope)
+  '' | --apply | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)
