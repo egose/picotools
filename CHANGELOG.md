@@ -1,7 +1,8 @@
-## [0.11.0](https://github.com/egose/picotools/compare/v0.10.0...v0.11.0) (2026-04-30)
+## [0.12.0](https://github.com/egose/picotools/compare/v0.11.0...v0.12.0) (2026-04-30)
 
 ### Features
 
+* add --pre-commit-retries option to git-commit ([68a9d24](https://github.com/egose/picotools/commit/68a9d243ffffc84c69cfb5a52ba4eaa08a8001e8))
 * add asdf-clean-unused script ([356c393](https://github.com/egose/picotools/commit/356c3938074390de3f52bfc5d990687d2d50a269))
 * add custom provider support to model-provider ([088de86](https://github.com/egose/picotools/commit/088de8644ba19224d5330cba24ee7e76c6d33f70))
 * add git-clean-task-pr script ([199d049](https://github.com/egose/picotools/commit/199d0495d9257ab2c1f36f69ea764a6d87ba9ea1))
