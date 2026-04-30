@@ -1,4 +1,4 @@
-## [0.10.0](https://github.com/egose/picotools/compare/v0.9.0...v0.10.0) (2026-04-29)
+## [0.11.0](https://github.com/egose/picotools/compare/v0.10.0...v0.11.0) (2026-04-30)
 
 ### Features
 
@@ -11,6 +11,7 @@
 * add oc-quota-requests script ([248bd64](https://github.com/egose/picotools/commit/248bd648ce9bf7136f2b9d8fc2774056ad213444))
 * add oc-route script ([137069c](https://github.com/egose/picotools/commit/137069c9b2eecb522d5166a2a6e11f2e9f225bcf))
 * add profiles and models commands to model-provider ([f79257b](https://github.com/egose/picotools/commit/f79257be0df7d35743dfc52fdd3e793ab63fd339))
+* implement --apply mode, scope overrides, and pre-commit integration ([15c87f2](https://github.com/egose/picotools/commit/15c87f2364fd60db91bf78fe7cea69580e8e181b))
 
 ### Bug Fixes
 
