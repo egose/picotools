@@ -230,6 +230,7 @@ create_initial_commit() {
   assert_contains "$output" 'Usage: git-commit [command]' 'help should describe usage'
   assert_contains "$output" 'configure  Select the model profile and model to use' 'help should list configure'
   assert_contains "$output" '--apply' 'help should list apply mode'
+  assert_contains "$output" '--pre-commit-retries <n>' 'help should list pre-commit retry option'
 
   printf '2\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
   assert_file_exists "$(git_commit_config_file)" 'configure should create a config file'
@@ -544,6 +545,39 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should continue after pre-commit succeeds on a retry'
   assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
   assert_contains "$(<"$pre_commit_log")" 'run --files README.md' 'git-commit should keep retrying the same changed files'
+}
+
+@test "respects --pre-commit-retries override" {
+  local stub_path jq_stub pre_commit_stub repo output pre_commit_attempts
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  pre_commit_stub="$TMP_HOME/pre-commit"
+  pre_commit_attempts="$TMP_HOME/pre-commit.attempts"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_pre_commit_stub "$pre_commit_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  install_pre_commit_hook "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    PRE_COMMIT_ATTEMPTS_FILE="$pre_commit_attempts" \
+    PRE_COMMIT_FAIL_FIRST=2 \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" --pre-commit-retries 1 2>&1); then
+    fail 'git-commit should fail after the configured pre-commit retry limit is reached'
+  fi
+
+  assert_contains "$output" 'Error: pre-commit checks failed after 2 attempts' 'git-commit should report the configured total attempts'
+  assert_eq "$(<"$pre_commit_attempts")" '2' 'git-commit should stop after the configured retry limit'
 }
 
 @test "applies a single planned commit with --apply" {
