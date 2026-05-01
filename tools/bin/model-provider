@@ -18,7 +18,7 @@ Usage: model-provider <command>
 Commands:
   create    Create a saved model provider profile
   update    Update a saved model provider profile
-  list      List saved model provider profiles and show selected details
+  list      List saved model provider profiles
   read      Show detailed information for a saved model provider profile
   profiles  List saved model provider profile names
   models    List configured models for a profile
@@ -701,10 +701,8 @@ create_profile() {
 }
 
 list_profiles() {
-  local file selection action
+  local file
   local index=1
-  local -a files=()
-  local -a names=()
   local -a rows=()
 
   if ! saved_profile_files >/dev/null; then
@@ -713,31 +711,11 @@ list_profiles() {
   fi
 
   while IFS= read -r file; do
-    files+=("$file")
-    names+=("$(profile_name_from_file "$file")")
     rows+=("$(format_profile_summary_row "$file" "$index")")
     index=$((index + 1))
   done < <(saved_profile_files)
 
   picotools_print_table $'#	Name	Type	Resource	Models	Token' "${rows[@]}"
-
-  if ! selection=$(prompt_select_index 'Profiles' 'Select profile for details' '' true "${names[@]}"); then
-    return 0
-  fi
-
-  print_profile_detail "${files[$((selection - 1))]}"
-  if ! action=$(prompt_profile_action); then
-    return 0
-  fi
-
-  case "$action" in
-  u)
-    update_profile_file "${files[$((selection - 1))]}"
-    ;;
-  d)
-    delete_profile_file "${files[$((selection - 1))]}"
-    ;;
-  esac
 }
 
 read_profile() {
@@ -779,27 +757,6 @@ list_profile_models() {
   for model_item in "${model_items[@]}"; do
     printf '%s\n' "$model_item"
   done
-}
-
-prompt_profile_action() {
-  local selection
-
-  if ! selection=$(prompt_select_index 'Actions' 'Choose action' '' true \
-    'Update selected profile' \
-    'Delete selected profile'); then
-    return 1
-  fi
-
-  case "$selection" in
-  1)
-    printf 'u\n'
-    return 0
-    ;;
-  2)
-    printf 'd\n'
-    return 0
-    ;;
-  esac
 }
 
 update_profile_file() {
