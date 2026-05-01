@@ -599,16 +599,18 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n1,2,3\ngpg2\ninput\nfalse\n' |
+  output=$(printf '1\n1\ngpg2\n2\ninput\n3\nfalse\n10\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" 'Optional settings:' 'update should show the optional settings menu'
+  assert_contains "$output" 'Select setting:' 'update should prompt for a selected setting'
   assert_contains "$output" '1. GPG Program [gpg]' 'update should show the current gpg.program value'
   assert_contains "$output" '2. Autocrlf [false]' 'update should show the current core.autocrlf value'
   assert_contains "$output" '3. FileMode [true]' 'update should show the current core.fileMode value'
   assert_contains "$output" '4. Pull Rebase [false]' 'update should show the current pull.rebase value'
   assert_contains "$output" '8. Core Editor [vim]' 'update should show the current core.editor value'
   assert_contains "$output" '9. SSH Add On Start [false]' 'update should show the current SSH add-on-start value'
+  assert_contains "$output" '10. Done' 'update should offer a done option'
   assert_not_contains "$output" 'Use SSH connection?' 'update should not prompt to rewrite SSH settings'
   assert_not_contains "$output" 'Use GPG signing?' 'update should not prompt to rewrite GPG enablement'
   assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
@@ -640,7 +642,7 @@ EOF
     push.autoSetupRemote false \
     core.editor vim
 
-  output=$(printf '1\n4,5,6,7,8\ntrue\ntrue\ncurrent\ntrue\nnano\n' |
+  output=$(printf '1\n4\ntrue\n5\ntrue\n6\ncurrent\n7\ntrue\n8\nnano\n10\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
@@ -666,7 +668,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n2\ninput\n' |
+  output=$(printf '1\n2\ninput\n10\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
@@ -688,7 +690,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n1\n2\ninput\n' |
+  output=$(printf '1\n1\n2\ninput\n10\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" 'GPG Program can only be updated when GPG signing is enabled for the context.' 'update should explain why gpg.program is unavailable'
@@ -714,7 +716,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n3\nfalse\n' |
+  output=$(printf '1\n3\nfalse\n10\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'

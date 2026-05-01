@@ -96,7 +96,7 @@ prompt_select_index() {
   picotools_prompt_select_index "$@"
 }
 
-prompt_update_fields() {
+prompt_update_field() {
   local allow_gpg_program="$1"
   local allow_ssh_add_on_start="$2"
   local current_gpg_program="$3"
@@ -108,106 +108,89 @@ prompt_update_fields() {
   local current_push_autosetupremote="$9"
   local current_core_editor="${10}"
   local current_ssh_add_on_start="${11}"
-  local selection normalized item
-  local update_gpg_program=no update_autocrlf=no update_file_mode=no
-  local update_pull_rebase=no update_rebase_autostash=no update_push_default=no
-  local update_push_autosetupremote=no update_core_editor=no
-  local update_ssh_add_on_start=no
+  local selection
+  local option_gpg_program option_ssh_add_on_start
+  local -a options=()
 
   while true; do
-    echo 'Optional settings:' >&2
     if [ "$allow_gpg_program" = 'yes' ]; then
-      printf '  1. GPG Program [%s]\n' "$current_gpg_program" >&2
+      option_gpg_program="GPG Program [$current_gpg_program]"
     else
-      printf '  1. GPG Program [-] (requires GPG signing enabled)\n' >&2
+      option_gpg_program='GPG Program [-] (requires GPG signing enabled)'
     fi
-    printf '  2. Autocrlf [%s]\n' "$current_autocrlf" >&2
-    printf '  3. FileMode [%s]\n' "$current_file_mode" >&2
-    printf '  4. Pull Rebase [%s]\n' "$current_pull_rebase" >&2
-    printf '  5. Rebase AutoStash [%s]\n' "$current_rebase_autostash" >&2
-    printf '  6. Push Default [%s]\n' "$current_push_default" >&2
-    printf '  7. Push AutoSetupRemote [%s]\n' "$current_push_autosetupremote" >&2
-    printf '  8. Core Editor [%s]\n' "$current_core_editor" >&2
     if [ "$allow_ssh_add_on_start" = 'yes' ]; then
-      printf '  9. SSH Add On Start [%s]\n' "$current_ssh_add_on_start" >&2
+      option_ssh_add_on_start="SSH Add On Start [$current_ssh_add_on_start]"
     else
-      printf '  9. SSH Add On Start [-] (requires SSH enabled)\n' >&2
-    fi
-    printf 'Select options to update (comma-separated numbers): ' >&2
-
-    read -r selection || true
-    normalized=${selection//[[:space:]]/}
-    update_gpg_program=no
-    update_autocrlf=no
-    update_file_mode=no
-    update_pull_rebase=no
-    update_rebase_autostash=no
-    update_push_default=no
-    update_push_autosetupremote=no
-    update_core_editor=no
-    update_ssh_add_on_start=no
-
-    if [ -z "$normalized" ]; then
-      echo 'Please choose at least one option.' >&2
-      continue
+      option_ssh_add_on_start='SSH Add On Start [-] (requires SSH enabled)'
     fi
 
-    IFS=',' read -r -a items <<<"$normalized"
-    for item in "${items[@]}"; do
-      case "$item" in
-      1)
-        if [ "$allow_gpg_program" != 'yes' ]; then
-          echo 'GPG Program can only be updated when GPG signing is enabled for the context.' >&2
-          continue 2
-        fi
-        update_gpg_program=yes
-        ;;
-      2)
-        update_autocrlf=yes
-        ;;
-      3)
-        update_file_mode=yes
-        ;;
-      4)
-        update_pull_rebase=yes
-        ;;
-      5)
-        update_rebase_autostash=yes
-        ;;
-      6)
-        update_push_default=yes
-        ;;
-      7)
-        update_push_autosetupremote=yes
-        ;;
-      8)
-        update_core_editor=yes
-        ;;
-      9)
-        if [ "$allow_ssh_add_on_start" != 'yes' ]; then
-          echo 'SSH Add On Start can only be updated when SSH is enabled for the context.' >&2
-          continue 2
-        fi
-        update_ssh_add_on_start=yes
-        ;;
-      *)
-        echo "Error: invalid selection '$item'" >&2
-        continue 2
-        ;;
-      esac
-    done
+    options=(
+      "$option_gpg_program"
+      "Autocrlf [$current_autocrlf]"
+      "FileMode [$current_file_mode]"
+      "Pull Rebase [$current_pull_rebase]"
+      "Rebase AutoStash [$current_rebase_autostash]"
+      "Push Default [$current_push_default]"
+      "Push AutoSetupRemote [$current_push_autosetupremote]"
+      "Core Editor [$current_core_editor]"
+      "$option_ssh_add_on_start"
+      'Done'
+    )
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$update_gpg_program" \
-      "$update_autocrlf" \
-      "$update_file_mode" \
-      "$update_pull_rebase" \
-      "$update_rebase_autostash" \
-      "$update_push_default" \
-      "$update_push_autosetupremote" \
-      "$update_core_editor" \
-      "$update_ssh_add_on_start"
-    return 0
+    if ! selection=$(prompt_select_index 'Optional settings' 'Select setting' '' false "${options[@]}"); then
+      return 1
+    fi
+
+    case "$selection" in
+    1)
+      if [ "$allow_gpg_program" != 'yes' ]; then
+        echo 'GPG Program can only be updated when GPG signing is enabled for the context.' >&2
+        continue
+      fi
+      printf '%s\n' gpg_program
+      return 0
+      ;;
+    2)
+      printf '%s\n' autocrlf
+      return 0
+      ;;
+    3)
+      printf '%s\n' file_mode
+      return 0
+      ;;
+    4)
+      printf '%s\n' pull_rebase
+      return 0
+      ;;
+    5)
+      printf '%s\n' rebase_autostash
+      return 0
+      ;;
+    6)
+      printf '%s\n' push_default
+      return 0
+      ;;
+    7)
+      printf '%s\n' push_autosetupremote
+      return 0
+      ;;
+    8)
+      printf '%s\n' core_editor
+      return 0
+      ;;
+    9)
+      if [ "$allow_ssh_add_on_start" != 'yes' ]; then
+        echo 'SSH Add On Start can only be updated when SSH is enabled for the context.' >&2
+        continue
+      fi
+      printf '%s\n' ssh_add_on_start
+      return 0
+      ;;
+    10)
+      printf '%s\n' 'done'
+      return 0
+      ;;
+    esac
   done
 }
 
@@ -1008,10 +991,7 @@ update_context_file() {
   local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
   local ssh_add_on_start
-  local update_gpg_program update_autocrlf update_file_mode update_pull_rebase
-  local update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor
-  local update_ssh_add_on_start
-  local selected_fields
+  local selected_field
 
   name=$(context_name_from_file "$file")
   user_name=$(read_context_value "$file" user.name)
@@ -1042,47 +1022,48 @@ update_context_file() {
   core_editor=$(read_managed_context_value "$file" core.editor)
   ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
 
-  selected_fields=$(prompt_update_fields "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start")
-  IFS=$'\t' read -r update_gpg_program update_autocrlf update_file_mode update_pull_rebase update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor update_ssh_add_on_start <<<"$selected_fields"
-
-  if [ "$update_gpg_program" = 'yes' ]; then
-    gpg_program=$(prompt_value 'gpg.program' "$gpg_program")
-    if [ -z "$gpg_program" ]; then
-      gpg_program=$(default_gpg_program)
+  while true; do
+    if ! selected_field=$(prompt_update_field "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"); then
+      echo 'Cancelled.' >&2
+      exit 1
     fi
-  fi
 
-  if [ "$update_autocrlf" = 'yes' ]; then
-    autocrlf=$(prompt_value 'core.autocrlf' "$autocrlf")
-  fi
-
-  if [ "$update_file_mode" = 'yes' ]; then
-    file_mode=$(prompt_value 'core.fileMode' "$file_mode")
-  fi
-
-  if [ "$update_pull_rebase" = 'yes' ]; then
-    pull_rebase=$(prompt_value 'pull.rebase' "$pull_rebase")
-  fi
-
-  if [ "$update_rebase_autostash" = 'yes' ]; then
-    rebase_autostash=$(prompt_value 'rebase.autoStash' "$rebase_autostash")
-  fi
-
-  if [ "$update_push_default" = 'yes' ]; then
-    push_default=$(prompt_value 'push.default' "$push_default")
-  fi
-
-  if [ "$update_push_autosetupremote" = 'yes' ]; then
-    push_autosetupremote=$(prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
-  fi
-
-  if [ "$update_core_editor" = 'yes' ]; then
-    core_editor=$(prompt_value 'core.editor' "$core_editor")
-  fi
-
-  if [ "$update_ssh_add_on_start" = 'yes' ]; then
-    ssh_add_on_start=$(prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
-  fi
+    case "$selected_field" in
+    gpg_program)
+      gpg_program=$(prompt_value 'gpg.program' "$gpg_program")
+      if [ -z "$gpg_program" ]; then
+        gpg_program=$(default_gpg_program)
+      fi
+      ;;
+    autocrlf)
+      autocrlf=$(prompt_value 'core.autocrlf' "$autocrlf")
+      ;;
+    file_mode)
+      file_mode=$(prompt_value 'core.fileMode' "$file_mode")
+      ;;
+    pull_rebase)
+      pull_rebase=$(prompt_value 'pull.rebase' "$pull_rebase")
+      ;;
+    rebase_autostash)
+      rebase_autostash=$(prompt_value 'rebase.autoStash' "$rebase_autostash")
+      ;;
+    push_default)
+      push_default=$(prompt_value 'push.default' "$push_default")
+      ;;
+    push_autosetupremote)
+      push_autosetupremote=$(prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
+      ;;
+    core_editor)
+      core_editor=$(prompt_value 'core.editor' "$core_editor")
+      ;;
+    ssh_add_on_start)
+      ssh_add_on_start=$(prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
+      ;;
+    done)
+      break
+      ;;
+    esac
+  done
 
   if [ "$use_gpg" = 'yes' ] && [ -z "$gpg_program" ]; then
     gpg_program=$(default_gpg_program)
