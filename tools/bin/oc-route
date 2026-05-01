@@ -141,6 +141,10 @@ prompt_yes_no() {
   fi
 }
 
+prompt_select_index() {
+  picotools_prompt_select_index "$@"
+}
+
 prompt_multiline_value() {
   local label="$1"
   local required="${2:-false}"
@@ -211,7 +215,9 @@ select_resource_name() {
   local allow_new="${3:-false}"
   local default_value="${4:-}"
   local -a resource_names=()
+  local -a selection_options=()
   local i
+  local default_index=''
   local selection
 
   if [ ! -t 0 ]; then
@@ -232,12 +238,45 @@ select_resource_name() {
     fi
 
     echo "No existing ${resource_label}s found. Enter a new ${resource_label} name." >&2
-  else
-    echo "Select a ${resource_label}:" >&2
-    for i in "${!resource_names[@]}"; do
-      printf '  %d) %s\n' "$((i + 1))" "${resource_names[$i]}" >&2
-    done
+    prompt_value "${resource_label^} name" "$default_value" true
+    return 0
   fi
+
+  if [ -t 2 ]; then
+    selection_options=("${resource_names[@]}")
+
+    if [ -n "$default_value" ]; then
+      for i in "${!resource_names[@]}"; do
+        if [ "$default_value" = "${resource_names[$i]}" ]; then
+          default_index=$((i + 1))
+          break
+        fi
+      done
+    fi
+
+    if [ "$allow_new" = true ]; then
+      selection_options+=("Enter a new ${resource_label} name")
+      if [ -n "$default_value" ] && [ -z "$default_index" ]; then
+        default_index="${#selection_options[@]}"
+      fi
+    fi
+
+    if ! selection=$(prompt_select_index "Select a ${resource_label}" "Choose ${resource_label}" "$default_index" false "${selection_options[@]}"); then
+      return 1
+    fi
+    if [ "$allow_new" = true ] && [ "$selection" -eq "${#selection_options[@]}" ]; then
+      prompt_value "${resource_label^} name" "$default_value" true
+      return 0
+    fi
+
+    printf '%s\n' "${resource_names[$((selection - 1))]}"
+    return 0
+  fi
+
+  echo "Select a ${resource_label}:" >&2
+  for i in "${!resource_names[@]}"; do
+    printf '  %d) %s\n' "$((i + 1))" "${resource_names[$i]}" >&2
+  done
 
   while true; do
     selection=$(prompt_value "${resource_label^} number or name" "$default_value" true)
@@ -386,11 +425,17 @@ update_route_interactive() {
 
   reset_update_values
 
-  UPDATE_ROUTE_NAME=$(select_or_enter_route_name "$default_name")
+  if ! UPDATE_ROUTE_NAME=$(select_or_enter_route_name "$default_name"); then
+    echo 'Cancelled.' >&2
+    return 1
+  fi
   UPDATE_ROUTE_HOST=$(prompt_value "Host" "" true)
   UPDATE_ROUTE_PATH=$(prompt_value "Path (leave blank to omit)" "")
   UPDATE_ROUTE_TARGET_PORT=$(prompt_value "Target port" "http" true)
-  UPDATE_ROUTE_SERVICE_NAME=$(select_service_name)
+  if ! UPDATE_ROUTE_SERVICE_NAME=$(select_service_name); then
+    echo 'Cancelled.' >&2
+    return 1
+  fi
   UPDATE_ROUTE_BALANCE=$(prompt_value "Annotation haproxy.router.openshift.io/balance (optional)" "roundrobin")
   UPDATE_ROUTE_DISABLE_COOKIES=$(prompt_value "Annotation haproxy.router.openshift.io/disable_cookies (optional)" "true")
   UPDATE_ROUTE_TIMEOUT=$(prompt_value "Annotation haproxy.router.openshift.io/timeout (optional)" "600s")
@@ -580,12 +625,20 @@ handle_read_command() {
   done
 
   if [ "$OC_ROUTE_INTERACTIVE" = true ]; then
+    local selected_route
+
     if [ -n "$route_name" ]; then
       echo "Error: read does not accept a route name when --interactive is used" >&2
       usage >&2
       exit 1
     fi
-    read_route "$(select_route_name)"
+
+    if ! selected_route=$(select_route_name); then
+      echo 'Cancelled.' >&2
+      return 0
+    fi
+
+    read_route "$selected_route"
     return 0
   fi
 

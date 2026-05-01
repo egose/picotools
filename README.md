@@ -39,6 +39,8 @@ The following scripts are included in `tools/bin`:
 
 All tools support `--help` and `--version`. The version is read from the repository `VERSION` file.
 
+Single-choice interactive menus use arrow-key navigation when both stdin and stderr are attached to a terminal, and fall back to numbered prompts in non-interactive flows.
+
 ## Install
 
 ### via asdf
