@@ -15,7 +15,7 @@ ASDF_CLEAN_UNUSED_TMP_DIR=""
 
 usage() {
   cat <<'EOF'
-	Usage: asdf-clean-unused [--yes] [--ignore-path PATH]... [workspace]
+Usage: asdf-clean-unused [--yes] [--ignore-path PATH]... [workspace]
 
 Scans a workspace for .tool-versions files, ignoring common generated or
 git-ignored directories such as node_modules, and compares the referenced
@@ -24,11 +24,11 @@ versions to what is currently installed in asdf.
 By default this removes unused versions and plugins after prompting for
 confirmation. Use --yes to skip the confirmation prompt.
 
-	Options:
-	  --yes                      Remove unused versions and plugins without prompting
-	  --ignore-path PATH         Ignore an additional path while scanning; repeatable
-	  -h, --help, help           Show this help message
-	  -v, --version, version     Show the tool version
+Options:
+  --yes                      Remove unused versions and plugins without prompting
+  --ignore-path PATH         Ignore an additional path while scanning; repeatable
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
 
 Arguments:
   workspace                  Directory to scan (default: current directory)
