@@ -88,25 +88,44 @@ main() {
 
   local local_branches=()
   local remote_branches=()
-  local branch ref
+  local worktree_branches=()
+  local branch ref line worktree_branch in_worktree
+
+  while IFS= read -r line; do
+    case "$line" in
+    branch\ refs/heads/*)
+      worktree_branches+=("${line#branch refs/heads/}")
+      ;;
+    esac
+  done < <(git worktree list --porcelain)
 
   while IFS= read -r branch; do
     [ -z "$branch" ] && continue
     [ "$branch" = "$default_branch" ] && continue
     [ "$branch" = "$current_branch" ] && continue
+
+    in_worktree=false
+    for worktree_branch in "${worktree_branches[@]}"; do
+      if [ "$branch" = "$worktree_branch" ]; then
+        in_worktree=true
+        break
+      fi
+    done
+    [ "$in_worktree" = true ] && continue
+
     local_branches+=("$branch")
   done < <(git for-each-ref --format='%(refname:short)' refs/heads)
 
   while IFS= read -r ref; do
     [ -z "$ref" ] && continue
-    [ "$ref" = "$remote/HEAD" ] && continue
+    [ "$ref" = "refs/remotes/${remote}/HEAD" ] && continue
 
-    branch=${ref#"${remote}"/}
+    branch=${ref#"refs/remotes/${remote}/"}
     [ "$branch" = "$default_branch" ] && continue
     [ "$branch" = "$current_branch" ] && continue
 
     remote_branches+=("$branch")
-  done < <(git for-each-ref --format='%(refname:short)' --merged "refs/remotes/${remote}/${default_branch}" "refs/remotes/${remote}")
+  done < <(git for-each-ref --format='%(refname)' --merged "refs/remotes/${remote}/${default_branch}" "refs/remotes/${remote}")
 
   printf 'Remote: %s\n' "$remote"
   printf 'Default branch: %s\n' "$default_branch"
