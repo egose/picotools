@@ -17,11 +17,6 @@ const Configuration = {
    */
   extends: ['@commitlint/config-conventional'],
   /*
-   * Resolve and load conventional-changelog-atom from node_modules.
-   * Referenced packages must be installed
-   */
-  parserPreset: 'conventional-changelog-atom',
-  /*
    * Resolve and load @commitlint/format from node_modules.
    * Referenced package must be installed
    */
@@ -35,7 +30,7 @@ const Configuration = {
       Option.ALWAYS,
       ['build', 'chore', 'ci', 'docs', 'feat', 'fix', 'perf', 'refactor', 'revert', 'style', 'test', 'e2e'],
     ],
-    'scope-empty': [Severity.ERROR, Option.NEVER],
+    'scope-empty': [Severity.ERROR, Option.ALWAYS],
     'scope-min-length': [Severity.ERROR, Option.ALWAYS, 2],
     'scope-max-length': [Severity.ERROR, Option.ALWAYS, 10],
   },
