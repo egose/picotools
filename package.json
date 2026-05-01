@@ -21,16 +21,18 @@
     "test": "bats tests/*.bats",
     "test:git-context": "bats tests/git-context.bats",
     "release": "release-it",
-    "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -n .conventional-changelog.mjs -s -r 0 --skip-unstable"
+    "changelog": "node changelog.mjs"
   },
   "author": "Junmin Ahn",
   "license": "MIT",
   "devDependencies": {
-    "@commitlint/cli": "^20.5.0",
-    "@commitlint/config-conventional": "^20.5.0",
+    "@commitlint/cli": "^20.5.3",
+    "@commitlint/config-conventional": "^20.5.3",
     "@commitlint/format": "^20.5.0",
     "@release-it/bumper": "^7.0.5",
     "conventional-changelog": "^7.2.0",
-    "release-it": "^20.0.0"
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "git-semver-tags": "^8.0.1",
+    "release-it": "^20.0.1"
   }
 }
