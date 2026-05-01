@@ -28,6 +28,13 @@ repos:
     name: check bash scripts' formats
     entry: ./scripts/shfmt.bash
     language: script
+  - id: commitlint
+    name: commitlint
+    entry: .bin/commitlint.sh
+    language: script
+    verbose: true
+    pass_filenames: false
+    stages: [commit-msg]
 
 exclude: |
   (?x)^(

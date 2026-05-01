@@ -48,18 +48,18 @@ load_pat() {
   fi
 
   if [ -f "$PAT_FILE" ]; then
-    GITHUB_PAT=$(cat "$PAT_FILE")
+    GITHUB_PAT=$(<"$PAT_FILE")
     export GITHUB_PAT
     return
   fi
 
-  echo -n "Enter your GitHub Personal Access Token (leave empty for public repos): "
+  printf '%s' "Enter your GitHub Personal Access Token (leave empty for public repos): "
   read -rs GITHUB_PAT
-  echo
+  printf '\n'
 
   if [ -n "$GITHUB_PAT" ]; then
     mkdir -p "$(dirname "$PAT_FILE")"
-    echo "$GITHUB_PAT" >"$PAT_FILE"
+    printf '%s\n' "$GITHUB_PAT" >"$PAT_FILE"
     chmod 600 "$PAT_FILE"
     export GITHUB_PAT
     echo "Token saved to $PAT_FILE"
@@ -72,25 +72,25 @@ load_pat() {
 
 load_cache() {
   if [ -f "$CACHE_FILE" ]; then
-    cat "$CACHE_FILE"
+    printf '%s\n' "$(<"$CACHE_FILE")"
   else
-    echo "{}"
+    printf '{}\n'
   fi
 }
 
 get_cached_value() {
   local cache="$1" key="$2"
-  echo "$cache" | jq -r --arg k "$key" '.[$k] // empty'
+  jq -r --arg k "$key" '.[$k] // empty' <<<"$cache"
 }
 
 set_cached_value() {
   local cache="$1" key="$2" value="$3"
-  echo "$cache" | jq --arg k "$key" --arg v "$value" '. + {($k): $v}'
+  jq --arg k "$key" --arg v "$value" '. + {($k): $v}' <<<"$cache"
 }
 
 save_cache() {
   local cache="$1"
-  echo "$cache" | jq '.' >"$CACHE_FILE"
+  jq '.' <<<"$cache" >"$CACHE_FILE"
   echo "Update cache saved."
 }
 
@@ -111,15 +111,15 @@ gh_api() {
     -H "Accept: application/vnd.github+json" \
     "$url")
 
-  body=$(cat "$tmpfile")
+  body=$(<"$tmpfile")
   rm -f "$tmpfile"
 
   if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-    echo "$body"
+    printf '%s\n' "$body"
     return 0
   else
     local message
-    message=$(echo "$body" | jq -r '.message // empty' 2>/dev/null)
+    message=$(jq -r '.message // empty' <<<"$body" 2>/dev/null)
     echo "API error (HTTP ${http_code}): ${message:-$body}" >&2
     return 1
   fi
@@ -197,16 +197,16 @@ fetch_all_repos() {
       }
 
     local count
-    count=$(echo "$data" | jq 'length')
+    count=$(jq 'length' <<<"$data")
     if [ "$count" -eq 0 ]; then
       break
     fi
 
-    all_repos=$(echo "$all_repos" "$data" | jq -s '.[0] + .[1]')
+    all_repos=$(jq -s '.[0] + .[1]' <<<"${all_repos}"$'\n'"${data}")
     page=$((page + 1))
   done
 
-  echo "$all_repos"
+  printf '%s\n' "$all_repos"
 }
 
 # --- Main ---
@@ -239,7 +239,7 @@ main() {
 
   load_pat
 
-  echo -n "Enter the GitHub username or organization name: "
+  printf '%s' "Enter the GitHub username or organization name: "
   read -r org_name
 
   if [ -z "$org_name" ]; then
@@ -257,15 +257,15 @@ main() {
   repos=$(fetch_all_repos "$org_name")
 
   local total
-  total=$(echo "$repos" | jq 'length')
+  total=$(jq 'length' <<<"$repos")
   echo "Total repositories found: ${total}"
 
   local i=0
   while [ "$i" -lt "$total" ]; do
     local repo_name default_branch updated_at
-    repo_name=$(echo "$repos" | jq -r ".[$i].name")
-    default_branch=$(echo "$repos" | jq -r ".[$i].default_branch")
-    updated_at=$(echo "$repos" | jq -r ".[$i].updated_at")
+    repo_name=$(jq -r ".[$i].name" <<<"$repos")
+    default_branch=$(jq -r ".[$i].default_branch" <<<"$repos")
+    updated_at=$(jq -r ".[$i].updated_at" <<<"$repos")
 
     local cached_updated
     cached_updated=$(get_cached_value "$cache" "$repo_name")

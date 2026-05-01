@@ -278,10 +278,18 @@ run_pre_commit_checks() {
     return 0
   fi
 
+  echo 'Pre-commit checks:'
   while true; do
+    if [ "$max_attempts" -gt 1 ]; then
+      printf 'Attempt %d/%d\n' "$attempt" "$max_attempts"
+    fi
+
     if pre-commit run --files "${files[@]}"; then
+      printf '\n'
       return 0
     fi
+
+    printf '\n'
 
     if [ "$attempt" -ge "$max_attempts" ]; then
       echo "Error: pre-commit checks failed after $max_attempts attempts" >&2
