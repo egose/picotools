@@ -17,6 +17,31 @@ picotools_print_table_separator() {
   printf '+\n'
 }
 
+picotools_visible_text_length() {
+  local value="$1"
+
+  awk -v value="$value" 'BEGIN {
+    gsub(/\033\[[0-9;]*m/, "", value)
+    print length(value)
+  }'
+}
+
+picotools_print_padded_cell() {
+  local width="$1"
+  local value="$2"
+  local visible_length
+  local padding_width
+
+  visible_length=$(picotools_visible_text_length "$value")
+  padding_width=$((width - visible_length))
+  if [ "$padding_width" -lt 0 ]; then
+    padding_width=0
+  fi
+
+  printf '| %s' "$value"
+  printf '%*s ' "$padding_width" ''
+}
+
 picotools_print_table_row() {
   local -n widths_ref="$1"
   shift
@@ -24,7 +49,7 @@ picotools_print_table_row() {
   local -a fields=("$@")
 
   for index in "${!fields[@]}"; do
-    printf '| %-*s ' "${widths_ref[$index]}" "${fields[$index]}"
+    picotools_print_padded_cell "${widths_ref[$index]}" "${fields[$index]}"
   done
   printf '|\n'
 }
@@ -43,7 +68,7 @@ picotools_print_table() {
   IFS=$'\t' read -r -a headers <<<"$header_row"
 
   for index in "${!headers[@]}"; do
-    widths[index]="${#headers[index]}"
+    widths[index]="$(picotools_visible_text_length "${headers[index]}")"
   done
 
   for row in "${rows[@]}"; do
@@ -51,8 +76,9 @@ picotools_print_table() {
 
     for index in "${!headers[@]}"; do
       field_value="${fields[index]:-}"
-      if [ "${#field_value}" -gt "${widths[index]}" ]; then
-        widths[index]="${#field_value}"
+      field_value="$(picotools_visible_text_length "$field_value")"
+      if [ "$field_value" -gt "${widths[index]}" ]; then
+        widths[index]="$field_value"
       fi
     done
   done
