@@ -13,6 +13,7 @@ picotools_source_modules "$SCRIPT_DIR" commands openshift string table version
 
 OC_QUOTA_REQUESTS_NAMESPACE=""
 OC_QUOTA_REQUESTS_QUOTA_NAME="compute-long-running-quota"
+OC_QUOTA_REQUESTS_COLOR_FD=3
 
 usage() {
   cat <<'EOF'
@@ -175,12 +176,270 @@ format_percentage() {
   awk -v used="$used" -v total="$total" 'BEGIN { printf "%.2f%%", (used / total) * 100 }'
 }
 
+progress_bar_fill_count() {
+  local used="$1"
+  local total="$2"
+
+  if [ "$total" -le 0 ]; then
+    printf '0\n'
+    return 0
+  fi
+
+  awk -v used="$used" -v total="$total" 'BEGIN {
+    ratio = used / total
+    if (ratio < 0) {
+      ratio = 0
+    }
+    if (ratio > 1) {
+      ratio = 1
+    }
+    printf "%d\n", int((ratio * 10) + 0.5)
+  }'
+}
+
+render_progress_bar() {
+  local filled="$1"
+  local total_slots=10
+  local index
+  local bar='['
+
+  if [ "$filled" -lt 0 ]; then
+    filled=0
+  fi
+  if [ "$filled" -gt "$total_slots" ]; then
+    filled=$total_slots
+  fi
+
+  for ((index = 0; index < total_slots; index++)); do
+    if [ "$index" -lt "$filled" ]; then
+      bar+="█"
+    else
+      bar+="░"
+    fi
+  done
+
+  bar+=']'
+  printf '%s' "$bar"
+}
+
+format_progress_bar() {
+  local used="$1"
+  local total="$2"
+  local filled
+
+  if [ "$total" -le 0 ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  filled=$(progress_bar_fill_count "$used" "$total")
+  render_progress_bar "$filled"
+}
+
+utilization_severity_level() {
+  local resource_kind="$1"
+  local request_value="$2"
+  local usage_value="$3"
+  local utilization_percent
+
+  if [ -z "$usage_value" ]; then
+    printf 'none'
+    return 0
+  fi
+
+  if [ "$request_value" -eq 0 ]; then
+    if [ "$usage_value" -eq 0 ]; then
+      printf 'healthy'
+    else
+      printf 'critical'
+    fi
+    return 0
+  fi
+
+  utilization_percent=$(awk -v request_value="$request_value" -v usage_value="$usage_value" 'BEGIN {
+    printf "%.2f\n", (usage_value / request_value) * 100
+  }')
+
+  if [ "$resource_kind" = 'cpu' ]; then
+    awk -v utilization_percent="$utilization_percent" 'BEGIN {
+      if (utilization_percent < 10) {
+        print "high"
+      } else if (utilization_percent < 20) {
+        print "medium"
+      } else if (utilization_percent <= 70) {
+        print "healthy"
+      } else if (utilization_percent <= 85) {
+        print "low"
+      } else if (utilization_percent <= 100) {
+        print "medium"
+      } else {
+        print "critical"
+      }
+    }'
+    return 0
+  fi
+
+  awk -v utilization_percent="$utilization_percent" 'BEGIN {
+    if (utilization_percent < 30) {
+      print "high"
+    } else if (utilization_percent < 50) {
+      print "medium"
+    } else if (utilization_percent <= 80) {
+      print "healthy"
+    } else if (utilization_percent <= 90) {
+      print "low"
+    } else if (utilization_percent <= 95) {
+      print "medium"
+    } else {
+      print "critical"
+    }
+  }'
+}
+
+format_utilization_percentage() {
+  local resource_kind="$1"
+  local request_value="$2"
+  local usage_value="$3"
+  local raw_value
+  local severity
+
+  if [ -z "$usage_value" ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  if [ "$request_value" -eq 0 ]; then
+    if [ "$usage_value" -eq 0 ]; then
+      raw_value='-'
+    else
+      raw_value='n/a (0 req)'
+    fi
+    severity=$(utilization_severity_level "$resource_kind" "$request_value" "$usage_value")
+    colorize_text "$severity" "$raw_value"
+    return 0
+  fi
+
+  raw_value=$(format_percentage "$usage_value" "$request_value")
+  severity=$(utilization_severity_level "$resource_kind" "$request_value" "$usage_value")
+  colorize_text "$severity" "$raw_value"
+}
+
+slack_severity_level() {
+  local resource_kind="$1"
+  local request_value="$2"
+  local usage_value="$3"
+
+  if [ -z "$usage_value" ]; then
+    printf 'none'
+    return 0
+  fi
+
+  utilization_severity_level "$resource_kind" "$request_value" "$usage_value"
+}
+
+supports_color_output() {
+  if [ -n "${NO_COLOR:-}" ]; then
+    return 1
+  fi
+
+  if [ ! -t "$OC_QUOTA_REQUESTS_COLOR_FD" ] || [ "${TERM:-}" = 'dumb' ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+slack_color_code() {
+  local severity="$1"
+
+  case "$severity" in
+  healthy)
+    printf '32'
+    ;;
+  low)
+    printf '33'
+    ;;
+  medium)
+    printf '1;33'
+    ;;
+  high)
+    printf '31'
+    ;;
+  critical)
+    printf '1;31'
+    ;;
+  *)
+    printf ''
+    ;;
+  esac
+}
+
+colorize_text() {
+  local severity="$1"
+  local value="$2"
+  local color_code
+
+  if ! supports_color_output; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  color_code=$(slack_color_code "$severity")
+  if [ -z "$color_code" ]; then
+    printf '%s' "$value"
+    return 0
+  fi
+
+  printf '\033[%sm%s\033[0m' "$color_code" "$value"
+}
+
+format_slack() {
+  local resource_kind="$1"
+  local formatter="$2"
+  local request_value="$3"
+  local usage_value="$4"
+  local slack_value
+  local severity
+
+  if [ -z "$usage_value" ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  slack_value="$($formatter "$((request_value - usage_value))")"
+  severity=$(slack_severity_level "$resource_kind" "$request_value" "$usage_value")
+  colorize_text "$severity" "$slack_value"
+}
+
 print_table() {
   picotools_print_table "$@"
 }
 
 print_two_column_table() {
   picotools_print_two_column_table "$@"
+}
+
+print_sizing_indicators() {
+  local -a primary_rows=()
+  local -a support_rows=()
+
+  primary_rows=(
+    "CPU Util %"$'\t'"20-70%"$'\t'"<20% or 70-100%"$'\t'"0 req in use or >100% sustained"
+    "Mem Util %"$'\t'"50-80%"$'\t'"<50% or 80-95%"$'\t'"0 req in use or >95% sustained"
+  )
+
+  support_rows=(
+    "CPU Slack"$'\t'"Use to estimate reclaimable CPU or burst deficit in millicores"
+    "Mem Slack"$'\t'"Use to estimate reclaimable memory or memory risk in Mi"
+  )
+
+  printf 'Primary indicators:\n'
+  print_table $'Indicator\tGood\tWatch\tBad' "${primary_rows[@]}"
+  printf '\n'
+  printf 'Supporting indicators:\n'
+  print_table $'Indicator\tHow to use it' "${support_rows[@]}"
+  printf 'Rule of thumb: size CPU requests near steady-state p90, and memory requests nearer p95 unless restarts are cheap.\n'
+  printf 'Interpretation note: treat utilization as the severity signal, and use slack to judge the size of the opportunity or risk.\n'
 }
 
 value_in_csv() {
@@ -512,6 +771,10 @@ print_report() {
   local request_memory
   local usage_cpu
   local usage_memory
+  local cpu_utilization
+  local memory_utilization
+  local cpu_slack
+  local memory_slack
   local remaining_cpu
   local remaining_memory
   local -a overview_rows=()
@@ -528,8 +791,8 @@ print_report() {
   )
 
   quota_rows=(
-    "requests.cpu"$'\t'"$(format_millicores "$quota_used_cpu")"$'\t'"$(format_millicores "$quota_hard_cpu")"$'\t'"$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")"$'\t'"$(format_millicores "$remaining_cpu")"
-    "requests.memory"$'\t'"$(format_mib "$quota_used_memory")"$'\t'"$(format_mib "$quota_hard_memory")"$'\t'"$(format_percentage "$quota_used_memory" "$quota_hard_memory")"$'\t'"$(format_mib "$remaining_memory")"
+    "requests.cpu"$'\t'"$(format_millicores "$quota_used_cpu")"$'\t'"$(format_millicores "$quota_hard_cpu")"$'\t'"$(format_percentage "$quota_used_cpu" "$quota_hard_cpu")"$'\t'"$(format_progress_bar "$quota_used_cpu" "$quota_hard_cpu")"$'\t'"$(format_millicores "$remaining_cpu")"
+    "requests.memory"$'\t'"$(format_mib "$quota_used_memory")"$'\t'"$(format_mib "$quota_hard_memory")"$'\t'"$(format_percentage "$quota_used_memory" "$quota_hard_memory")"$'\t'"$(format_progress_bar "$quota_used_memory" "$quota_hard_memory")"$'\t'"$(format_mib "$remaining_memory")"
   )
 
   total_rows=(
@@ -547,7 +810,7 @@ print_report() {
   printf '\n'
 
   printf 'Quota usage from resource quota:\n'
-  print_table $'Resource\tUsed\tLimit\tUsage\tRemaining' "${quota_rows[@]}"
+  print_table $'Resource\tUsed\tLimit\tUsage %\tUsage Bar\tRemaining' "${quota_rows[@]}"
   printf '\n'
 
   printf 'Pods:\n'
@@ -561,6 +824,10 @@ print_report() {
     request_memory="${POD_REQUEST_MEMORY_BYTES[$pod_name]:-0}"
     usage_cpu="${POD_USAGE_CPU_MILLICORES[$pod_name]:-}"
     usage_memory="${POD_USAGE_MEMORY_BYTES[$pod_name]:-}"
+    cpu_utilization=$(format_utilization_percentage cpu "$request_cpu" "$usage_cpu")
+    memory_utilization=$(format_utilization_percentage memory "$request_memory" "$usage_memory")
+    cpu_slack=$(format_slack cpu format_millicores "$request_cpu" "$usage_cpu")
+    memory_slack=$(format_slack memory format_mib "$request_memory" "$usage_memory")
 
     if [ -n "$usage_cpu" ]; then
       usage_cpu=$(format_millicores "$usage_cpu")
@@ -574,13 +841,16 @@ print_report() {
       usage_memory='n/a'
     fi
 
-    pod_rows+=("${pod_name}"$'\t'"$(format_millicores "$request_cpu")"$'\t'"${usage_cpu}"$'\t'"$(format_mib "$request_memory")"$'\t'"${usage_memory}")
+    pod_rows+=("${pod_name}"$'\t'"$(format_millicores "$request_cpu")"$'\t'"${usage_cpu}"$'\t'"${cpu_utilization}"$'\t'"${cpu_slack}"$'\t'"$(format_mib "$request_memory")"$'\t'"${usage_memory}"$'\t'"${memory_utilization}"$'\t'"${memory_slack}")
   done
 
-  print_table $'Pod\tReq CPU\tUse CPU\tReq Mem\tUse Mem' "${pod_rows[@]}"
+  print_table $'Pod\tReq CPU\tUse CPU\tCPU Util %\tCPU Slack\tReq Mem\tUse Mem\tMem Util %\tMem Slack' "${pod_rows[@]}"
 
   printf '\nTotals:\n'
   print_table $'Metric\tCPU\tMemory' "${total_rows[@]}"
+
+  printf '\nSizing indicators:\n'
+  print_sizing_indicators
 
   if [ "$quota_matching_request_cpu" -ne "$quota_used_cpu" ] || [ "$quota_matching_request_memory" -ne "$quota_used_memory" ]; then
     printf '\nNote: quota-matching pod totals still differ from the resource quota status. This can happen from controller lag or unsupported quota scopes.\n'
@@ -646,6 +916,8 @@ main() {
       ;;
     esac
   done
+
+  exec {OC_QUOTA_REQUESTS_COLOR_FD}>&1
 
   picotools_require_oc
   namespace_name=$(current_namespace)
