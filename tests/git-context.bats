@@ -302,13 +302,14 @@ EOF
 
   touch "$ssh_key_path"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n%s\nyes\nABC123\n' "$ssh_key_path" |
+  printf 'work\nJane Dev\njane@example.com\nyes\n%s\nyes\nyes\nABC123\n' "$ssh_key_path" |
     run_tool create >/dev/null 2>&1
 
   assert_file_exists "$context_file" 'create should save the named context'
   assert_git_config_file_value "$context_file" user.name 'Jane Dev' 'create should save the git user name'
   assert_git_config_file_value "$context_file" user.email 'jane@example.com' 'create should save the git email'
   assert_git_config_file_value "$context_file" core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'create should save the managed SSH command'
+  assert_git_config_file_value "$context_file" picotools.sshAddOnStart true 'create should save the SSH add-on-start preference'
   assert_git_config_file_value "$context_file" user.signingkey 'ABC123' 'create should save the signing key'
   assert_git_config_file_value "$context_file" commit.gpgsign true 'create should enable commit signing'
   assert_git_config_file_value "$context_file" tag.gpgsign true 'create should enable tag signing'
@@ -350,6 +351,7 @@ EOF
     push.default current \
     push.autoSetupRemote true \
     core.editor nano \
+    picotools.sshAddOnStart true \
     core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
 
   output=$(printf '1\nno\n' | run_tool read 2>&1)
@@ -363,6 +365,8 @@ EOF
   assert_contains "$output" "$ssh_key_path" 'read should include the SSH key path'
   assert_contains "$output" '| SSH Command ' 'read should include the SSH command field'
   assert_contains "$output" "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'read should include the SSH command'
+  assert_contains "$output" '| SSH Add On Start ' 'read should include the SSH add-on-start field'
+  assert_contains "$output" 'true' 'read should include the SSH add-on-start value'
   assert_contains "$output" '| GPG ' 'read should include the GPG field'
   assert_contains "$output" '| Signing Key ' 'read should include the signing key field'
   assert_contains "$output" 'ABC123' 'read should include the signing key value'
@@ -400,6 +404,7 @@ EOF
     user.email 'jane@example.com' \
     commit.gpgsign false \
     tag.gpgsign false \
+    picotools.sshAddOnStart true \
     core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes" \
     core.autocrlf false \
     core.fileMode true
@@ -477,7 +482,7 @@ fi
 EOF
   chmod +x "$stub_bin/gpg"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n\nyes\n\n' |
+  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nyes\n\n' |
     PATH="$stub_bin:$PATH" \
       SSH_KEYGEN_LOG="$ssh_log" \
       SSH_KEYGEN_PATH="$ssh_key_path" \
@@ -488,6 +493,7 @@ EOF
 
   assert_file_exists "$context_file" 'create should save the generated context'
   assert_git_config_file_value "$context_file" core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'create should save the generated SSH command'
+  assert_git_config_file_value "$context_file" picotools.sshAddOnStart false 'create should default SSH add-on-start to false when declined'
   assert_git_config_file_value "$context_file" user.signingkey "$generated_signing_key" 'create should save the generated signing key after GPG generation'
   assert_git_config_file_value "$context_file" commit.gpgsign true 'create should enable commit signing after GPG generation'
   assert_git_config_file_value "$context_file" tag.gpgsign true 'create should enable tag signing after GPG generation'
@@ -528,7 +534,7 @@ touch "$SSH_KEYGEN_PATH"
 EOF
   chmod +x "$stub_bin/ssh-keygen"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\n' |
+  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nno\n' |
     PATH="$stub_bin:$PATH" \
       SSH_KEYGEN_LOG="$ssh_log" \
       SSH_KEYGEN_PATH="$ssh_key_path" \
@@ -536,6 +542,7 @@ EOF
 
   assert_file_exists "$context_file" 'create should save the context when the generated SSH path needs a suffix'
   assert_git_config_file_value "$context_file" core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'create should save the suffixed SSH key path'
+  assert_git_config_file_value "$context_file" picotools.sshAddOnStart false 'create should save SSH add-on-start as false when declined'
   assert_contains "$(<"$ssh_log")" "-f $ssh_key_path" 'create should suffix the generated SSH key path when the base path exists'
 }
 
@@ -601,6 +608,7 @@ EOF
   assert_contains "$output" '3. FileMode [true]' 'update should show the current core.fileMode value'
   assert_contains "$output" '4. Pull Rebase [false]' 'update should show the current pull.rebase value'
   assert_contains "$output" '8. Core Editor [vim]' 'update should show the current core.editor value'
+  assert_contains "$output" '9. SSH Add On Start [false]' 'update should show the current SSH add-on-start value'
   assert_not_contains "$output" 'Use SSH connection?' 'update should not prompt to rewrite SSH settings'
   assert_not_contains "$output" 'Use GPG signing?' 'update should not prompt to rewrite GPG enablement'
   assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
@@ -745,6 +753,7 @@ EOF
     push.default current \
     push.autoSetupRemote true \
     core.editor nano \
+    picotools.sshAddOnStart true \
     core.sshCommand 'ssh -i /tmp/work-key -o IdentitiesOnly=yes'
 
   write_local_git_config_values "$repo" \
@@ -778,6 +787,7 @@ EOF
   assert_git_local_value "$repo" push.default current 'set should overwrite local push.default'
   assert_git_local_value "$repo" push.autoSetupRemote true 'set should overwrite local push.autoSetupRemote'
   assert_git_local_value "$repo" core.editor nano 'set should overwrite local core.editor'
+  assert_git_local_value "$repo" picotools.sshAddOnStart true 'set should overwrite the local SSH add-on-start value'
   assert_git_local_value "$repo" core.sshCommand 'ssh -i /tmp/work-key -o IdentitiesOnly=yes' 'set should overwrite the local SSH command'
 }
 
@@ -795,6 +805,7 @@ EOF
     user.email 'jane@example.com' \
     commit.gpgsign false \
     tag.gpgsign false \
+    picotools.sshAddOnStart false \
     core.autocrlf false \
     core.fileMode true
 
@@ -808,6 +819,7 @@ EOF
     rebase.autoStash true \
     push.default current \
     push.autoSetupRemote true \
+    picotools.sshAddOnStart true \
     core.editor nano
 
   run_set_in_repo "$repo"
@@ -823,6 +835,7 @@ EOF
   assert_git_local_value "$repo" push.default simple 'set should apply the default push.default for older contexts'
   assert_git_local_value "$repo" push.autoSetupRemote false 'set should apply the default push.autoSetupRemote for older contexts'
   assert_git_local_value "$repo" core.editor vim 'set should apply the default core.editor for older contexts'
+  assert_git_local_value "$repo" picotools.sshAddOnStart false 'set should still apply the stored SSH add-on-start setting'
   assert_git_local_unset "$repo" core.sshCommand 'set should unset the local SSH command when SSH is disabled'
   assert_git_local_unset "$repo" user.signingkey 'set should unset the local signing key when GPG is disabled'
   assert_git_local_unset "$repo" gpg.program 'set should unset the local gpg program when GPG is disabled'
@@ -864,6 +877,70 @@ EOF
   assert_git_local_unset "$repo" core.sshCommand 'set should remove duplicate local SSH entries when SSH is disabled'
   assert_git_local_unset "$repo" user.signingkey 'set should remove duplicate local signing keys when GPG is disabled'
   assert_git_local_unset "$repo" gpg.program 'set should remove duplicate local gpg.program entries when GPG is disabled'
+}
+
+@test "read commands prints ssh-add snippet for saved context" {
+  local context_file ssh_key_path output
+
+  context_file="$(context_file_path work)"
+  ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
+
+  mkdir -p "$CONTEXT_DIR" "$(dirname "$ssh_key_path")"
+  touch "$ssh_key_path" "$ssh_key_path.pub"
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    picotools.sshAddOnStart true \
+    core.autocrlf false \
+    core.fileMode true \
+    core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
+
+  output=$(printf '1\n' | run_tool read --commands)
+
+  assert_contains "$output" "if [ -z \"\${SSH_AUTH_SOCK:-}\" ]; then" 'read --commands should start ssh-agent when needed'
+  assert_contains "$output" "eval \"\$(ssh-agent -s)\" >/dev/null" 'read --commands should print the ssh-agent startup command'
+  assert_contains "$output" "ssh-add $ssh_key_path" 'read --commands should print the ssh-add command'
+}
+
+@test "commands prints ssh-add commands for enabled saved contexts" {
+  local work_file personal_file work_key_path personal_key_path output
+
+  work_file="$(context_file_path work)"
+  personal_file="$(context_file_path personal)"
+  work_key_path="$TMP_HOME/.ssh/id_ed25519_work"
+  personal_key_path="$TMP_HOME/.ssh/id_ed25519_personal"
+
+  mkdir -p "$CONTEXT_DIR" "$(dirname "$work_key_path")"
+  touch "$work_key_path" "$personal_key_path"
+
+  write_git_config_values "$work_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    picotools.sshAddOnStart true \
+    core.autocrlf false \
+    core.fileMode true \
+    core.sshCommand "ssh -i $work_key_path -o IdentitiesOnly=yes"
+
+  write_git_config_values "$personal_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    picotools.sshAddOnStart true \
+    core.autocrlf false \
+    core.fileMode true \
+    core.sshCommand "ssh -i $personal_key_path -o IdentitiesOnly=yes"
+
+  output=$(run_tool commands)
+
+  assert_contains "$output" "if [ -z \"\${SSH_AUTH_SOCK:-}\" ]; then" 'commands should start ssh-agent when needed'
+  assert_contains "$output" "eval \"\$(ssh-agent -s)\" >/dev/null" 'commands should print the ssh-agent startup command'
+  assert_contains "$output" "ssh-add $work_key_path" 'commands should print the first enabled ssh-add command'
+  assert_contains "$output" "ssh-add $personal_key_path" 'commands should print the second enabled ssh-add command'
 }
 
 @test "set fails outside git repository" {

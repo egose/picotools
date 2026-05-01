@@ -20,6 +20,7 @@ Commands:
   update    Update a saved git context
   list      List saved git contexts
   read      Show detailed information for a saved git context
+  commands  Print shell commands for the current repository context
   set       Apply a saved git context to the current repository
   delete    Delete a saved git context
 
@@ -51,6 +52,10 @@ default_push_autosetupremote() {
 
 default_core_editor() {
   printf '%s\n' vim
+}
+
+default_ssh_add_on_start() {
+  printf '%s\n' false
 }
 
 default_gpg_program() {
@@ -93,18 +98,21 @@ prompt_select_index() {
 
 prompt_update_fields() {
   local allow_gpg_program="$1"
-  local current_gpg_program="$2"
-  local current_autocrlf="$3"
-  local current_file_mode="$4"
-  local current_pull_rebase="$5"
-  local current_rebase_autostash="$6"
-  local current_push_default="$7"
-  local current_push_autosetupremote="$8"
-  local current_core_editor="$9"
+  local allow_ssh_add_on_start="$2"
+  local current_gpg_program="$3"
+  local current_autocrlf="$4"
+  local current_file_mode="$5"
+  local current_pull_rebase="$6"
+  local current_rebase_autostash="$7"
+  local current_push_default="$8"
+  local current_push_autosetupremote="$9"
+  local current_core_editor="${10}"
+  local current_ssh_add_on_start="${11}"
   local selection normalized item
   local update_gpg_program=no update_autocrlf=no update_file_mode=no
   local update_pull_rebase=no update_rebase_autostash=no update_push_default=no
   local update_push_autosetupremote=no update_core_editor=no
+  local update_ssh_add_on_start=no
 
   while true; do
     echo 'Optional settings:' >&2
@@ -120,6 +128,11 @@ prompt_update_fields() {
     printf '  6. Push Default [%s]\n' "$current_push_default" >&2
     printf '  7. Push AutoSetupRemote [%s]\n' "$current_push_autosetupremote" >&2
     printf '  8. Core Editor [%s]\n' "$current_core_editor" >&2
+    if [ "$allow_ssh_add_on_start" = 'yes' ]; then
+      printf '  9. SSH Add On Start [%s]\n' "$current_ssh_add_on_start" >&2
+    else
+      printf '  9. SSH Add On Start [-] (requires SSH enabled)\n' >&2
+    fi
     printf 'Select options to update (comma-separated numbers): ' >&2
 
     read -r selection || true
@@ -132,6 +145,7 @@ prompt_update_fields() {
     update_push_default=no
     update_push_autosetupremote=no
     update_core_editor=no
+    update_ssh_add_on_start=no
 
     if [ -z "$normalized" ]; then
       echo 'Please choose at least one option.' >&2
@@ -169,6 +183,13 @@ prompt_update_fields() {
       8)
         update_core_editor=yes
         ;;
+      9)
+        if [ "$allow_ssh_add_on_start" != 'yes' ]; then
+          echo 'SSH Add On Start can only be updated when SSH is enabled for the context.' >&2
+          continue 2
+        fi
+        update_ssh_add_on_start=yes
+        ;;
       *)
         echo "Error: invalid selection '$item'" >&2
         continue 2
@@ -176,7 +197,7 @@ prompt_update_fields() {
       esac
     done
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$update_gpg_program" \
       "$update_autocrlf" \
       "$update_file_mode" \
@@ -184,7 +205,8 @@ prompt_update_fields() {
       "$update_rebase_autostash" \
       "$update_push_default" \
       "$update_push_autosetupremote" \
-      "$update_core_editor"
+      "$update_core_editor" \
+      "$update_ssh_add_on_start"
     return 0
   done
 }
@@ -253,6 +275,9 @@ read_managed_context_value() {
     ;;
   core.editor)
     read_context_value_with_default "$file" "$key" "$(default_core_editor)"
+    ;;
+  picotools.sshAddOnStart)
+    read_context_value_with_default "$file" "$key" "$(default_ssh_add_on_start)"
     ;;
   *)
     read_context_value "$file" "$key"
@@ -359,7 +384,7 @@ print_context_detail() {
   local name user_name email ssh_command ssh_key_path signing_key gpg_program
   local autocrlf file_mode pull_rebase rebase_autostash push_default
   local push_autosetupremote core_editor commit_gpgsign tag_gpgsign
-  local public_key_path show_public_key
+  local ssh_add_on_start public_key_path show_public_key
 
   name=$(context_name_from_file "$file")
   user_name=$(read_context_value "$file" user.name)
@@ -377,6 +402,7 @@ print_context_detail() {
   push_default=$(read_managed_context_value "$file" push.default)
   push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
   core_editor=$(read_managed_context_value "$file" core.editor)
+  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
 
   print_two_column_table \
     $'Name	'"$name" \
@@ -385,6 +411,7 @@ print_context_detail() {
     $'SSH	'"$([ -n "$ssh_command" ] && printf yes || printf no)" \
     $'SSH Key	'"$(display_context_value "$ssh_key_path")" \
     $'SSH Command	'"$(display_context_value "$ssh_command")" \
+    $'SSH Add On Start	'"$ssh_add_on_start" \
     $'GPG	'"$([ "$commit_gpgsign" = 'true' ] && printf yes || printf no)" \
     $'Signing Key	'"$(display_context_value "$signing_key")" \
     $'Commit GPG Sign	'"$commit_gpgsign" \
@@ -410,6 +437,49 @@ print_context_detail() {
 
 print_two_column_table() {
   picotools_print_two_column_table "$@"
+}
+
+print_ssh_agent_start_commands() {
+  printf '%s\n' "if [ -z \"\${SSH_AUTH_SOCK:-}\" ]; then"
+  printf '%s\n' "  eval \"\$(ssh-agent -s)\" >/dev/null"
+  printf '%s\n' "fi"
+}
+
+print_ssh_add_commands() {
+  local ssh_key_path="$1"
+
+  if [ -z "$ssh_key_path" ]; then
+    return 0
+  fi
+
+  printf 'ssh-add %q\n' "$ssh_key_path"
+}
+
+context_ssh_add_key_path() {
+  local file="$1"
+  local ssh_add_on_start ssh_command ssh_key_path
+
+  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
+  if [ "$ssh_add_on_start" != 'true' ]; then
+    return 0
+  fi
+
+  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  printf '%s\n' "$ssh_key_path"
+}
+
+print_context_commands() {
+  local file="$1"
+  local ssh_key_path
+
+  ssh_key_path=$(context_ssh_add_key_path "$file")
+  if [ -z "$ssh_key_path" ]; then
+    return 0
+  fi
+
+  print_ssh_agent_start_commands
+  print_ssh_add_commands "$ssh_key_path"
 }
 
 build_ssh_command() {
@@ -629,6 +699,7 @@ save_context() {
   local push_default="${13}"
   local push_autosetupremote="${14}"
   local core_editor="${15}"
+  local ssh_add_on_start="${16}"
 
   rm -f "$file"
 
@@ -656,12 +727,13 @@ save_context() {
   write_context_value "$file" push.default "$push_default"
   write_context_value "$file" push.autoSetupRemote "$push_autosetupremote"
   write_context_value "$file" core.editor "$core_editor"
+  write_context_value "$file" picotools.sshAddOnStart "$ssh_add_on_start"
 }
 
 create_context() {
   local name user_name email use_ssh use_gpg file autocrlf file_mode overwrite
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
-  local ssh_command='' signing_key='' gpg_program=''
+  local ssh_command='' signing_key='' gpg_program='' ssh_add_on_start
 
   name=$(prompt_value 'Context name')
   validate_context_name "$name"
@@ -684,6 +756,13 @@ create_context() {
     if ! ssh_command=$(resolve_ssh_command "$email" "$name"); then
       exit 1
     fi
+    if [ "$(prompt_yes_no 'Add SSH key to agent on shell start?' no)" = 'yes' ]; then
+      ssh_add_on_start=true
+    else
+      ssh_add_on_start=false
+    fi
+  else
+    ssh_add_on_start=false
   fi
 
   use_gpg=$(prompt_yes_no 'Use GPG signing?' no)
@@ -703,7 +782,7 @@ create_context() {
   push_autosetupremote=$(default_push_autosetupremote)
   core_editor=$(default_core_editor)
 
-  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor"
+  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
 
   echo "Saved context '$name'."
 }
@@ -727,12 +806,52 @@ list_contexts() {
 }
 
 read_context() {
+  local commands_only=no
   local file
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --commands)
+      commands_only=yes
+      ;;
+    *)
+      echo "Error: unknown read option '$1'" >&2
+      exit 1
+      ;;
+    esac
+    shift
+  done
 
   if ! file=$(select_context_file); then
     return 0
   fi
-  print_context_detail "$file"
+  if [ "$commands_only" = 'yes' ]; then
+    print_context_commands "$file"
+  else
+    print_context_detail "$file"
+  fi
+}
+
+print_saved_context_commands() {
+  local file ssh_key_path printed_header=no
+
+  if ! saved_context_files >/dev/null; then
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    ssh_key_path=$(context_ssh_add_key_path "$file")
+    if [ -z "$ssh_key_path" ]; then
+      continue
+    fi
+
+    if [ "$printed_header" = 'no' ]; then
+      print_ssh_agent_start_commands
+      printed_header=yes
+    fi
+
+    print_ssh_add_commands "$ssh_key_path"
+  done < <(saved_context_files)
 }
 
 print_context_public_key() {
@@ -827,7 +946,7 @@ ensure_git_repository() {
 
 apply_context() {
   local file="$1"
-  local signing_key gpg_program ssh_command
+  local signing_key gpg_program ssh_command ssh_add_on_start
 
   write_local_value user.name "$(read_context_value "$file" user.name)"
   write_local_value user.email "$(read_context_value "$file" user.email)"
@@ -840,6 +959,8 @@ apply_context() {
   write_local_value push.default "$(read_managed_context_value "$file" push.default)"
   write_local_value push.autoSetupRemote "$(read_managed_context_value "$file" push.autoSetupRemote)"
   write_local_value core.editor "$(read_managed_context_value "$file" core.editor)"
+  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
+  write_local_value picotools.sshAddOnStart "$ssh_add_on_start"
 
   ssh_command=$(read_context_value_optional "$file" core.sshCommand)
   if [ -n "$ssh_command" ]; then
@@ -886,8 +1007,10 @@ update_context_file() {
   local name user_name email ssh_command use_ssh
   local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
+  local ssh_add_on_start
   local update_gpg_program update_autocrlf update_file_mode update_pull_rebase
   local update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor
+  local update_ssh_add_on_start
   local selected_fields
 
   name=$(context_name_from_file "$file")
@@ -917,9 +1040,10 @@ update_context_file() {
   push_default=$(read_managed_context_value "$file" push.default)
   push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
   core_editor=$(read_managed_context_value "$file" core.editor)
+  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
 
-  selected_fields=$(prompt_update_fields "$use_gpg" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor")
-  IFS=$'\t' read -r update_gpg_program update_autocrlf update_file_mode update_pull_rebase update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor <<<"$selected_fields"
+  selected_fields=$(prompt_update_fields "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start")
+  IFS=$'\t' read -r update_gpg_program update_autocrlf update_file_mode update_pull_rebase update_rebase_autostash update_push_default update_push_autosetupremote update_core_editor update_ssh_add_on_start <<<"$selected_fields"
 
   if [ "$update_gpg_program" = 'yes' ]; then
     gpg_program=$(prompt_value 'gpg.program' "$gpg_program")
@@ -956,11 +1080,15 @@ update_context_file() {
     core_editor=$(prompt_value 'core.editor' "$core_editor")
   fi
 
+  if [ "$update_ssh_add_on_start" = 'yes' ]; then
+    ssh_add_on_start=$(prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
+  fi
+
   if [ "$use_gpg" = 'yes' ] && [ -z "$gpg_program" ]; then
     gpg_program=$(default_gpg_program)
   fi
 
-  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor"
+  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
   echo "Updated context '$name'."
 }
 
@@ -994,6 +1122,10 @@ main() {
   read)
     shift
     read_context "$@"
+    ;;
+  commands)
+    shift
+    print_saved_context_commands "$@"
     ;;
   delete)
     shift
