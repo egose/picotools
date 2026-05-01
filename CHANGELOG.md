@@ -1,3 +1,9 @@
+## [0.16.0](https://github.com/egose/picotools/compare/v0.15.0...v0.16.0) (2026-05-01)
+
+### Features
+
+* change context update to sequential field selection ([9034dab](https://github.com/egose/picotools/commit/9034dab2575c207f910a375d565b1581608cc685))
+
 ## [0.15.0](https://github.com/egose/picotools/compare/v0.14.0...v0.15.0) (2026-05-01)
 
 ### Features
