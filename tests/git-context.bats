@@ -244,17 +244,17 @@ assert_create_fails() {
   assert_contains "$output" ' no ' 'list should show disabled optional features'
   assert_not_contains "$output" 'Autocrlf' 'list should not include the detailed optional settings columns'
 
-  detail_output=$(printf '1\n\n' | run_tool list 2>&1)
+  detail_output=$(printf '1\nq\n' | run_tool list 2>&1)
   assert_contains "$detail_output" '| Field ' 'list selection should render a detail table'
   assert_contains "$detail_output" '| Name ' 'list selection should include the context name field'
   assert_contains "$detail_output" 'personal' 'list selection should include the context name'
   assert_contains "$detail_output" 'Jane Dev' 'list selection should include the user name'
   assert_contains "$detail_output" 'jane@example.com' 'list selection should include the email'
   assert_contains "$detail_output" 'Actions:' 'list selection should show the action menu'
-  assert_contains "$detail_output" 'p. Display public SSH key' 'list selection should describe the public key action'
-  assert_contains "$detail_output" 's. Set selected context in current repository' 'list selection should describe the set action'
-  assert_contains "$detail_output" 'u. Update selected context' 'list selection should describe the update action'
-  assert_contains "$detail_output" 'd. Delete selected context' 'list selection should describe the delete action'
+  assert_contains "$detail_output" '1. Display public SSH key' 'list selection should describe the public key action'
+  assert_contains "$detail_output" '2. Set selected context in current repository' 'list selection should describe the set action'
+  assert_contains "$detail_output" '3. Update selected context' 'list selection should describe the update action'
+  assert_contains "$detail_output" '4. Delete selected context' 'list selection should describe the delete action'
 
   printf '1\ny\n' | run_tool delete >/dev/null 2>&1
 
@@ -344,7 +344,7 @@ EOF
   printf 'work\nJane Dev\njane@example.com\nno\nno\n' |
     run_tool create >/dev/null 2>&1
 
-  printf '1\nu\n8\nnano\n' | run_tool list >/dev/null 2>&1
+  printf '1\n3\n8\nnano\n' | run_tool list >/dev/null 2>&1
 
   assert_git_config_file_value "$context_file" core.editor nano 'list update should rewrite the selected context'
 }
@@ -361,7 +361,7 @@ EOF
 
   (
     cd "$repo" || return 1
-    printf '1\ns\n' | run_tool list >/dev/null 2>&1
+    printf '1\n2\n' | run_tool list >/dev/null 2>&1
   )
 
   assert_git_local_value "$repo" user.name 'Jane Dev' 'list set should apply the selected context user name'
@@ -377,7 +377,7 @@ EOF
   printf 'personal\nJane Dev\njane@example.com\nno\nno\n' |
     run_tool create >/dev/null 2>&1
 
-  printf '1\nd\ny\n' | run_tool list >/dev/null 2>&1
+  printf '1\n4\ny\n' | run_tool list >/dev/null 2>&1
 
   assert_file_not_exists "$context_file" 'list delete should remove the selected context file'
 }

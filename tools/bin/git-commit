@@ -131,31 +131,16 @@ select_from_list() {
   local header="$1"
   local prompt="$2"
   shift 2
-  local selection
-  local index=1
   local -a items=("$@")
+  local selection
 
   if [ "${#items[@]}" -eq 0 ]; then
     echo "Error: no options available for $header" >&2
     exit 1
   fi
 
-  printf '%s:\n' "$header" >&2
-  for item in "${items[@]}"; do
-    printf '  %d. %s\n' "$index" "$item" >&2
-    index=$((index + 1))
-  done
-
-  printf '%s [1]: ' "$prompt" >&2
-  read -r selection || true
-
-  if [ -z "$selection" ]; then
-    selection=1
-  fi
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#items[@]}" ]; then
-    echo 'Error: invalid selection' >&2
-    exit 1
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" 1 false "${items[@]}"); then
+    return 1
   fi
 
   printf '%s\n' "${items[$((selection - 1))]}"
@@ -173,14 +158,20 @@ configure_tool() {
     exit 1
   fi
 
-  profile=$(select_from_list 'Profiles' 'Select profile' "${profiles[@]}")
+  if ! profile=$(select_from_list 'Profiles' 'Select profile' "${profiles[@]}"); then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
   mapfile -t models < <(run_model_provider models "$profile")
   if [ "${#models[@]}" -eq 0 ]; then
     echo "Error: no models configured for profile '$profile'" >&2
     exit 1
   fi
 
-  model=$(select_from_list 'Models' 'Select model' "${models[@]}")
+  if ! model=$(select_from_list 'Models' 'Select model' "${models[@]}"); then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
   write_config_value model.profile "$profile"
   write_config_value model.name "$model"
   echo "Configured git-commit with profile '$profile' and model '$model'."

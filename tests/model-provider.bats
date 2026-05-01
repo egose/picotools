@@ -250,7 +250,7 @@ run_tool() {
   assert_contains "$output" 'gpt-5,gpt-4o' 'list should include the normalized model list'
   assert_contains "$output" ' yes ' 'list should report that the token exists'
 
-  detail_output=$(printf '1\n\n' | run_tool list 2>&1)
+  detail_output=$(printf '1\nq\n' | run_tool list 2>&1)
   assert_contains "$detail_output" 'Azure OpenAI' 'list selection should show the readable provider label'
   assert_contains "$detail_output" 'example-openai' 'list selection should show the Azure resource name'
   assert_contains "$detail_output" 'https://example-openai.openai.azure.com/' 'list selection should show the generated Azure OpenAI endpoint'
@@ -261,8 +261,8 @@ run_tool() {
   assert_contains "$detail_output" "$profile_file" 'list selection should show the config path'
   assert_contains "$detail_output" "$token_file" 'list selection should show the token path'
   assert_contains "$detail_output" 'Actions:' 'list selection should show the action menu'
-  assert_contains "$detail_output" 'u. Update selected profile' 'list selection should describe the update action'
-  assert_contains "$detail_output" 'd. Delete selected profile' 'list selection should describe the delete action'
+  assert_contains "$detail_output" '1. Update selected profile' 'list selection should describe the update action'
+  assert_contains "$detail_output" '2. Delete selected profile' 'list selection should describe the delete action'
   assert_not_contains "$detail_output" 'secret-openai-token' 'list selection should not print the token value'
 
   detail_output=$(printf '1\n' | run_tool read)
@@ -356,7 +356,7 @@ run_tool() {
   output=$(run_tool list)
   assert_contains "$output" 'work openai' 'list should include profile names with spaces'
 
-  detail_output=$(printf '1\n\n' | run_tool list 2>&1)
+  detail_output=$(printf '1\nq\n' | run_tool list 2>&1)
   assert_contains "$detail_output" 'work openai' 'list selection should show profile names with spaces'
 
   detail_output=$(printf '1\n' | run_tool read)
@@ -528,7 +528,7 @@ run_tool() {
   profile_file="$(profile_file_path work-openai)"
   token_file="$(token_file_path work-openai)"
 
-  printf '1\nu\n4\nhttps://custom.example.com/openai/v1\ncustom-model-1, custom-model-2\ny\nreplacement-token\n' | run_tool list >/dev/null 2>&1
+  printf '1\n1\n4\nhttps://custom.example.com/openai/v1\ncustom-model-1, custom-model-2\ny\nreplacement-token\n' | run_tool list >/dev/null 2>&1
 
   assert_config_value "$profile_file" provider.type 'custom' 'list update should allow changing the provider type'
   assert_eq "$(git config -f "$profile_file" --get provider.resourceName 2>/dev/null || true)" '' 'list update should remove resourceName when unused by the new provider type'
@@ -561,7 +561,7 @@ run_tool() {
   profile_file="$(profile_file_path gemini-main)"
   token_file="$(token_file_path gemini-main)"
 
-  printf '1\nd\ny\n' | run_tool list >/dev/null 2>&1
+  printf '1\n2\ny\n' | run_tool list >/dev/null 2>&1
 
   assert_file_not_exists "$profile_file" 'list delete should remove the config file'
   assert_file_not_exists "$token_file" 'list delete should remove the token file'

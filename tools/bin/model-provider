@@ -373,8 +373,6 @@ select_profile_model() {
   local file="$1"
   local selection
   local model_list
-  local model_item
-  local index=1
   local -a model_items=()
 
   model_list=$(provider_models_value "$file")
@@ -385,22 +383,8 @@ select_profile_model() {
     exit 1
   fi
 
-  echo 'Models:' >&2
-  for model_item in "${model_items[@]}"; do
-    printf '  %d. %s\n' "$index" "$model_item" >&2
-    index=$((index + 1))
-  done
-
-  printf 'Select model [1]: ' >&2
-  read -r selection || true
-
-  if [ -z "$selection" ]; then
-    selection=1
-  fi
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#model_items[@]}" ]; then
-    echo 'Error: invalid model selection' >&2
-    exit 1
+  if ! selection=$(prompt_select_index 'Models' 'Select model' 1 false "${model_items[@]}"); then
+    return 1
   fi
 
   printf '%s\n' "${model_items[$((selection - 1))]}"
@@ -522,23 +506,32 @@ prompt_yes_no() {
   picotools_prompt_yes_no "$@"
 }
 
+prompt_select_index() {
+  picotools_prompt_select_index "$@"
+}
+
 prompt_provider_type() {
   local current_value="${1:-}"
   local selection default_selection provider_type
+  local -a labels=(
+    'Azure OpenAI'
+    'Azure Cognitive Services'
+    'Gemini'
+    'Custom'
+  )
 
   default_selection=$(provider_type_default_selection "$current_value")
 
   while true; do
-    echo 'Provider types:' >&2
-    printf '  1. %s\n' 'Azure OpenAI' >&2
-    printf '  2. %s\n' 'Azure Cognitive Services' >&2
-    printf '  3. %s\n' 'Gemini' >&2
-    printf '  4. %s\n' 'Custom' >&2
-    printf 'Select provider type [%s]: ' "$default_selection" >&2
-    read -r selection || true
+    if selection=$(prompt_select_index 'Provider types' 'Select provider type' "$default_selection" false "${labels[@]}"); then
+      :
+    else
+      if [ "$?" -eq 2 ]; then
+        return 1
+      fi
 
-    if [ -z "$selection" ]; then
-      selection="$default_selection"
+      echo 'Please choose 1, 2, 3, or 4.' >&2
+      continue
     fi
 
     if provider_type=$(provider_type_from_selection "$selection"); then
@@ -596,8 +589,9 @@ save_profile() {
 }
 
 select_profile_file() {
-  local index=1 selection file name
+  local selection file name
   local files=()
+  local names=()
 
   if ! saved_profile_files >/dev/null; then
     echo 'No model provider profiles found.' >&2
@@ -607,16 +601,11 @@ select_profile_file() {
   while IFS= read -r file; do
     files+=("$file")
     name=$(profile_name_from_file "$file")
-    printf '%d. %s\n' "$index" "$name" >&2
-    index=$((index + 1))
+    names+=("$name")
   done < <(saved_profile_files)
 
-  printf 'Select profile: ' >&2
-  read -r selection || true
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
-    echo 'Error: invalid selection' >&2
-    exit 1
+  if ! selection=$(prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
+    return 1
   fi
 
   printf '%s\n' "${files[$((selection - 1))]}"
@@ -698,7 +687,10 @@ create_profile() {
     fi
   fi
 
-  provider_type=$(prompt_provider_type)
+  if ! provider_type=$(prompt_provider_type); then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
   selected_fields=$(prompt_profile_fields "$provider_type")
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
   token=$(prompt_value 'API key' '' true)
@@ -712,6 +704,7 @@ list_profiles() {
   local file selection action
   local index=1
   local -a files=()
+  local -a names=()
   local -a rows=()
 
   if ! saved_profile_files >/dev/null; then
@@ -721,22 +714,15 @@ list_profiles() {
 
   while IFS= read -r file; do
     files+=("$file")
+    names+=("$(profile_name_from_file "$file")")
     rows+=("$(format_profile_summary_row "$file" "$index")")
     index=$((index + 1))
   done < <(saved_profile_files)
 
   picotools_print_table $'#	Name	Type	Resource	Models	Token' "${rows[@]}"
 
-  printf 'Select profile for details (leave blank to exit): ' >&2
-  read -r selection || true
-
-  if [ -z "$selection" ]; then
+  if ! selection=$(prompt_select_index 'Profiles' 'Select profile for details' '' true "${names[@]}"); then
     return 0
-  fi
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
-    echo 'Error: invalid selection' >&2
-    exit 1
   fi
 
   print_profile_detail "${files[$((selection - 1))]}"
@@ -757,7 +743,9 @@ list_profiles() {
 read_profile() {
   local file
 
-  file=$(select_profile_file)
+  if ! file=$(select_profile_file); then
+    return 0
+  fi
   print_profile_detail "$file"
 }
 
@@ -794,29 +782,24 @@ list_profile_models() {
 }
 
 prompt_profile_action() {
-  local action
+  local selection
 
-  while true; do
-    echo 'Actions:' >&2
-    printf '  u. %s\n' 'Update selected profile' >&2
-    printf '  d. %s\n' 'Delete selected profile' >&2
-    printf 'Choose action (leave blank to exit): ' >&2
-    read -r action || true
-    action=${action,,}
+  if ! selection=$(prompt_select_index 'Actions' 'Choose action' '' true \
+    'Update selected profile' \
+    'Delete selected profile'); then
+    return 1
+  fi
 
-    if [ -z "$action" ]; then
-      return 1
-    fi
-
-    case "$action" in
-    u | d)
-      printf '%s\n' "$action"
-      return 0
-      ;;
-    esac
-
-    echo 'Please choose u or d.' >&2
-  done
+  case "$selection" in
+  1)
+    printf 'u\n'
+    return 0
+    ;;
+  2)
+    printf 'd\n'
+    return 0
+    ;;
+  esac
 }
 
 update_profile_file() {
@@ -830,7 +813,10 @@ update_profile_file() {
   endpoint_url=$(provider_endpoint_url_value "$file")
   models=$(provider_models_value "$file")
 
-  provider_type=$(prompt_provider_type "$provider_type")
+  if ! provider_type=$(prompt_provider_type "$provider_type"); then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
   selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$endpoint_url" "$models")
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
 
@@ -864,14 +850,18 @@ delete_profile_file() {
 update_profile() {
   local file
 
-  file=$(select_profile_file)
+  if ! file=$(select_profile_file); then
+    return 0
+  fi
   update_profile_file "$file"
 }
 
 delete_profile() {
   local file
 
-  file=$(select_profile_file)
+  if ! file=$(select_profile_file); then
+    return 0
+  fi
   delete_profile_file "$file"
 }
 
@@ -879,8 +869,12 @@ ask_provider_interactive() {
   local file model system_message user_message
 
   require_ask_tools
-  file=$(select_profile_file)
-  model=$(select_profile_model "$file")
+  if ! file=$(select_profile_file); then
+    return 0
+  fi
+  if ! model=$(select_profile_model "$file"); then
+    return 0
+  fi
   system_message=$(prompt_value 'System message' 'You are a helpful assistant.')
   user_message=$(prompt_value 'User message' '' true)
   provider_chat_completion "$file" "$model" "$system_message" "$user_message"

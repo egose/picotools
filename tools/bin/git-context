@@ -87,6 +87,10 @@ prompt_yes_no() {
   picotools_prompt_yes_no "$@"
 }
 
+prompt_select_index() {
+  picotools_prompt_select_index "$@"
+}
+
 prompt_update_fields() {
   local allow_gpg_program="$1"
   local current_gpg_program="$2"
@@ -708,6 +712,7 @@ list_contexts() {
   local file selection action
   local index=1
   local -a files=()
+  local -a names=()
   local -a rows=()
 
   if ! saved_context_files >/dev/null; then
@@ -717,22 +722,15 @@ list_contexts() {
 
   while IFS= read -r file; do
     files+=("$file")
+    names+=("$(context_name_from_file "$file")")
     rows+=("$(format_context_summary_row "$file" "$index")")
     index=$((index + 1))
   done < <(saved_context_files)
 
   picotools_print_table $'#\tName\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
 
-  printf 'Select context for details (leave blank to exit): ' >&2
-  read -r selection || true
-
-  if [ -z "$selection" ]; then
+  if ! selection=$(prompt_select_index 'Contexts' 'Select context for details' '' true "${names[@]}"); then
     return 0
-  fi
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
-    echo 'Error: invalid selection' >&2
-    exit 1
   fi
 
   print_context_detail "${files[$((selection - 1))]}" no
@@ -759,36 +757,41 @@ list_contexts() {
 read_context() {
   local file
 
-  file=$(select_context_file)
+  if ! file=$(select_context_file); then
+    return 0
+  fi
   print_context_detail "$file"
 }
 
 prompt_context_action() {
-  local action
+  local selection
 
-  while true; do
-    echo 'Actions:' >&2
-    printf '  p. %s\n' 'Display public SSH key' >&2
-    printf '  s. %s\n' 'Set selected context in current repository' >&2
-    printf '  u. %s\n' 'Update selected context' >&2
-    printf '  d. %s\n' 'Delete selected context' >&2
-    printf 'Choose action (leave blank to exit): ' >&2
-    read -r action || true
-    action=${action,,}
+  if ! selection=$(prompt_select_index 'Actions' 'Choose action' '' true \
+    'Display public SSH key' \
+    'Set selected context in current repository' \
+    'Update selected context' \
+    'Delete selected context'); then
+    return 1
+  fi
 
-    if [ -z "$action" ]; then
-      return 1
-    fi
-
-    case "$action" in
-    p | s | u | d)
-      printf '%s\n' "$action"
-      return 0
-      ;;
-    esac
-
-    echo 'Please choose p, s, u, or d.' >&2
-  done
+  case "$selection" in
+  1)
+    printf 'p\n'
+    return 0
+    ;;
+  2)
+    printf 's\n'
+    return 0
+    ;;
+  3)
+    printf 'u\n'
+    return 0
+    ;;
+  4)
+    printf 'd\n'
+    return 0
+    ;;
+  esac
 }
 
 print_context_public_key() {
@@ -808,8 +811,9 @@ print_context_public_key() {
 }
 
 select_context_file() {
-  local index=1 selection file name
+  local selection file name
   local files=()
+  local names=()
 
   if ! saved_context_files >/dev/null; then
     echo 'No git contexts found.' >&2
@@ -819,16 +823,11 @@ select_context_file() {
   while IFS= read -r file; do
     files+=("$file")
     name=$(context_name_from_file "$file")
-    printf '%d. %s\n' "$index" "$name" >&2
-    index=$((index + 1))
+    names+=("$name")
   done < <(saved_context_files)
 
-  printf 'Select context: ' >&2
-  read -r selection || true
-
-  if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "${#files[@]}" ]; then
-    echo 'Error: invalid selection' >&2
-    exit 1
+  if ! selection=$(prompt_select_index 'Contexts' 'Select context' '' false "${names[@]}"); then
+    return 1
   fi
 
   printf '%s\n' "${files[$((selection - 1))]}"
@@ -872,7 +871,9 @@ delete_context_file() {
 delete_context() {
   local file
 
-  file=$(select_context_file)
+  if ! file=$(select_context_file); then
+    return 0
+  fi
   delete_context_file "$file"
 }
 
@@ -925,7 +926,9 @@ set_context() {
   local file
 
   ensure_git_repository
-  file=$(select_context_file)
+  if ! file=$(select_context_file); then
+    return 0
+  fi
   set_context_file "$file"
 }
 
@@ -1023,7 +1026,9 @@ update_context_file() {
 update_context() {
   local file
 
-  file=$(select_context_file)
+  if ! file=$(select_context_file); then
+    return 0
+  fi
   update_context_file "$file"
 }
 
