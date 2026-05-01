@@ -709,10 +709,8 @@ create_context() {
 }
 
 list_contexts() {
-  local file selection action
+  local file
   local index=1
-  local -a files=()
-  local -a names=()
   local -a rows=()
 
   if ! saved_context_files >/dev/null; then
@@ -721,37 +719,11 @@ list_contexts() {
   fi
 
   while IFS= read -r file; do
-    files+=("$file")
-    names+=("$(context_name_from_file "$file")")
     rows+=("$(format_context_summary_row "$file" "$index")")
     index=$((index + 1))
   done < <(saved_context_files)
 
   picotools_print_table $'#\tName\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
-
-  if ! selection=$(prompt_select_index 'Contexts' 'Select context for details' '' true "${names[@]}"); then
-    return 0
-  fi
-
-  print_context_detail "${files[$((selection - 1))]}" no
-  if ! action=$(prompt_context_action); then
-    return 0
-  fi
-
-  case "$action" in
-  p)
-    print_context_public_key "${files[$((selection - 1))]}"
-    ;;
-  s)
-    set_context_file "${files[$((selection - 1))]}"
-    ;;
-  u)
-    update_context_file "${files[$((selection - 1))]}"
-    ;;
-  d)
-    delete_context_file "${files[$((selection - 1))]}"
-    ;;
-  esac
 }
 
 read_context() {
@@ -761,37 +733,6 @@ read_context() {
     return 0
   fi
   print_context_detail "$file"
-}
-
-prompt_context_action() {
-  local selection
-
-  if ! selection=$(prompt_select_index 'Actions' 'Choose action' '' true \
-    'Display public SSH key' \
-    'Set selected context in current repository' \
-    'Update selected context' \
-    'Delete selected context'); then
-    return 1
-  fi
-
-  case "$selection" in
-  1)
-    printf 'p\n'
-    return 0
-    ;;
-  2)
-    printf 's\n'
-    return 0
-    ;;
-  3)
-    printf 'u\n'
-    return 0
-    ;;
-  4)
-    printf 'd\n'
-    return 0
-    ;;
-  esac
 }
 
 print_context_public_key() {
