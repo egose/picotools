@@ -1,3 +1,16 @@
+## [0.15.0](https://github.com/egose/picotools/compare/v0.14.0...v0.15.0) (2026-05-01)
+
+### Features
+
+* add ssh-add on start preference and commands subcommand ([a7ab2c2](https://github.com/egose/picotools/commit/a7ab2c2e3e184c1bd1c91b49598f15f0e2d0cc4d))
+* add utilization metrics and color-coded sizing indicators ([cdebe7a](https://github.com/egose/picotools/commit/cdebe7a77381518332e69c7ec39a9ca1280bc93b))
+* log progress during pre-commit check attempts ([31e4a40](https://github.com/egose/picotools/commit/31e4a40aba1a4ec7f1c0c80d3142c8baf4bfcd26))
+* support ANSI escape sequences in table alignment ([483efbb](https://github.com/egose/picotools/commit/483efbb3614bc552b0f470a24893f7f458917582))
+
+### Refactors
+
+* modernize shell patterns and tool-versions parsing ([24baa0d](https://github.com/egose/picotools/commit/24baa0dd32fdc6b55ef292d82e7e7f1bb8b3dce3))
+
 ## [0.14.0](https://github.com/egose/picotools/compare/v0.13.0...v0.14.0) (2026-05-01)
 
 ### Features
