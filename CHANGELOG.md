@@ -1,3 +1,11 @@
+## [0.17.0](https://github.com/egose/picotools/compare/v0.16.0...v0.17.0) (2026-05-02)
+
+### Features
+
+* add asdf-upgrade tool ([ca76ddd](https://github.com/egose/picotools/commit/ca76ddd20fa0a437ee1a8ccf536480f9bd6af11e))
+* add multi-select prompt utilities ([0ab3616](https://github.com/egose/picotools/commit/0ab36160b4aa3bea5ec3259c4f2a2d9d3a214763))
+* improve git-commit pre-commit execution and path resolution ([f04d85f](https://github.com/egose/picotools/commit/f04d85f44caa6892f5a4688373c7e7dfb3757981))
+
 ## [0.16.0](https://github.com/egose/picotools/compare/v0.15.0...v0.16.0) (2026-05-01)
 
 ### Features
