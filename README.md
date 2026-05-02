@@ -9,6 +9,7 @@ The following scripts are included in `tools/bin`:
 | Tool | Description |
 |------|-------------|
 | `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
+| `asdf-upgrade` | Finds newer stable strict-semver asdf versions and updates selected `.tool-versions` entries |
 | `asdf-clean-unused` | Scans workspace `.tool-versions` files and removes unused asdf plugins or versions |
 | `pip-upgrade` | Updates exact requirement pins in `requirements.txt` within a selected version scope |
 | `oc-route` | Lists, reads, and interactively applies OpenShift route manifests |
@@ -28,6 +29,8 @@ The following scripts are included in `tools/bin`:
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
 `asdf-clean-unused` ignores common generated directories such as `node_modules`, `dist`, `build`, `coverage`, `tmp`, `vendor`, `mnt`, `lost+found`, and virtualenv folders while scanning for `.tool-versions`. Use `--ignore-path PATH` to add more ignored paths. It prompts before removing unused plugins and versions by default; use `asdf-clean-unused --yes` to skip the confirmation.
+
+`asdf-upgrade` inspects `asdf current` in the current directory, keeps only installed tools whose active version and available upgrades are strict stable `<major>.<minor>.<patch>` releases, shows the tools with newer versions in a table, and lets you multi-select which entries to rewrite across one or more `.tool-versions` files together. Use `asdf-upgrade --yes` to update every listed tool without prompting.
 
 `pip-upgrade` updates exact `==` requirement pins and supports `--scope major`, `--scope minor`, and `--scope patch` to control how far upgrades may move from the currently pinned version. It prompts before writing changes by default; use `--yes` to skip the confirmation.
 
@@ -73,6 +76,7 @@ Once installed, the tools are available directly on your `PATH`:
 
 ```sh
 asdf-install
+asdf-upgrade
 asdf-clean-unused
 pip-upgrade
 oc-route
