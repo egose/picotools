@@ -229,6 +229,10 @@ current_branch_name() {
   printf '%s\n' "$branch"
 }
 
+git_repo_root() {
+  git rev-parse --show-toplevel
+}
+
 derive_scope_from_branch() {
   local branch="$1"
   local last_segment
@@ -251,21 +255,28 @@ pre_commit_hook_path() {
   git rev-parse --git-path hooks/pre-commit
 }
 
+git_index_path() {
+  git rev-parse --git-path index
+}
+
+restore_index_snapshot() {
+  local snapshot_path="$1"
+  local index_path
+
+  index_path=$(git_index_path)
+  cp "$snapshot_path" "$index_path"
+}
+
 run_pre_commit_checks() {
   local changed_files="$1"
   local retry_count="$2"
-  local hook_path file attempt=1
+  local hook_path index_snapshot file attempt=1
   local max_attempts=$((retry_count + 1))
   local -a files=()
 
   hook_path=$(pre_commit_hook_path)
-  if [ ! -f "$hook_path" ]; then
+  if [ ! -x "$hook_path" ]; then
     return 0
-  fi
-
-  if ! command -v pre-commit >/dev/null 2>&1; then
-    echo "Error: pre-commit hook exists but 'pre-commit' is not installed" >&2
-    exit 1
   fi
 
   while IFS= read -r file; do
@@ -278,13 +289,21 @@ run_pre_commit_checks() {
     return 0
   fi
 
+  index_snapshot=$(mktemp)
+  cp "$(git_index_path)" "$index_snapshot"
+
   echo 'Pre-commit checks:'
   while true; do
     if [ "$max_attempts" -gt 1 ]; then
       printf 'Attempt %d/%d\n' "$attempt" "$max_attempts"
     fi
 
-    if pre-commit run --files "${files[@]}"; then
+    restore_index_snapshot "$index_snapshot"
+    git add -A :/
+
+    if "$hook_path"; then
+      restore_index_snapshot "$index_snapshot"
+      rm -f "$index_snapshot"
       printf '\n'
       return 0
     fi
@@ -292,8 +311,10 @@ run_pre_commit_checks() {
     printf '\n'
 
     if [ "$attempt" -ge "$max_attempts" ]; then
+      restore_index_snapshot "$index_snapshot"
+      rm -f "$index_snapshot"
       echo "Error: pre-commit checks failed after $max_attempts attempts" >&2
-      exit 1
+      return 1
     fi
 
     attempt=$((attempt + 1))
@@ -301,10 +322,12 @@ run_pre_commit_checks() {
 }
 
 collect_changed_files() {
-  local file
+  local repo_root file
   local has_head=false
   local -A seen=()
   local -a files=()
+
+  repo_root=$(git_repo_root)
 
   if git rev-parse --verify HEAD >/dev/null 2>&1; then
     has_head=true
@@ -316,14 +339,14 @@ collect_changed_files() {
         seen[$file]=1
         files+=("$file")
       fi
-    done < <(git diff --name-only HEAD --)
+    done < <(git -C "$repo_root" diff --name-only HEAD --)
   else
     while IFS= read -r file; do
       if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
         seen[$file]=1
         files+=("$file")
       fi
-    done < <(git diff --name-only --cached --)
+    done < <(git -C "$repo_root" diff --name-only --cached --)
   fi
 
   while IFS= read -r file; do
@@ -331,32 +354,34 @@ collect_changed_files() {
       seen[$file]=1
       files+=("$file")
     fi
-  done < <(git ls-files --others --exclude-standard)
+  done < <(git -C "$repo_root" ls-files --others --exclude-standard)
 
   printf '%s\n' "${files[@]}"
 }
 
 collect_changes_diff() {
-  local file
+  local repo_root file
   local has_head=false
   local diff_output=''
+
+  repo_root=$(git_repo_root)
 
   if git rev-parse --verify HEAD >/dev/null 2>&1; then
     has_head=true
   fi
 
   if [ "$has_head" = true ]; then
-    diff_output=$(git diff --no-ext-diff --binary HEAD --)
+    diff_output=$(git -C "$repo_root" diff --no-ext-diff --binary HEAD --)
   else
-    diff_output=$(git diff --no-ext-diff --binary --cached --)
+    diff_output=$(git -C "$repo_root" diff --no-ext-diff --binary --cached --)
   fi
 
   while IFS= read -r file; do
     if [ -n "$file" ]; then
       diff_output+=$'\n'
-      diff_output+=$(git diff --no-ext-diff --binary --no-index /dev/null "$file" || true)
+      diff_output+=$(git -C "$repo_root" diff --no-ext-diff --binary --no-index /dev/null "$file" || true)
     fi
-  done < <(git ls-files --others --exclude-standard)
+  done < <(git -C "$repo_root" ls-files --others --exclude-standard)
 
   printf '%s\n' "$diff_output"
 }
@@ -417,10 +442,77 @@ plan_commit_count() {
   printf '%s' "$plan_json" | jq -r '.commits | length'
 }
 
+resolve_changed_file_reference() {
+  local requested_file="$1"
+  local changed_files="$2"
+  local normalized_requested_file candidate_file basename_match='' suffix_match=''
+  local basename_count=0
+  local suffix_count=0
+
+  normalized_requested_file="${requested_file#:/}"
+  normalized_requested_file="${normalized_requested_file#./}"
+
+  while IFS= read -r candidate_file; do
+    [ -n "$candidate_file" ] || continue
+
+    if [ "$candidate_file" = "$normalized_requested_file" ]; then
+      printf '%s\n' "$candidate_file"
+      return 0
+    fi
+
+    if [ "${candidate_file##*/}" = "$normalized_requested_file" ]; then
+      basename_match="$candidate_file"
+      basename_count=$((basename_count + 1))
+    fi
+
+    case "$candidate_file" in
+    "$normalized_requested_file" | */"$normalized_requested_file")
+      suffix_match="$candidate_file"
+      suffix_count=$((suffix_count + 1))
+      ;;
+    esac
+  done <<<"$changed_files"
+
+  if [ "$basename_count" -eq 1 ]; then
+    printf '%s\n' "$basename_match"
+    return 0
+  fi
+
+  if [ "$suffix_count" -eq 1 ]; then
+    printf '%s\n' "$suffix_match"
+    return 0
+  fi
+
+  return 1
+}
+
+resolved_commit_files() {
+  local plan_json="$1"
+  local commit_index="$2"
+  local changed_files="$3"
+  local file resolved_file
+  local -a commit_files=()
+
+  mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]?")
+  if [ "${#commit_files[@]}" -eq 0 ]; then
+    echo "Error: commit plan item $((commit_index + 1)) must include files" >&2
+    exit 1
+  fi
+
+  for file in "${commit_files[@]}"; do
+    if ! resolved_file=$(resolve_changed_file_reference "$file" "$changed_files"); then
+      echo "Error: commit plan referenced an unknown or ambiguous changed file: $file" >&2
+      exit 1
+    fi
+
+    printf '%s\n' "$resolved_file"
+  done
+}
+
 validate_multi_commit_plan() {
   local plan_json="$1"
   local changed_files="$2"
-  local count commit_index file
+  local count commit_index file resolved_file
   local -A changed_file_set=()
   local -A planned_file_set=()
   local -a commit_files=()
@@ -434,22 +526,18 @@ validate_multi_commit_plan() {
   count=$(plan_commit_count "$plan_json")
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
-    mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]?")
-    if [ "${#commit_files[@]}" -eq 0 ]; then
-      echo "Error: commit plan item $((commit_index + 1)) must include files" >&2
-      exit 1
-    fi
+    mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
 
-    for file in "${commit_files[@]}"; do
-      if [ -z "${changed_file_set[$file]:-}" ]; then
-        echo "Error: commit plan referenced an unknown changed file: $file" >&2
+    for resolved_file in "${commit_files[@]}"; do
+      if [ -z "${changed_file_set[$resolved_file]:-}" ]; then
+        echo "Error: commit plan referenced an unknown changed file: $resolved_file" >&2
         exit 1
       fi
-      if [ -n "${planned_file_set[$file]:-}" ]; then
-        echo "Error: commit plan assigned the same file to multiple commits: $file" >&2
+      if [ -n "${planned_file_set[$resolved_file]:-}" ]; then
+        echo "Error: commit plan assigned the same file to multiple commits: $resolved_file" >&2
         exit 1
       fi
-      planned_file_set[$file]=1
+      planned_file_set[$resolved_file]=1
     done
 
     commit_index=$((commit_index + 1))
@@ -619,7 +707,7 @@ print_commit_plan() {
     if [ "$count" -eq 1 ]; then
       print_git_add_command
     else
-      mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]")
+      mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
       printf 'Commit %d:\n' "$((commit_index + 1))"
       print_git_add_command "${commit_files[@]}"
     fi
@@ -664,7 +752,7 @@ execute_commit_plan() {
     if [ "$count" -eq 1 ]; then
       git add -A :/
     else
-      mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]")
+      mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
       git add -- "${commit_files[@]/#/:/}"
     fi
 
@@ -687,6 +775,7 @@ run_commit_tool() {
   ensure_no_staged_changes
   ensure_changes_exist
   changed_files=$(collect_changed_files)
+
   run_pre_commit_checks "$changed_files" "$pre_commit_retries"
   ensure_changes_exist
   changed_files=$(collect_changed_files)

@@ -179,7 +179,29 @@ install_pre_commit_hook() {
   mkdir -p "$repo/.git/hooks"
   cat >"$repo/.git/hooks/pre-commit" <<'EOF'
 #!/usr/bin/env bash
-exit 0
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+exec pre-commit hook-impl --hook-type pre-commit --hook-dir "$HERE" -- "$@"
+EOF
+  chmod +x "$repo/.git/hooks/pre-commit"
+}
+
+install_index_sensitive_pre_commit_hook() {
+  local repo="$1"
+
+  mkdir -p "$repo/.git/hooks"
+  cat >"$repo/.git/hooks/pre-commit" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+staged_script=$(git show :script.bash 2>/dev/null || true)
+case "$staged_script" in
+*BROKEN_FOR_SHELLCHECK*)
+  echo 'Shellcheck Bash Linter' >&2
+  exit 1
+  ;;
+esac
 EOF
   chmod +x "$repo/.git/hooks/pre-commit"
 }
@@ -510,7 +532,7 @@ create_initial_commit() {
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should continue after successful pre-commit checks'
-  assert_contains "$(<"$pre_commit_log")" 'run --files README.md notes.txt' 'git-commit should run pre-commit for changed files when a hook exists'
+  assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should execute the installed pre-commit hook'
 }
 
 @test "retries pre-commit up to two more times after failures" {
@@ -544,7 +566,7 @@ create_initial_commit() {
 
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should continue after pre-commit succeeds on a retry'
   assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
-  assert_contains "$(<"$pre_commit_log")" 'run --files README.md' 'git-commit should keep retrying the same changed files'
+  assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should retry the installed pre-commit hook'
 }
 
 @test "respects --pre-commit-retries override" {
@@ -578,6 +600,35 @@ create_initial_commit() {
 
   assert_contains "$output" 'Error: pre-commit checks failed after 2 attempts' 'git-commit should report the configured total attempts'
   assert_eq "$(<"$pre_commit_attempts")" '2' 'git-commit should stop after the configured retry limit'
+}
+
+@test "fails early when the installed pre-commit hook rejects the staged snapshot" {
+  local stub_path jq_stub pre_commit_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  pre_commit_stub="$TMP_HOME/pre-commit"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_pre_commit_stub "$pre_commit_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  install_index_sensitive_pre_commit_hook "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf '%s\n' '#!/usr/bin/env bash' 'BROKEN_FOR_SHELLCHECK' >"$repo/script.bash"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add script","files":["script.bash"]}]}' \
+    "$TOOL" 2>&1); then
+    fail 'git-commit should fail when the installed pre-commit hook rejects the staged snapshot'
+  fi
+
+  assert_contains "$output" 'Shellcheck Bash Linter' 'git-commit should surface the installed hook failure'
 }
 
 @test "applies a single planned commit with --apply" {
@@ -640,4 +691,68 @@ create_initial_commit() {
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after grouped apply mode'
   assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
   assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
+}
+
+@test "applies grouped commits when the model returns a unique basename for a new file" {
+  local stub_path jq_stub repo output head_subject previous_subject status_after
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/tools/bin"
+  printf 'updated\n' >>"$repo/README.md"
+  printf '%s\n' '#!/usr/bin/env bash' 'echo tool' >"$repo/tools/bin/asdf-upgrade"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
+  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should resolve the new file basename to its changed path'
+  assert_eq "$previous_subject" 'docs(11222): update readme' 'git-commit should preserve earlier grouped commits'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after applying basename-resolved commits'
+  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the basename-resolved commit title'
+}
+
+@test "applies grouped commits from a subdirectory using repo-root paths" {
+  local stub_path jq_stub repo output head_subject previous_subject status_after
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/tools/bin"
+  printf 'updated\n' >>"$repo/README.md"
+  printf '%s\n' '#!/usr/bin/env bash' 'echo tool' >"$repo/tools/bin/asdf-upgrade"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo/tools/bin" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
+  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should stage basename-resolved files correctly from a subdirectory'
+  assert_eq "$previous_subject" 'docs(11222): update readme' 'git-commit should keep grouped commit order from a subdirectory'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after subdirectory apply mode'
+  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the basename-resolved commit title from a subdirectory'
 }

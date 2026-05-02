@@ -1,0 +1,326 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands prompt string table version
+
+ASDF_UPGRADE_TMP_DIR=""
+
+usage() {
+  cat <<'EOF'
+Usage: asdf-upgrade [--yes]
+
+Checks the tools currently active in the working directory, finds newer stable
+strict-semver asdf versions, shows a table of upgrades, and updates the
+selected source files together.
+
+Options:
+  --yes                     Update every listed tool without prompting
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+cleanup_tmp_dir() {
+  if [ -n "${ASDF_UPGRADE_TMP_DIR:-}" ]; then
+    rm -rf "$ASDF_UPGRADE_TMP_DIR"
+  fi
+}
+
+is_strict_semver() {
+  [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+}
+
+version_greater_than() {
+  local left="$1"
+  local right="$2"
+  local left_major left_minor left_patch
+  local right_major right_minor right_patch
+
+  IFS=. read -r left_major left_minor left_patch <<<"$left"
+  IFS=. read -r right_major right_minor right_patch <<<"$right"
+
+  if [ "$left_major" -ne "$right_major" ]; then
+    [ "$left_major" -gt "$right_major" ]
+    return
+  fi
+
+  if [ "$left_minor" -ne "$right_minor" ]; then
+    [ "$left_minor" -gt "$right_minor" ]
+    return
+  fi
+
+  [ "$left_patch" -gt "$right_patch" ]
+}
+
+resolve_source_path() {
+  local source="$1"
+
+  case "$source" in
+  ~/*)
+    source="$HOME/${source#~/}"
+    ;;
+  /*)
+    ;;
+  *)
+    source="$(pwd)/$source"
+    ;;
+  esac
+
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -m "$source"
+    return 0
+  fi
+
+  printf '%s\n' "$source"
+}
+
+latest_stable_version() {
+  local tool="$1"
+  local version
+  local latest=''
+
+  while IFS= read -r version; do
+    version=$(picotools_trim_whitespace "$version")
+    is_strict_semver "$version" || continue
+
+    if [ -z "$latest" ] || version_greater_than "$version" "$latest"; then
+      latest="$version"
+    fi
+  done < <(asdf list all "$tool" 2>/dev/null || true)
+
+  printf '%s\n' "$latest"
+}
+
+collect_upgrade_rows() {
+  local output_file="$1"
+  local line tool current_version source installed latest_version resolved_source
+  local field_count processed_count=0
+  local -a fields=()
+  local -a source_fields=()
+
+  : >"$output_file"
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    read -r -a fields <<<"$line"
+    field_count=${#fields[@]}
+
+    if [ "$field_count" -lt 4 ]; then
+      continue
+    fi
+
+    tool="${fields[0]}"
+    current_version="${fields[1]}"
+    installed="${fields[$((field_count - 1))]}"
+
+    if [ "$tool" = 'Name' ] || [ "$installed" != 'true' ]; then
+      continue
+    fi
+
+    is_strict_semver "$current_version" || continue
+
+    source_fields=("${fields[@]:2:$((field_count - 3))}")
+    source=$(picotools_trim_whitespace "${source_fields[*]}")
+    [ -n "$source" ] || continue
+
+    resolved_source=$(resolve_source_path "$source")
+    [ -f "$resolved_source" ] || continue
+
+    processed_count=$((processed_count + 1))
+    printf 'Checking %s %s from %s...\n' "$tool" "$current_version" "$resolved_source" >&2
+    latest_version=$(latest_stable_version "$tool")
+    [ -n "$latest_version" ] || continue
+
+    if ! version_greater_than "$latest_version" "$current_version"; then
+      continue
+    fi
+
+    printf '%s\t%s\t%s\t%s\n' "$tool" "$current_version" "$latest_version" "$resolved_source" >>"$output_file"
+  done < <(asdf current 2>/dev/null || true)
+
+  if [ "$processed_count" -gt 0 ]; then
+    printf 'Checked %d tool(s).\n' "$processed_count" >&2
+  fi
+}
+
+print_upgrade_table() {
+  local upgrades_file="$1"
+  local -a rows=()
+
+  mapfile -t rows <"$upgrades_file"
+  picotools_print_table $'Tool\tCurrent\tLatest\tSource' "${rows[@]}"
+}
+
+select_upgrade_indexes() {
+  local upgrades_file="$1"
+  local assume_yes="$2"
+  local row tool current_version latest_version source
+  local index=1
+  local -a rows=()
+  local -a options=()
+
+  mapfile -t rows <"$upgrades_file"
+
+  if [ "$assume_yes" = true ]; then
+    for row in "${rows[@]}"; do
+      printf '%s\n' "$index"
+      index=$((index + 1))
+    done
+    return 0
+  fi
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r tool current_version latest_version source <<<"$row"
+    options+=("${tool}: ${current_version} -> ${latest_version} (${source})")
+  done
+
+  picotools_prompt_select_multiple_indexes 'Upgradeable asdf tools' 'Select tools to upgrade' false "${options[@]}"
+}
+
+apply_selected_upgrades() {
+  local upgrades_file="$1"
+  shift
+  local row source_file tmpfile line comment_part tool current_version latest_version key index
+  local -a rows=()
+  local -a fields=()
+  local -a source_files=()
+  declare -A selected_current=()
+  declare -A selected_latest=()
+  declare -A expected_updates=()
+  declare -A updated_counts=()
+  declare -A temp_files=()
+  declare -A seen_sources=()
+
+  mapfile -t rows <"$upgrades_file"
+
+  for index in "$@"; do
+    row="${rows[$((index - 1))]}"
+    IFS=$'\t' read -r tool current_version latest_version source_file <<<"$row"
+    key="${source_file}"$'\t'"${tool}"
+    selected_current["$key"]="$current_version"
+    selected_latest["$key"]="$latest_version"
+    expected_updates["$source_file"]=$((${expected_updates["$source_file"]:-0} + 1))
+
+    if [ -z "${seen_sources["$source_file"]:-}" ]; then
+      source_files+=("$source_file")
+      seen_sources["$source_file"]=1
+    fi
+  done
+
+  for source_file in "${source_files[@]}"; do
+    tmpfile="$ASDF_UPGRADE_TMP_DIR/$(basename "$source_file").$$.$RANDOM.tmp"
+    temp_files["$source_file"]="$tmpfile"
+    : >"$tmpfile"
+
+    while IFS= read -r line || [ -n "$line" ]; do
+      comment_part=''
+      if [ "${line%%#*}" != "$line" ]; then
+        comment_part="${line#"${line%%#*}"}"
+      fi
+
+      read -r -a fields <<<"${line%%#*}"
+
+      if [ "${#fields[@]}" -gt 1 ]; then
+        tool="${fields[0]}"
+        key="${source_file}"$'\t'"${tool}"
+
+        if [ -n "${selected_latest["$key"]:-}" ] && [ "${fields[1]}" = "${selected_current["$key"]}" ]; then
+          fields[1]="${selected_latest["$key"]}"
+          line="${fields[*]}"
+          if [ -n "$comment_part" ]; then
+            line="$line $comment_part"
+          fi
+          updated_counts["$source_file"]=$((${updated_counts["$source_file"]:-0} + 1))
+        fi
+      fi
+
+      printf '%s\n' "$line" >>"$tmpfile"
+    done <"$source_file"
+
+    if [ "${updated_counts["$source_file"]:-0}" -ne "${expected_updates["$source_file"]:-0}" ]; then
+      echo "Error: failed to update every selected tool in $source_file" >&2
+      exit 1
+    fi
+  done
+
+  for source_file in "${source_files[@]}"; do
+    mv "${temp_files["$source_file"]}" "$source_file"
+  done
+
+  printf 'Updated %d tool(s) across %d source file(s).\n' "$#" "${#source_files[@]}"
+  echo 'Run asdf install to install the selected versions.'
+}
+
+main() {
+  local assume_yes=false
+  local upgrades_file
+  local selection_output
+  local index
+  local -a selected_indexes=()
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --yes)
+      assume_yes=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    *)
+      echo "Error: unexpected argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  picotools_require_command asdf
+
+  ASDF_UPGRADE_TMP_DIR=$(mktemp -d)
+  trap 'cleanup_tmp_dir' EXIT
+  upgrades_file="$ASDF_UPGRADE_TMP_DIR/upgrades.tsv"
+
+  collect_upgrade_rows "$upgrades_file"
+
+  if [ ! -s "$upgrades_file" ]; then
+    echo 'No upgrades found.'
+    exit 0
+  fi
+
+  print_upgrade_table "$upgrades_file"
+  selection_output=$(select_upgrade_indexes "$upgrades_file" "$assume_yes") || {
+    echo 'Cancelled.' >&2
+    exit 1
+  }
+
+  while IFS= read -r index; do
+    [ -n "$index" ] || continue
+    selected_indexes+=("$index")
+  done <<<"$selection_output"
+
+  if [ "${#selected_indexes[@]}" -eq 0 ]; then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
+
+  apply_selected_upgrades "$upgrades_file" "${selected_indexes[@]}"
+}
+
+main "$@"

@@ -216,6 +216,186 @@ picotools_prompt_select_index() {
   done
 }
 
+picotools_prompt_parse_selection_list() {
+  local raw_value="$1"
+  local option_count="$2"
+  local token
+  local -a tokens=()
+  local -a selections=()
+  local -a seen=()
+
+  raw_value=${raw_value//,/ }
+  read -r -a tokens <<<"$raw_value"
+
+  if [ "${#tokens[@]}" -eq 0 ]; then
+    return 2
+  fi
+
+  for token in "${tokens[@]}"; do
+    case "$token" in
+    q | Q)
+      return 2
+      ;;
+    esac
+
+    if ! [[ "$token" =~ ^[0-9]+$ ]] || [ "$token" -lt 1 ] || [ "$token" -gt "$option_count" ]; then
+      echo "Error: invalid selection '$token'" >&2
+      return 1
+    fi
+
+    if [ "${seen[$token]:-0}" -eq 1 ]; then
+      continue
+    fi
+
+    seen[token]=1
+    selections+=("$token")
+  done
+
+  printf '%s\n' "${selections[@]}"
+}
+
+picotools_prompt_select_multiple_indexes() {
+  local header="$1"
+  local prompt="$2"
+  local allow_empty="${3:-false}"
+  shift 3
+  local selection
+  local key
+  local suffix
+  local option_count
+  local selected_index=1
+  local rendered=false
+  local selected_start=''
+  local selected_end=''
+  local selected_count=0
+  local index
+  local option
+  local marker
+  local line
+  local -a options=("$@")
+  local -a selected=()
+
+  option_count=${#options[@]}
+  if [ "$option_count" -eq 0 ]; then
+    echo "Error: no options available for $header" >&2
+    exit 1
+  fi
+
+  if [ ! -t 0 ] || [ ! -t 2 ]; then
+    index=1
+
+    printf '%s:\n' "$header" >&2
+    for option in "${options[@]}"; do
+      printf '  %d. %s\n' "$index" "$option" >&2
+      index=$((index + 1))
+    done
+
+    printf '%s: ' "$prompt" >&2
+    read -r selection || true
+
+    if [ -z "$selection" ]; then
+      if [ "$allow_empty" = true ]; then
+        return 0
+      fi
+
+      return 2
+    fi
+
+    picotools_prompt_parse_selection_list "$selection" "$option_count"
+    return $?
+  fi
+
+  if [ "${TERM:-}" != 'dumb' ]; then
+    selected_start=$'\033[1;36m'
+    selected_end=$'\033[0m'
+  fi
+
+  printf '%s\n' "$header" >&2
+  printf 'Use up/down to choose, Space to toggle, Enter to confirm, Esc or q to cancel.\n' >&2
+
+  printf '\033[?25l' >&2
+  while true; do
+    index=1
+
+    if [ "$rendered" = true ]; then
+      printf '\033[%dA' "$option_count" >&2
+    fi
+
+    for option in "${options[@]}"; do
+      marker='[ ]'
+      if [ "${selected[$index]:-0}" -eq 1 ]; then
+        marker='[x]'
+      fi
+
+      line="$marker $option"
+      if [ "$index" -eq "$selected_index" ]; then
+        printf '\033[2K\r> %s%s%s\n' "$selected_start" "$line" "$selected_end" >&2
+      else
+        printf '\033[2K\r  %s\n' "$line" >&2
+      fi
+
+      index=$((index + 1))
+    done
+    rendered=true
+
+    if ! IFS= read -rsn1 key; then
+      printf '\033[?25h' >&2
+      return 2
+    fi
+
+    case "$key" in
+    '')
+      if [ "$selected_count" -eq 0 ] && [ "$allow_empty" != true ]; then
+        printf '\033[?25h\n' >&2
+        return 2
+      fi
+
+      printf '\033[?25h\n' >&2
+      for index in "${!options[@]}"; do
+        if [ "${selected[$((index + 1))]:-0}" -eq 1 ]; then
+          printf '%s\n' "$((index + 1))"
+        fi
+      done
+      return 0
+      ;;
+    ' ')
+      if [ "${selected[$selected_index]:-0}" -eq 1 ]; then
+        selected[selected_index]=0
+        selected_count=$((selected_count - 1))
+      else
+        selected[selected_index]=1
+        selected_count=$((selected_count + 1))
+      fi
+      ;;
+    q | Q)
+      printf '\033[?25h\n' >&2
+      return 2
+      ;;
+    $'\x1b')
+      suffix=''
+      IFS= read -rsn2 -t 0.1 suffix || true
+      key+="$suffix"
+      case "$key" in
+      $'\x1b[A')
+        if [ "$selected_index" -gt 1 ]; then
+          selected_index=$((selected_index - 1))
+        fi
+        ;;
+      $'\x1b[B')
+        if [ "$selected_index" -lt "$option_count" ]; then
+          selected_index=$((selected_index + 1))
+        fi
+        ;;
+      $'\x1b')
+        printf '\033[?25h\n' >&2
+        return 2
+        ;;
+      esac
+      ;;
+    esac
+  done
+}
+
 picotools_confirm_action() {
   local prompt="$1"
 
