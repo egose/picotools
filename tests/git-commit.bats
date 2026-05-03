@@ -69,6 +69,20 @@ create_model_provider_stub() {
 #!/usr/bin/env bash
 set -euo pipefail
 
+message_file=''
+system_message_file=''
+
+for ((i = 1; i <= $#; i++)); do
+  if [ "${!i}" = '--message-file' ] || [ "${!i}" = '--user-message-file' ]; then
+    next_index=$((i + 1))
+    message_file="${!next_index}"
+  fi
+  if [ "${!i}" = '--system-message-file' ]; then
+    next_index=$((i + 1))
+    system_message_file="${!next_index}"
+  fi
+done
+
 case "${1:-}" in
 profiles)
   printf '%s\n' alpha-profile beta-profile
@@ -86,6 +100,12 @@ models)
 ask)
   if [ -n "${MODEL_PROVIDER_ASK_ARGS_LOG:-}" ]; then
     printf '%s\n' "$*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    if [ -n "$system_message_file" ]; then
+      printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    fi
+    if [ -n "$message_file" ]; then
+      printf 'MESSAGE_FILE_CONTENT=%s\n' "$(<"$message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    fi
   fi
   printf '%s\n' "$MODEL_PROVIDER_ASK_RESPONSE"
   ;;
@@ -366,6 +386,10 @@ create_initial_commit() {
   staged_after=$(git -C "$repo" diff --cached --name-only)
   assert_eq "$staged_after" '' 'git-commit should not stage files automatically in preview mode'
   assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should call model-provider ask with configured profile and model'
+  assert_contains "$(<"$ask_log")" '--system-message-file' 'git-commit should pass the system prompt through a temp file'
+  assert_contains "$(<"$ask_log")" '--message-file' 'git-commit should pass the user prompt through a temp file'
+  assert_contains "$(<"$ask_log")" 'SYSTEM_MESSAGE_FILE_CONTENT=You are an expert software engineer creating conventional commit plans.' 'git-commit should write the system prompt into the temp file'
+  assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
 }
 
 @test "creates multiple commits from grouped file plan" {
