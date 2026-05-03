@@ -1,3 +1,15 @@
+## [0.18.0](https://github.com/egose/picotools/compare/v0.17.0...v0.18.0) (2026-05-03)
+
+### Features
+
+* add ci to allowed commit types ([944aea2](https://github.com/egose/picotools/commit/944aea2a8f401431aca49b55bd0db5fe6770cb19))
+* support file-based message arguments in model-provider ([cf7bd47](https://github.com/egose/picotools/commit/cf7bd47e61282dfe6a775a90e093d0191b12013f))
+* use file-based messaging for git-commit LLM requests ([b1c0e70](https://github.com/egose/picotools/commit/b1c0e7056bf2a31c9a2a8249f151cdd4e889cf9e))
+
+### Docs
+
+* update bash tool conventions for picotools loading and shared helpers ([f8667b7](https://github.com/egose/picotools/commit/f8667b768eeb015e01b2827e8a89fcb9a9c57665))
+
 ## [0.17.0](https://github.com/egose/picotools/compare/v0.16.0...v0.17.0) (2026-05-02)
 
 ### Features
