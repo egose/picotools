@@ -118,8 +118,12 @@ while [ "$#" -gt 0 ]; do
     fi
     shift 2
     ;;
-  -d)
-    body="$2"
+  -d|--data-binary)
+    if [[ "$2" == @* ]]; then
+      body=$(<"${2#@}")
+    else
+      body="$2"
+    fi
     shift 2
     ;;
   -*)
@@ -377,6 +381,35 @@ run_tool() {
   assert_contains "$(<"$curl_body_log")" '"model":"gpt-4o"' 'ask should send the selected model'
   assert_contains "$(<"$curl_body_log")" '"role":"system","content":"You are a helpful assistant."' 'ask should send the default system message'
   assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello from test"' 'ask should send the prompted user message'
+}
+
+@test "ask reads large prompt content from files" {
+  local stub_bin curl_body_log system_message_file user_message_file output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_body_log="$TMP_HOME/curl-body.log"
+  system_message_file="$TMP_HOME/system-message.txt"
+  user_message_file="$TMP_HOME/user-message.txt"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf '%s' 'System message loaded from file' >"$system_message_file"
+  printf '%s' 'User message loaded from file' >"$user_message_file"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$TMP_HOME/curl-url.log" \
+    CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"file answer"}}]}' \
+    "$TOOL" ask work-openai --model gpt-4o --system-message-file "$system_message_file" --message-file "$user_message_file")
+
+  assert_eq "$output" 'file answer' 'ask should print the response text when reading prompt files'
+  assert_contains "$(<"$curl_body_log")" '"role":"system","content":"System message loaded from file"' 'ask should load the system message from a file'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"User message loaded from file"' 'ask should load the user message from a file'
 }
 
 @test "ask supports interactive mode with no arguments" {

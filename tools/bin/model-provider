@@ -33,6 +33,7 @@ Ask:
   model-provider ask
   model-provider ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
   model-provider ask <profile> --user-message TEXT [--model MODEL] [--system-message TEXT]
+  model-provider ask <profile> --message-file PATH [--model MODEL] [--system-message-file PATH]
 EOF
 }
 
@@ -430,7 +431,7 @@ provider_chat_completion() {
   local model="$2"
   local system_message="$3"
   local user_message="$4"
-  local name provider_type resource_name endpoint_url base_url token payload tmpfile http_code response_text error_message
+  local name provider_type resource_name endpoint_url base_url token payload_file tmpfile http_code response_text error_message
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
@@ -438,21 +439,25 @@ provider_chat_completion() {
   endpoint_url=$(provider_endpoint_url_value "$file")
   base_url=$(provider_openai_base_url "$provider_type" "$resource_name" "$endpoint_url")
   token=$(read_token "$name")
-  payload=$(jq -n \
+  payload_file=$(mktemp)
+  jq -n \
     --arg model "$model" \
     --arg system_message "$system_message" \
     --arg user_message "$user_message" \
-    '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}')
+    '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
   tmpfile=$(mktemp)
 
   http_code=$(curl -sS -o "$tmpfile" -w '%{http_code}' \
     -H 'Content-Type: application/json' \
     -H "Authorization: Bearer $token" \
-    -d "$payload" \
+    --data-binary "@$payload_file" \
     "${base_url}chat/completions") || {
+    rm -f "$payload_file"
     rm -f "$tmpfile"
     exit 1
   }
+
+  rm -f "$payload_file"
 
   if [[ "$http_code" != 2* ]]; then
     error_message=$(jq -r '.error.message // .message // empty' <"$tmpfile" 2>/dev/null || true)
@@ -860,12 +865,36 @@ ask_provider_cli() {
       system_message="$2"
       shift 2
       ;;
+    --system-message-file)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --system-message-file requires a value' >&2
+        exit 1
+      fi
+      if [ ! -r "$2" ]; then
+        echo "Error: cannot read file: $2" >&2
+        exit 1
+      fi
+      system_message=$(<"$2")
+      shift 2
+      ;;
     --message | --user-message)
       if [ "$#" -lt 2 ]; then
         echo "Error: $1 requires a value" >&2
         exit 1
       fi
       user_message="$2"
+      shift 2
+      ;;
+    --message-file | --user-message-file)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: $1 requires a value" >&2
+        exit 1
+      fi
+      if [ ! -r "$2" ]; then
+        echo "Error: cannot read file: $2" >&2
+        exit 1
+      fi
+      user_message=$(<"$2")
       shift 2
       ;;
     *)
