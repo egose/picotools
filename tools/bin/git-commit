@@ -11,7 +11,7 @@ fi
 . "$LOAD_SH"
 picotools_source_modules "$SCRIPT_DIR" prompt version
 
-ALLOWED_TYPES='feat fix docs refactor chore perf test'
+ALLOWED_TYPES='feat fix docs refactor chore perf test ci'
 
 usage() {
   cat <<'EOF'
