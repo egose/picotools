@@ -365,7 +365,7 @@ module_scope_name() {
 
   package_name=$(package_name_from_manifest "$repo_root/$module_dir/package.json" || true)
   if [ -n "$package_name" ]; then
-    printf '%s\n' "$package_name"
+    printf '%s\n' "${package_name##*/}"
     return 0
   fi
 
@@ -551,6 +551,7 @@ Return JSON only with this exact shape:
 Rules:
 - Allowed types: feat, fix, docs, refactor, chore, perf, test
 - The message must be the commit subject suffix only. Do not include the type or scope prefix.
+- When a scope is provided, do not repeat that scope value or its parent package/org prefix in the message unless it is required for clarity.
 - Prefer one commit unless the changes clearly belong to distinct tasks.
 - Prefer separate commits when reusable supporting changes are independently useful from the consuming feature.
 - When one tool or shared capability is extended to support a new tool, prefer one commit for the supporting capability and another for the new consuming feature when the split is coherent.
