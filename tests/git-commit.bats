@@ -503,12 +503,13 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should fall back to the changed monorepo module name'
 }
 
-@test "uses package.json name as scope in a node monorepo when available" {
-  local stub_path jq_stub repo output
+@test "uses the leaf package name as scope in a node monorepo when available" {
+  local stub_path jq_stub repo ask_log output
 
   stub_path="$TMP_HOME/model-provider-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -524,10 +525,13 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
     MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(@acme/ui): update ui module"' 'git-commit should prefer the package.json name over the directory name'
+  assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should prefer the leaf package name over the scoped package prefix'
+  assert_contains "$(<"$ask_log")" $'Derived scope:\nui' 'git-commit should send the leaf package name as the derived scope in the planning prompt'
+  assert_contains "$(<"$ask_log")" 'do not repeat that scope value or its parent package/org prefix' 'git-commit should tell the model to avoid repeating monorepo scope names in the message'
 }
 
 @test "omits scope when monorepo changes span multiple modules" {
