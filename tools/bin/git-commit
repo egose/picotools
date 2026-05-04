@@ -251,6 +251,129 @@ derive_scope_from_branch() {
   printf '%s\n' "$last_segment"
 }
 
+repo_has_workspace_manifest() {
+  local repo_root="$1"
+  local manifest
+
+  for manifest in pnpm-workspace.yaml lerna.json nx.json turbo.json rush.json go.work; do
+    if [ -f "$repo_root/$manifest" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+package_json_declares_workspaces() {
+  local repo_root="$1"
+  local package_json="$repo_root/package.json"
+
+  if [ ! -f "$package_json" ]; then
+    return 1
+  fi
+
+  grep -Eq '"workspaces"[[:space:]]*:' "$package_json"
+}
+
+count_nested_module_manifests() {
+  local repo_root="$1"
+  local path count=0
+
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    case "$path" in
+    package.json | pyproject.toml | go.mod | Cargo.toml)
+      continue
+      ;;
+    */package.json | */pyproject.toml | */go.mod | */Cargo.toml)
+      count=$((count + 1))
+      if [ "$count" -ge 2 ]; then
+        printf '%s\n' "$count"
+        return 0
+      fi
+      ;;
+    esac
+  done < <(git -C "$repo_root" ls-files --cached --others --exclude-standard -- '*/package.json' '*/pyproject.toml' '*/go.mod' '*/Cargo.toml')
+
+  printf '%s\n' "$count"
+}
+
+repo_is_monorepo() {
+  local repo_root="$1"
+  local nested_manifest_count
+
+  if repo_has_workspace_manifest "$repo_root" || package_json_declares_workspaces "$repo_root"; then
+    return 0
+  fi
+
+  nested_manifest_count=$(count_nested_module_manifests "$repo_root")
+  [ "$nested_manifest_count" -ge 2 ]
+}
+
+module_dir_for_file() {
+  local repo_root="$1"
+  local file="$2"
+  local dir parent
+
+  case "$file" in
+  */*)
+    dir=${file%/*}
+    ;;
+  *)
+    return 1
+    ;;
+  esac
+
+  while [ -n "$dir" ] && [ "$dir" != '.' ]; do
+    if [ -f "$repo_root/$dir/package.json" ] || [ -f "$repo_root/$dir/pyproject.toml" ] || [ -f "$repo_root/$dir/go.mod" ] || [ -f "$repo_root/$dir/Cargo.toml" ]; then
+      printf '%s\n' "$dir"
+      return 0
+    fi
+
+    parent=${dir%/*}
+    if [ "$parent" = "$dir" ]; then
+      break
+    fi
+    dir="$parent"
+  done
+
+  return 1
+}
+
+derive_scope_from_monorepo() {
+  local changed_files="$1"
+  local repo_root file module_dir scope=''
+  local -A seen_modules=()
+
+  repo_root=$(git_repo_root)
+  if ! repo_is_monorepo "$repo_root"; then
+    printf '\n'
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    module_dir=$(module_dir_for_file "$repo_root" "$file" || true)
+    if [ -z "$module_dir" ] || [ -n "${seen_modules[$module_dir]:-}" ]; then
+      continue
+    fi
+
+    seen_modules[$module_dir]=1
+    if [ -n "$scope" ] && [ "$scope" != "$module_dir" ]; then
+      printf '\n'
+      return 0
+    fi
+    scope="$module_dir"
+  done <<<"$changed_files"
+
+  if [ -z "$scope" ]; then
+    printf '\n'
+    return 0
+  fi
+
+  printf '%s\n' "${scope##*/}"
+}
+
 pre_commit_hook_path() {
   git rev-parse --git-path hooks/pre-commit
 }
@@ -665,6 +788,8 @@ resolve_scope() {
   local branch="$1"
   local scope_override="$2"
   local no_scope="$3"
+  local changed_files="$4"
+  local scope
 
   if [ "$no_scope" = 'true' ]; then
     printf '\n'
@@ -676,7 +801,13 @@ resolve_scope() {
     return 0
   fi
 
-  derive_scope_from_branch "$branch"
+  scope=$(derive_scope_from_branch "$branch")
+  if [ -n "$scope" ]; then
+    printf '%s\n' "$scope"
+    return 0
+  fi
+
+  derive_scope_from_monorepo "$changed_files"
 }
 
 print_git_add_command() {
@@ -810,7 +941,7 @@ run_commit_tool() {
   IFS=$'\t' read -r profile model <<<"$config_values"
   require_dependencies
   branch=$(current_branch_name)
-  scope=$(resolve_scope "$branch" "$scope_override" "$no_scope")
+  scope=$(resolve_scope "$branch" "$scope_override" "$no_scope" "$changed_files")
   diff_output=$(collect_changes_diff)
   system_message=$(commit_planning_system_message)
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
