@@ -28,6 +28,7 @@ Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
   --apply                   Stage files and create the generated commit plan
+  --push                    With --apply, push the created commits
   --pre-commit-retries <n>  Retry failed pre-commit checks this many times
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
@@ -745,16 +746,66 @@ format_commit_title() {
   printf '%s: %s\n' "$type" "$message"
 }
 
+resolve_push_remote() {
+  local branch="$1"
+  local remote
+  local -a remotes=()
+
+  remote=$(git config --get "branch.$branch.pushRemote" 2>/dev/null || true)
+  if [ -n "$remote" ]; then
+    printf '%s\n' "$remote"
+    return 0
+  fi
+
+  remote=$(git config --get remote.pushDefault 2>/dev/null || true)
+  if [ -n "$remote" ]; then
+    printf '%s\n' "$remote"
+    return 0
+  fi
+
+  if git remote get-url origin >/dev/null 2>&1; then
+    printf 'origin\n'
+    return 0
+  fi
+
+  mapfile -t remotes < <(git remote)
+  if [ "${#remotes[@]}" -eq 1 ]; then
+    printf '%s\n' "${remotes[0]}"
+    return 0
+  fi
+
+  echo "Error: unable to determine push remote for branch '$branch'" >&2
+  exit 1
+}
+
+push_current_branch() {
+  local branch="$1"
+  local remote
+
+  if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+    git push
+    return 0
+  fi
+
+  remote=$(resolve_push_remote "$branch")
+  git push -u "$remote" "$branch"
+}
+
 parse_run_options() {
   local scope_override=''
   local no_scope=false
   local apply_commits=false
+  local push_commits=false
   local pre_commit_retries=2
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
     --apply)
       apply_commits=true
+      shift
+      ;;
+    --push)
+      push_commits=true
       shift
       ;;
     --pre-commit-retries)
@@ -812,7 +863,12 @@ parse_run_options() {
     esac
   done
 
-  printf '%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$pre_commit_retries"
+  if [ "$push_commits" = 'true' ] && [ "$apply_commits" != 'true' ]; then
+    echo 'Error: --push requires --apply' >&2
+    exit 1
+  fi
+
+  printf '%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$pre_commit_retries"
 }
 
 resolve_scope() {
@@ -951,14 +1007,15 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits pre_commit_retries
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits pre_commit_retries
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
   scope_override="${option_values[0]:-}"
   no_scope="${option_values[1]:-false}"
   apply_commits="${option_values[2]:-false}"
-  pre_commit_retries="${option_values[3]:-2}"
+  push_commits="${option_values[3]:-false}"
+  pre_commit_retries="${option_values[4]:-2}"
 
   require_git_repository
   ensure_no_staged_changes
@@ -985,6 +1042,9 @@ run_commit_tool() {
 
   if [ "$apply_commits" = 'true' ]; then
     execute_commit_plan "$plan_json" "$scope" "$changed_files"
+    if [ "$push_commits" = 'true' ]; then
+      push_current_branch "$branch"
+    fi
     return 0
   fi
 
@@ -1005,7 +1065,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --apply | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
+  '' | --apply | --push | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)
