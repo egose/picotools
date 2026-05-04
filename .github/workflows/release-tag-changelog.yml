@@ -33,9 +33,13 @@ jobs:
       uses: ./.github/actions/setup-npm
 
     - name: Create Release Tag
-      uses: egose/actions/release-tag@e7795d0cb5abe6c6fece069299513a12228f380f
+      uses: egose/actions/release-tag@05add1b5a7a995374c1bb375f3e920203efcc313
       with:
         tag: ${{ github.event.inputs.tag }}
         github-token: ${{ secrets.GITHUB_TOKEN }}
         auto-merge-pr: 'true'
         delete-merged-branch: 'true'
+        sign-commit: 'true'
+        gpg-private-key: ${{ secrets.RELEASE_GPG_PRIVATE_KEY }}
+        gpg-passphrase: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        git-user-email: ${{ secrets.RELEASE_USER_EMAIL }}
