@@ -23,8 +23,8 @@
     "release": "release-it",
     "changelog": "node changelog.mjs"
   },
-  "author": "Junmin Ahn",
-  "license": "MIT",
+  "author": "Junmin Dev",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
     "@commitlint/config-conventional": "^20.5.3",
