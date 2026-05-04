@@ -456,6 +456,89 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "chore: update readme"' 'git-commit should omit scope when branch name has no slash'
 }
 
+@test "uses changed module name as scope in a monorepo when branch scope is unavailable" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b dv
+  mkdir -p "$repo/packages/ui/src"
+  printf 'packages:\n  - packages/*\n' >"$repo/pnpm-workspace.yaml"
+  printf '{"name":"ui"}\n' >"$repo/packages/ui/package.json"
+  printf 'export const value = 1\n' >"$repo/packages/ui/src/index.ts"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should fall back to the changed monorepo module name'
+}
+
+@test "uses package.json name as scope in a node monorepo when available" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b dv
+  mkdir -p "$repo/packages/ui/src"
+  printf 'packages:\n  - packages/*\n' >"$repo/pnpm-workspace.yaml"
+  printf '{"name":"@acme/ui"}\n' >"$repo/packages/ui/package.json"
+  printf 'export const value = 1\n' >"$repo/packages/ui/src/index.ts"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "feat(@acme/ui): update ui module"' 'git-commit should prefer the package.json name over the directory name'
+}
+
+@test "omits scope when monorepo changes span multiple modules" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b dv
+  mkdir -p "$repo/packages/ui/src" "$repo/packages/api/src"
+  printf 'packages:\n  - packages/*\n' >"$repo/pnpm-workspace.yaml"
+  printf '{"name":"ui"}\n' >"$repo/packages/ui/package.json"
+  printf '{"name":"api"}\n' >"$repo/packages/api/package.json"
+  printf 'export const ui = 1\n' >"$repo/packages/ui/src/index.ts"
+  printf 'export const api = 1\n' >"$repo/packages/api/src/index.ts"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update shared workspace files","files":["packages/ui/src/index.ts","packages/api/src/index.ts"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "chore: update shared workspace files"' 'git-commit should omit scope when multiple monorepo modules are changed'
+}
+
 @test "uses explicit --scope override instead of branch-derived scope" {
   local stub_path jq_stub repo output
 
