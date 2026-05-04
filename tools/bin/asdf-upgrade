@@ -259,7 +259,28 @@ apply_selected_upgrades() {
   done
 
   printf 'Updated %d tool(s) across %d source file(s).\n' "$#" "${#source_files[@]}"
-  echo 'Run asdf install to install the selected versions.'
+}
+
+prompt_yes_no() {
+  picotools_prompt_yes_no "$@"
+}
+
+maybe_run_asdf_install() {
+  local assume_yes="$1"
+  local run_install
+
+  if [ "$assume_yes" = true ]; then
+    run_install='yes'
+  else
+    run_install=$(prompt_yes_no 'Run asdf install to install the selected versions now?' no)
+  fi
+
+  if [ "$run_install" = 'yes' ]; then
+    asdf install
+    return 0
+  fi
+
+  echo 'Skipped asdf install. Run asdf install to install the selected versions.'
 }
 
 main() {
@@ -321,6 +342,7 @@ main() {
   fi
 
   apply_selected_upgrades "$upgrades_file" "${selected_indexes[@]}"
+  maybe_run_asdf_install "$assume_yes"
 }
 
 main "$@"
