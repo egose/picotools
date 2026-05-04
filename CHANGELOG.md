@@ -1,3 +1,9 @@
+## [0.21.1](https://github.com/egose/picotools/compare/v0.21.0...v0.21.1) (2026-05-04)
+
+### Bug Fixes
+
+* use leaf package name for derived monorepo scopes ([d200047](https://github.com/egose/picotools/commit/d2000476bea19a1a15dcbae8cde8d70d205278cc))
+
 ## [0.21.0](https://github.com/egose/picotools/compare/v0.20.0...v0.21.0) (2026-05-04)
 
 ### Features
