@@ -160,6 +160,20 @@ if [ "${1:-}" = '-n' ]; then
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
+    --rawfile)
+      case "$2" in
+      system_message)
+        system_message=$(<"$3")
+        ;;
+      user_message)
+        user_message=$(<"$3")
+        ;;
+      esac
+      if [ -n "${JQ_ARGS_LOG:-}" ]; then
+        printf '%s\n' "--rawfile $2 $3" >>"$JQ_ARGS_LOG"
+      fi
+      shift 3
+      ;;
     --arg)
       case "$2" in
       model)
@@ -167,9 +181,20 @@ if [ "${1:-}" = '-n' ]; then
         ;;
       system_message)
         system_message="$3"
+        if [ -n "${JQ_ARGS_LOG:-}" ]; then
+          printf '%s\n' '--arg system_message <inline>' >>"$JQ_ARGS_LOG"
+        fi
         ;;
       user_message)
         user_message="$3"
+        if [ -n "${JQ_ARGS_LOG:-}" ]; then
+          printf '%s\n' '--arg user_message <inline>' >>"$JQ_ARGS_LOG"
+        fi
+        ;;
+      model)
+        if [ -n "${JQ_ARGS_LOG:-}" ]; then
+          printf '%s\n' '--arg model <inline>' >>"$JQ_ARGS_LOG"
+        fi
         ;;
       esac
       shift 3
@@ -384,12 +409,13 @@ run_tool() {
 }
 
 @test "ask reads large prompt content from files" {
-  local stub_bin curl_body_log system_message_file user_message_file output
+  local stub_bin curl_body_log system_message_file user_message_file jq_args_log output
 
   stub_bin="$TMP_HOME/bin"
   curl_body_log="$TMP_HOME/curl-body.log"
   system_message_file="$TMP_HOME/system-message.txt"
   user_message_file="$TMP_HOME/user-message.txt"
+  jq_args_log="$TMP_HOME/jq-args.log"
 
   write_curl_stub "$stub_bin"
   write_jq_stub "$stub_bin"
@@ -404,12 +430,17 @@ run_tool() {
     CURL_URL_LOG="$TMP_HOME/curl-url.log" \
     CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
     CURL_BODY_LOG="$curl_body_log" \
+    JQ_ARGS_LOG="$jq_args_log" \
     CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"file answer"}}]}' \
     "$TOOL" ask work-openai --model gpt-4o --system-message-file "$system_message_file" --message-file "$user_message_file")
 
   assert_eq "$output" 'file answer' 'ask should print the response text when reading prompt files'
   assert_contains "$(<"$curl_body_log")" '"role":"system","content":"System message loaded from file"' 'ask should load the system message from a file'
   assert_contains "$(<"$curl_body_log")" '"role":"user","content":"User message loaded from file"' 'ask should load the user message from a file'
+  assert_contains "$(<"$jq_args_log")" '--rawfile system_message ' 'ask should pass system prompt bodies to jq via temporary files'
+  assert_contains "$(<"$jq_args_log")" '--rawfile user_message ' 'ask should pass user prompt bodies to jq via temporary files'
+  assert_not_contains "$(<"$jq_args_log")" '--arg system_message <inline>' 'ask should avoid sending large system prompt bodies as jq CLI arguments'
+  assert_not_contains "$(<"$jq_args_log")" '--arg user_message <inline>' 'ask should avoid sending large user prompt bodies as jq CLI arguments'
 }
 
 @test "ask supports interactive mode with no arguments" {
