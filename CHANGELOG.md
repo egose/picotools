@@ -1,3 +1,10 @@
+## [0.19.0](https://github.com/egose/picotools/compare/v0.18.0...v0.19.0) (2026-05-04)
+
+### Features
+
+* derive scope from monorepo module when branch scope is unavailable ([56694fd](https://github.com/egose/picotools/commit/56694fd758dfe3d8ebbbbafe06773992962d22ba))
+* prefer package.json name for monorepo scope ([00bf408](https://github.com/egose/picotools/commit/00bf4087c959b7f36fba16e9c3c3a9c935e62519))
+
 ## [0.18.0](https://github.com/egose/picotools/compare/v0.17.0...v0.18.0) (2026-05-03)
 
 ### Features
