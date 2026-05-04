@@ -1,3 +1,9 @@
+## [0.20.0](https://github.com/egose/picotools/compare/v0.19.0...v0.20.0) (2026-05-04)
+
+### Features
+
+* add --push flag to git-commit ([0780be4](https://github.com/egose/picotools/commit/0780be4416213b122d0bc5053798afcb4549ac0e))
+
 ## [0.19.0](https://github.com/egose/picotools/compare/v0.18.0...v0.19.0) (2026-05-04)
 
 ### Features
