@@ -52,6 +52,12 @@ write_asdf_stub() {
 set -euo pipefail
 
 case "$1" in
+install)
+  if [ -n "${ASDF_INSTALL_LOG:-}" ]; then
+    printf '%s\n' "$PWD" >>"$ASDF_INSTALL_LOG"
+  fi
+  printf 'asdf install complete\n'
+  ;;
 current)
   case "${ASDF_STUB_SCENARIO:-}" in
   upgrades)
@@ -99,18 +105,19 @@ EOF
 }
 
 @test "updates multiple selected tools across source files" {
-  local root_versions_file nested_versions_file
+  local root_versions_file nested_versions_file install_log
 
   write_asdf_stub
   mkdir -p "$WORKSPACE_DIR/apps/api"
 
   root_versions_file="$WORKSPACE_DIR/.tool-versions"
   nested_versions_file="$WORKSPACE_DIR/apps/api/.tool-versions"
+  install_log="$TMP_HOME/asdf-install.log"
 
   printf '%s\n' 'nodejs 20.10.0' 'poetry latest' >"$root_versions_file"
   printf '%s\n' 'python 3.11.7 # app runtime' >"$nested_versions_file"
 
-  ASDF_STUB_SCENARIO=upgrades run bash -c 'cd "$1" && printf "1 2\n" | bash "$2"' _ "$WORKSPACE_DIR" "$TOOL"
+  ASDF_STUB_SCENARIO=upgrades ASDF_INSTALL_LOG="$install_log" run bash -c 'cd "$1" && printf "1 2\ny\n" | bash "$2"' _ "$WORKSPACE_DIR" "$TOOL"
 
   [ "$status" -eq 0 ] || fail 'asdf-upgrade should succeed when selections are provided'
   assert_contains "$output" 'Checking nodejs 20.10.0' 'should print progress before fetching nodejs versions'
@@ -121,9 +128,32 @@ EOF
   assert_contains "$output" 'python' 'should list the python upgrade'
   assert_contains "$output" 'Select tools to upgrade:' 'should prompt for multi-selection in non-interactive mode'
   assert_contains "$output" 'Updated 2 tool(s) across 2 source file(s).' 'should confirm both files were updated'
+  assert_contains "$output" 'Run asdf install to install the selected versions now? [y/N]:' 'should prompt to run asdf install after updating files'
+  assert_contains "$output" 'asdf install complete' 'should run asdf install when confirmed'
 
   assert_eq "$(<"$root_versions_file")" $'nodejs 20.11.1\npoetry latest' 'should update the selected root tool version only'
   assert_eq "$(<"$nested_versions_file")" 'python 3.11.9 # app runtime' 'should update the selected nested tool version and preserve the comment'
+  assert_eq "$(<"$install_log")" "$WORKSPACE_DIR" 'should run asdf install from the working directory'
+}
+
+@test "skips asdf install when the confirmation is declined" {
+  local root_versions_file nested_versions_file install_log
+
+  write_asdf_stub
+  mkdir -p "$WORKSPACE_DIR/apps/api"
+
+  root_versions_file="$WORKSPACE_DIR/.tool-versions"
+  nested_versions_file="$WORKSPACE_DIR/apps/api/.tool-versions"
+  install_log="$TMP_HOME/asdf-install.log"
+
+  printf '%s\n' 'nodejs 20.10.0' 'poetry latest' >"$root_versions_file"
+  printf '%s\n' 'python 3.11.7 # app runtime' >"$nested_versions_file"
+
+  ASDF_STUB_SCENARIO=upgrades ASDF_INSTALL_LOG="$install_log" run bash -c 'cd "$1" && printf "1 2\nn\n" | bash "$2"' _ "$WORKSPACE_DIR" "$TOOL"
+
+  [ "$status" -eq 0 ] || fail 'asdf-upgrade should still succeed when asdf install is skipped'
+  assert_contains "$output" 'Skipped asdf install. Run asdf install to install the selected versions.' 'should explain how to install later when skipped'
+  [ ! -f "$install_log" ] || fail 'asdf-upgrade should not run asdf install when the prompt is declined'
 }
 
 @test "prints no upgrades when only unsupported or current versions are present" {

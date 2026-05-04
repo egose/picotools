@@ -33,6 +33,35 @@ picotools_prompt_value() {
   done
 }
 
+picotools_prompt_secret_value() {
+  local label="$1"
+  local default_value="${2:-}"
+  local required="${3:-false}"
+  local answer
+
+  while true; do
+    if [ -n "$default_value" ]; then
+      printf '%s [%s]: ' "$label" "$default_value" >&2
+    else
+      printf '%s: ' "$label" >&2
+    fi
+
+    read -rs answer || true
+    printf '\n' >&2
+    if [ -z "$answer" ]; then
+      answer="$default_value"
+    fi
+
+    if [ "$required" = true ] && [ -z "$answer" ]; then
+      echo 'Value is required.' >&2
+      continue
+    fi
+
+    printf '%s\n' "$answer"
+    return 0
+  done
+}
+
 picotools_prompt_yes_no() {
   local label="$1"
   local default_value="${2:-no}"
