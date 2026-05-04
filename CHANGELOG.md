@@ -1,3 +1,12 @@
+## [0.21.0](https://github.com/egose/picotools/compare/v0.20.0...v0.21.0) (2026-05-04)
+
+### Features
+
+* add hidden prompt helper for secret values ([3dac515](https://github.com/egose/picotools/commit/3dac515c9337533796b5bb8abf86327ca71cc373))
+* hide API key input in model-provider prompts ([769995e](https://github.com/egose/picotools/commit/769995e08d92ed79d7c01af04eacec27a983655e))
+* prompt to run asdf install after updating tool versions ([e445491](https://github.com/egose/picotools/commit/e44549191964499d9794599d1f36f0b371f60237))
+* use jq --rawfile for chat completion prompt bodies ([3f54e37](https://github.com/egose/picotools/commit/3f54e37878781dce7fb7f91746b85c82be14f82b))
+
 ## [0.20.0](https://github.com/egose/picotools/compare/v0.19.0...v0.20.0) (2026-05-04)
 
 ### Features
