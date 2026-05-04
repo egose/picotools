@@ -514,6 +514,10 @@ prompt_value() {
   picotools_prompt_value "$@"
 }
 
+prompt_secret_value() {
+  picotools_prompt_secret_value "$@"
+}
+
 prompt_yes_no() {
   picotools_prompt_yes_no "$@"
 }
@@ -705,7 +709,7 @@ create_profile() {
   fi
   selected_fields=$(prompt_profile_fields "$provider_type")
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
-  token=$(prompt_value 'API key' '' true)
+  token=$(prompt_secret_value 'API key' '' true)
 
   save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
   write_token "$name" "$token"
@@ -793,7 +797,7 @@ update_profile_file() {
 
   update_token=$(prompt_yes_no 'Update API key?' no)
   if [ "$update_token" = 'yes' ]; then
-    token=$(prompt_value 'API key' '' true)
+    token=$(prompt_secret_value 'API key' '' true)
     write_token "$name" "$token"
   fi
 
