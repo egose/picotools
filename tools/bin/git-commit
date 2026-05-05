@@ -34,7 +34,7 @@ Options:
   --debug                   Print progress steps to stderr
   --apply                   Stage files and create the generated commit plan
   --push                    With --apply, push the created commits
-  --pr                      With --apply --push, create a pull request to main
+  --pr [base-branch]        With --apply --push, create a pull request
   --pre-commit-retries <n>  Retry failed pre-commit checks this many times
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
@@ -1044,25 +1044,28 @@ create_pull_request() {
   local branch="$1"
   local plan_json="$2"
   local scope="$3"
-  local remote repo owner name title body response pr_url
-
-  if [ "$branch" = 'main' ]; then
-    echo 'Error: --pr requires a non-main branch' >&2
-    exit 1
-  fi
+  local requested_base_branch="$4"
+  local remote repo owner name title body response pr_url base_branch
 
   remote=$(resolve_push_remote "$branch")
   repo=$(github_repo_from_remote "$remote")
   owner=${repo%%/*}
   name=${repo#*/}
+  base_branch=$(resolve_pull_request_base_branch "$requested_base_branch" "$owner" "$name" "$remote")
+
+  if [ "$branch" = "$base_branch" ]; then
+    echo "Error: --pr requires a branch different from the base branch '$base_branch'" >&2
+    exit 1
+  fi
+
   title=$(planned_commit_titles "$plan_json" "$scope" | sed -n '1p')
   body=$(pull_request_body "$plan_json" "$scope")
 
-  debug_log "Creating pull request for '$branch' into 'main' on '$repo'"
+  debug_log "Creating pull request for '$branch' into '$base_branch' on '$repo'"
   response=$(run_git_api pulls/create "$owner" "$name" \
     --field "title=$title" \
     --field "head=$branch" \
-    --field 'base=main' \
+    --field "base=$base_branch" \
     --field "body=$body")
   pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty')
   if [ -n "$pr_url" ]; then
@@ -1074,12 +1077,82 @@ create_pull_request() {
   exit 1
 }
 
+default_branch_from_git_api() {
+  local owner="$1"
+  local repo_name="$2"
+  local response branch
+
+  response=$(run_git_api repos/get "$owner" "$repo_name" 2>/dev/null || true)
+  if [ -z "$response" ]; then
+    return 1
+  fi
+
+  branch=$(printf '%s' "$response" | jq -r '.default_branch // empty' 2>/dev/null || true)
+  if [ -z "$branch" ]; then
+    return 1
+  fi
+
+  printf '%s\n' "$branch"
+}
+
+default_branch_from_git() {
+  local remote="$1"
+  local ref line output
+
+  ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
+  if [ -n "$ref" ]; then
+    printf '%s\n' "${ref#"${remote}"/}"
+    return 0
+  fi
+
+  output=$(git remote show "$remote" 2>/dev/null || true)
+  while IFS= read -r line; do
+    case "$line" in
+    *'HEAD branch: '*)
+      printf '%s\n' "${line##*HEAD branch: }"
+      return 0
+      ;;
+    esac
+  done <<<"$output"
+
+  return 1
+}
+
+resolve_pull_request_base_branch() {
+  local requested_base_branch="$1"
+  local owner="$2"
+  local repo_name="$3"
+  local remote="$4"
+  local base_branch
+
+  if [ -n "$requested_base_branch" ]; then
+    printf '%s\n' "$requested_base_branch"
+    return 0
+  fi
+
+  base_branch=$(default_branch_from_git_api "$owner" "$repo_name" || true)
+  if [ -n "$base_branch" ]; then
+    printf '%s\n' "$base_branch"
+    return 0
+  fi
+
+  base_branch=$(default_branch_from_git "$remote" || true)
+  if [ -n "$base_branch" ]; then
+    printf '%s\n' "$base_branch"
+    return 0
+  fi
+
+  echo 'Error: unable to determine the pull request base branch' >&2
+  exit 1
+}
+
 parse_run_options() {
   local scope_override=''
   local no_scope=false
   local apply_commits=false
   local push_commits=false
   local create_pr=false
+  local pr_base_branch=''
   local pre_commit_retries=2
   local debug_mode=false
 
@@ -1099,6 +1172,16 @@ parse_run_options() {
       ;;
     --pr)
       create_pr=true
+      if [ "$#" -ge 2 ] && [[ "$2" != --* ]]; then
+        pr_base_branch="$2"
+        shift 2
+      else
+        shift
+      fi
+      ;;
+    --pr=*)
+      create_pr=true
+      pr_base_branch="${1#--pr=}"
       shift
       ;;
     --pre-commit-retries)
@@ -1166,7 +1249,7 @@ parse_run_options() {
     exit 1
   fi
 
-  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pre_commit_retries" "$debug_mode"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pr_base_branch" "$pre_commit_retries" "$debug_mode"
 }
 
 resolve_scope() {
@@ -1307,7 +1390,7 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pre_commit_retries debug_mode changed_file_count
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1316,8 +1399,9 @@ run_commit_tool() {
   apply_commits="${option_values[2]:-false}"
   push_commits="${option_values[3]:-false}"
   create_pr="${option_values[4]:-false}"
-  pre_commit_retries="${option_values[5]:-2}"
-  debug_mode="${option_values[6]:-false}"
+  pr_base_branch="${option_values[5]:-}"
+  pre_commit_retries="${option_values[6]:-2}"
+  debug_mode="${option_values[7]:-false}"
 
   if [ "$debug_mode" = 'true' ]; then
     enable_debug_logging
@@ -1373,7 +1457,7 @@ run_commit_tool() {
       debug_log 'Pushing committed branch'
       push_current_branch "$branch"
       if [ "$create_pr" = 'true' ]; then
-        create_pull_request "$branch" "$plan_json" "$scope"
+        create_pull_request "$branch" "$plan_json" "$scope" "$pr_base_branch"
       fi
     fi
     return 0
@@ -1397,7 +1481,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --debug | --apply | --push | --pr | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
+  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)
