@@ -1,3 +1,18 @@
+## [0.23.0](https://github.com/egose/picotools/compare/v0.22.0...v0.23.0) (2026-05-05)
+
+### Features
+
+* enhance tool capabilities and automation logic ([797497e](https://github.com/egose/picotools/commit/797497e0b305a6f69a9d6c896201d4a927d2e31b))
+* support base branch resolution for pull requests ([736965f](https://github.com/egose/picotools/commit/736965f74940552ace7296c67c3463ef3f367f1c))
+
+### Docs
+
+* update bash tool conventions and README ([16c2e7a](https://github.com/egose/picotools/commit/16c2e7acb9c0560f81b5f41030f5132ed08d2ef3))
+
+### Refactors
+
+* implement standardized temp file management and command discovery ([2d1ef18](https://github.com/egose/picotools/commit/2d1ef1871b2a4bec8fe3648b0a8c1ed08414c087))
+
 ## [0.22.0](https://github.com/egose/picotools/compare/v0.21.1...v0.22.0) (2026-05-05)
 
 ### Features
