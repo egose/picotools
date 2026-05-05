@@ -98,6 +98,36 @@ assert_eq() {
   assert_contains "$output" "Error: invalid scope 'invalid'" 'should explain the invalid scope value'
 }
 
+@test "fails when curl is unavailable" {
+  local requirements_file isolated_bin
+
+  requirements_file="$TMP_DIR/requirements.txt"
+  printf '%s\n' 'requests==2.31.0' >"$requirements_file"
+  isolated_bin="$TMP_DIR/no-curl-bin"
+  mkdir -p "$isolated_bin"
+  ln -s "$(command -v bash)" "$isolated_bin/bash"
+  ln -s "$(command -v dirname)" "$isolated_bin/dirname"
+  ln -s "$(command -v python3)" "$isolated_bin/python3"
+
+  run env PATH="$isolated_bin" bash "$TOOL" --yes "$requirements_file"
+
+  [ "$status" -eq 1 ] || fail 'pip-upgrade should fail when curl is unavailable'
+  assert_contains "$output" 'Error: missing required tools: curl' 'should explain that curl is required'
+}
+
+@test "continues when PyPI metadata is missing" {
+  local requirements_file
+
+  requirements_file="$TMP_DIR/requirements.txt"
+  printf '%s\n' 'missing-package==1.0.0' >"$requirements_file"
+
+  run "$TOOL" --debug --yes "$requirements_file"
+
+  [ "$status" -eq 0 ] || fail 'pip-upgrade should skip packages without PyPI metadata'
+  assert_contains "$output" "No PyPI metadata found for 'missing-package'" 'should log missing metadata in debug mode'
+  assert_contains "$output" 'No updates found.' 'should report that no updates were produced'
+}
+
 @test "help documents debug mode" {
   run "$TOOL" --help
 

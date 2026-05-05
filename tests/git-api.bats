@@ -59,6 +59,10 @@ done
 printf '%s\n' "$method $url" >"$TMP_DIR/curl-request.log"
 
 case "$method $url" in
+  'GET https://github.test/repos/octo/demo')
+    status='200'
+    response='{"full_name":"octo/demo"}'
+    ;;
   'GET https://api.github.com/repos/octo/demo')
     status='200'
     response='{"full_name":"octo/demo"}'
@@ -158,6 +162,14 @@ assert_contains() {
 
   [ "$status" -eq 0 ] || fail 'repos/get should succeed with token override'
   assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer override-pat' 'token flag should override the stored token'
+}
+
+@test "api root and version can be passed as global flags" {
+  run "$TOOL" --api-root https://github.test --api-version 2026-01-01 repos/get octo demo
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with global API overrides'
+  assert_contains "$(<"$TMP_DIR/curl-request.log")" 'GET https://github.test/repos/octo/demo' 'api root should override the request root globally'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'X-GitHub-Api-Version: 2026-01-01' 'api version should override the request header globally'
 }
 
 @test "list prints indexed operation ids by default" {

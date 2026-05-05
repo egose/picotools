@@ -21,8 +21,8 @@ as one clean commit.
 
 If no branch name is provided, the script prompts with a suggested name based
 on the current branch:
-  feat/1234      -> feat/1234-1
-  feat/1234-1    -> feat/1234-2
+  feat/1234      -> feat/1234_1
+  feat/1234_1    -> feat/1234_2
 
 Options:
   -b, --branch NAME         New branch name to create

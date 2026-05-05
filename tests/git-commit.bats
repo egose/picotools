@@ -958,46 +958,81 @@ create_initial_commit() {
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply mode'
 }
 
-@test "fails when --push is used without --apply" {
-  local stub_path repo output
+@test "--push implies --apply" {
+  local stub_path jq_stub remote repo output head_subject remote_head_subject upstream_branch status_after
 
   stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
 
-  init_repo "$repo"
-  create_initial_commit "$repo"
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
   git -C "$repo" checkout -q -b feat/11222
   printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
 
   write_git_commit_config alpha-profile alpha-model
 
-  if output=$(cd "$repo" && MODEL_PROVIDER_BIN="$stub_path" "$TOOL" --push 2>&1); then
-    fail 'git-commit should reject --push without --apply'
-  fi
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    "$TOOL" --push 2>&1)
 
-  assert_contains "$output" 'Error: --push requires --apply' 'git-commit should explain that push mode depends on apply mode'
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit when push mode implies apply mode'
+  remote_head_subject=$(git -C "$remote" log -1 --pretty=%s refs/heads/feat/11222)
+  assert_eq "$remote_head_subject" 'feat(11222): add repository notes' 'git-commit should push the created commit when push mode implies apply mode'
+  upstream_branch=$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
+  assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when push mode implies apply mode'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree when push mode implies apply mode'
+  assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title when push mode implies apply mode'
 }
 
-@test "fails when --pr is used without --apply --push" {
-  local stub_path repo output
+@test "--pr implies --apply and --push" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
 
   stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
 
-  init_repo "$repo"
-  create_initial_commit "$repo"
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
   git -C "$repo" checkout -q -b feat/11222
   printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
 
   write_git_commit_config alpha-profile alpha-model
 
-  if output=$(cd "$repo" && MODEL_PROVIDER_BIN="$stub_path" "$TOOL" --pr 2>&1); then
-    fail 'git-commit should reject --pr without --apply --push'
-  fi
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --pr 2>&1)
 
-  assert_contains "$output" 'Error: --pr requires --apply --push' 'git-commit should explain that PR mode depends on apply and push'
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit when PR mode implies apply and push'
+  remote_head_subject=$(git -C "$remote" log -1 --pretty=%s refs/heads/feat/11222)
+  assert_eq "$remote_head_subject" 'feat(11222): add repository notes' 'git-commit should push the created commit when PR mode implies apply and push'
+  upstream_branch=$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
+  assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when PR mode implies apply and push'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree when PR mode implies apply and push'
+  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when PR mode implies apply and push'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch when PR mode implies apply and push'
+  assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request when PR mode implies apply and push'
 }
 
 @test "applies and pushes a single planned commit with --push" {
@@ -1022,7 +1057,7 @@ create_initial_commit() {
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROVIDER_BIN="$stub_path" \
     MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
-    "$TOOL" --apply --push 2>&1)
+    "$TOOL" --push 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit before pushing'
@@ -1062,7 +1097,7 @@ create_initial_commit() {
     MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
-    "$TOOL" --apply --push --pr 2>&1)
+    "$TOOL" --pr 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit before opening a pull request'
@@ -1105,7 +1140,7 @@ create_initial_commit() {
     MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
-    "$TOOL" --apply --push --pr release-1.0 2>&1)
+    "$TOOL" --pr release-1.0 2>&1)
 
   assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when an explicit base is provided'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api when an explicit base is provided'
@@ -1139,7 +1174,7 @@ create_initial_commit() {
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     GIT_API_REPOS_GET_FAIL=true \
-    "$TOOL" --apply --push --pr 2>&1)
+    "$TOOL" --pr 2>&1)
 
   assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create a pull request when git-api default-branch lookup fails'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should try git-api before falling back to git metadata'
