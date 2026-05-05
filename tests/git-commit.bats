@@ -98,6 +98,9 @@ models)
   esac
   ;;
 ask)
+  if [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]; then
+    printf '%s\n' '[model-provider] Stub debug enabled' >&2
+  fi
   if [ -n "${MODEL_PROVIDER_ASK_ARGS_LOG:-}" ]; then
     printf '%s\n' "$*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
     if [ -n "$system_message_file" ]; then
@@ -291,6 +294,7 @@ create_initial_commit() {
   assert_contains "$output" 'Usage: git-commit [command]' 'help should describe usage'
   assert_contains "$output" 'configure  Select the model profile and model to use' 'help should list configure'
   assert_contains "$output" '--apply' 'help should list apply mode'
+  assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '--push' 'help should list push mode'
   assert_contains "$output" '--pre-commit-retries <n>' 'help should list pre-commit retry option'
 
@@ -410,6 +414,113 @@ create_initial_commit() {
   assert_contains "$(<"$ask_log")" '--message-file' 'git-commit should pass the user prompt through a temp file'
   assert_contains "$(<"$ask_log")" 'SYSTEM_MESSAGE_FILE_CONTENT=You are an expert software engineer creating conventional commit plans.' 'git-commit should write the system prompt into the temp file'
   assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
+}
+
+@test "omits oversized modified file diffs before calling model-provider" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  head -c 2100000 /dev/zero | tr '\0' 'a' >>"$repo/README.md"
+  printf '\nTAIL_SENTINEL_123\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROVIDER_BIN="$stub_path" \
+      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"expand readme","files":["README.md"]}]}' \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should handle oversized modified file diffs successfully ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$ask_payload" '[Omitted diff for README.md because its diff size (' 'git-commit should omit oversized modified file diffs before calling model-provider'
+  case "$ask_payload" in
+  *TAIL_SENTINEL_123*)
+    fail 'git-commit should not include the omitted large modified file diff contents in the prompt'
+    ;;
+  esac
+  assert_contains "$output" 'git commit -m "feat(11222): expand readme"' 'git-commit should still print the planned commit after omitting the modified file diff'
+}
+
+@test "omits oversized added file diffs from the planning prompt" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  head -c 300000 /dev/zero | tr '\0' 'b' >"$repo/large-added.txt"
+  printf '\nADDED_FILE_TAIL_SENTINEL_456\n' >>"$repo/large-added.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROVIDER_BIN="$stub_path" \
+      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add large added file","files":["large-added.txt"]}]}' \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should omit oversized added file diffs successfully ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$ask_payload" '[Omitted added file diff for large-added.txt because its size (' 'git-commit should omit oversized added file diffs from the prompt'
+  case "$ask_payload" in
+  *ADDED_FILE_TAIL_SENTINEL_456*)
+    fail 'git-commit should not include the omitted large added file contents in the prompt'
+    ;;
+  esac
+  assert_contains "$output" 'git commit -m "feat(11222): add large added file"' 'git-commit should still print the planned commit after omitting the added file diff'
+}
+
+@test "prints progress steps when --debug is enabled" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" --debug 2>&1)
+
+  assert_contains "$output" '[git-commit] Checking repository state' 'git-commit should print the initial debug step'
+  assert_contains "$output" '[git-commit] Collecting changed files' 'git-commit should print a changed-files debug step'
+  assert_contains "$output" '[git-commit] Requesting commit plan from model-provider profile' 'git-commit should print a model-provider debug step'
+  assert_contains "$output" '[model-provider] Stub debug enabled' 'git-commit should enable model-provider debug output in debug mode'
+  assert_contains "$output" '[git-commit] Printing commit plan preview' 'git-commit should print the preview debug step'
+  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview in debug mode'
 }
 
 @test "creates multiple commits from grouped file plan" {
