@@ -17,6 +17,7 @@ PAT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/gh-repo-sync/pat"
 PER_PAGE=100
 
 REQUIRED_TOOLS=(curl jq unzip)
+GH_REPO_SYNC_TMPFILES=()
 
 usage() {
   cat <<'EOF'
@@ -47,6 +48,16 @@ debug_log() {
   if debug_enabled; then
     printf '[gh-repo-sync] %s\n' "$1" >&2
   fi
+}
+
+cleanup_tmpfiles() {
+  if [ "${#GH_REPO_SYNC_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${GH_REPO_SYNC_TMPFILES[@]}"
+  fi
+}
+
+register_tmpfile() {
+  GH_REPO_SYNC_TMPFILES+=("$1")
 }
 
 # --- PAT management ---
@@ -118,6 +129,8 @@ gh_api() {
   local http_code body tmpfile
 
   tmpfile=$(mktemp)
+  register_tmpfile "$tmpfile"
+  trap 'cleanup_tmpfiles' EXIT
   local auth_header=()
   if [ -n "${GITHUB_PAT:-}" ]; then
     auth_header=(-H "Authorization: token ${GITHUB_PAT}")
@@ -162,6 +175,8 @@ download_repo_archive() {
   while [ "$attempt" -le "$max_attempts" ]; do
     debug_log "Downloading archive for '${repo_name}' attempt ${attempt}/${max_attempts}"
     tmp_zip=$(mktemp "${destination}.XXXXXX")
+    register_tmpfile "$tmp_zip"
+    trap 'cleanup_tmpfiles' EXIT
     response_code=$(curl -sS -L --retry 2 --retry-delay 1 --retry-all-errors \
       -w '%{http_code}' \
       -o "$tmp_zip" \

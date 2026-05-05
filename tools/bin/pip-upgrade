@@ -66,7 +66,11 @@ select_target_version() {
   base_name="${lookup_name%%\[*}"
 
   debug_log "Fetching PyPI metadata for '${base_name}'"
-  response=$(curl -sf --max-time 5 "https://pypi.org/pypi/${base_name}/json" 2>/dev/null) || return 1
+  response=$(curl -sf --max-time 5 "https://pypi.org/pypi/${base_name}/json" 2>/dev/null) || {
+    debug_log "No PyPI metadata found for '${base_name}'"
+    printf '\n'
+    return 0
+  }
 
   CURRENT_VERSION="$current_version" UPGRADE_SCOPE="$scope" python3 -c '
 import json
@@ -195,7 +199,7 @@ main() {
   fi
 
   debug_log "Using requirements file '$requirements_file' with scope '$scope'"
-  picotools_require_command python3
+  picotools_require_commands curl python3
 
   tmpfile=$(mktemp)
   PIP_UPGRADE_TMPFILE="$tmpfile"
@@ -217,7 +221,7 @@ main() {
       continue
     fi
 
-    target_version=$(select_target_version "$name" "$current_version" "$scope") || true
+    target_version=$(select_target_version "$name" "$current_version" "$scope")
     if [ -z "${target_version:-}" ]; then
       debug_log "Skipping '$name' because no eligible target version was found"
       printf '%s\n' "$line" >>"$tmpfile"
@@ -239,7 +243,8 @@ main() {
   fi
 
   debug_log "Writing updated requirements to '$requirements_file'"
-  cp "$tmpfile" "$requirements_file"
+  mv "$tmpfile" "$requirements_file"
+  PIP_UPGRADE_TMPFILE=""
   echo "${requirements_file} updated."
 }
 

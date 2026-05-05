@@ -52,7 +52,7 @@ assert_contains() {
   tool_versions_file="$TMP_DIR/.tool-versions"
   printf '%s\n' \
     '# runtime tools' \
-    'nodejs 20.11.1' \
+    'nodejs 20.11.1 22.12.0' \
     'python 3.11.9 # existing plugin add failure should be ignored' \
     >"$tool_versions_file"
 
@@ -62,6 +62,7 @@ assert_contains() {
   assert_contains "$output" "[asdf-install] Using tool versions file '$tool_versions_file'" 'should print the selected file in debug mode'
   assert_contains "$output" "[asdf-install] Ensuring asdf plugin 'nodejs' is installed" 'should log plugin discovery in debug mode'
   assert_contains "$output" 'Installing nodejs 20.11.1...' 'should print the nodejs install step'
+  assert_contains "$output" 'Installing nodejs 22.12.0...' 'should print the second nodejs install step'
   assert_contains "$output" 'Installing python 3.11.9...' 'should print the python install step'
 
   log_contents="$(<"$ASDF_LOG")"
@@ -69,6 +70,7 @@ assert_contains() {
   assert_contains "$log_contents" 'plugin add python' 'should try to add the python plugin even if it already exists'
   assert_contains "$log_contents" 'plugin update --all' 'should update all plugins before installing versions'
   assert_contains "$log_contents" 'install nodejs 20.11.1' 'should install the requested nodejs version'
+  assert_contains "$log_contents" 'install nodejs 22.12.0' 'should install additional requested nodejs versions'
   assert_contains "$log_contents" 'install python 3.11.9' 'should install the requested python version'
   assert_contains "$log_contents" 'reshim' 'should reshim after installations complete'
 }

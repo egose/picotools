@@ -290,16 +290,18 @@ main() {
     exit 1
   fi
 
-  picotools_require_command asdf
+  picotools_require_commands asdf comm find grep sort
 
   local workspace_abs
   workspace_abs="$(cd "$workspace" && pwd)"
   debug_log "Scanning workspace '$workspace_abs'"
 
   local ignored_path
+  local normalized_ignored_path
   for ignored_path in "${ignored_paths_raw[@]}"; do
-    ignored_paths+=("$(normalize_ignore_path "$workspace_abs" "$ignored_path")")
-    debug_log "Ignoring additional path '$(normalize_ignore_path "$workspace_abs" "$ignored_path")'"
+    normalized_ignored_path="$(normalize_ignore_path "$workspace_abs" "$ignored_path")"
+    ignored_paths+=("$normalized_ignored_path")
+    debug_log "Ignoring additional path '$normalized_ignored_path'"
   done
 
   local tmp_dir

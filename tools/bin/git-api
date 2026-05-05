@@ -65,6 +65,17 @@ prompt_secret_value() {
 }
 
 debug_mode=false
+GIT_API_TMPFILES=()
+
+git_api_cleanup_tmpfiles() {
+  if [ "${#GIT_API_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${GIT_API_TMPFILES[@]}"
+  fi
+}
+
+git_api_register_tmpfile() {
+  GIT_API_TMPFILES+=("$1")
+}
 
 git_api_debug_enabled() {
   [ "$debug_mode" = 'true' ]
@@ -201,8 +212,8 @@ call_operation() {
   summary=$(git_api_operation_summary "$file")
   docs_url=$(git_api_operation_docs_url "$file")
 
-  api_root=$(git_api_default_api_root)
-  api_version=$(git_api_default_api_version)
+  api_root="${GIT_API_ROOT_OVERRIDE:-$(git_api_default_api_root)}"
+  api_version="${GIT_API_VERSION_OVERRIDE:-$(git_api_default_api_version)}"
 
   case "${1:-}" in
   -h | --help | help)
@@ -340,6 +351,22 @@ main() {
         exit 1
       }
       export GIT_API_TOKEN_OVERRIDE="$2"
+      shift 2
+      ;;
+    --api-root)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --api-root requires a value' >&2
+        exit 1
+      }
+      export GIT_API_ROOT_OVERRIDE="$2"
+      shift 2
+      ;;
+    --api-version)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --api-version requires a value' >&2
+        exit 1
+      }
+      export GIT_API_VERSION_OVERRIDE="$2"
       shift 2
       ;;
     *)

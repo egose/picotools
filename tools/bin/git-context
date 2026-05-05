@@ -47,6 +47,18 @@ debug_log() {
   fi
 }
 
+GIT_CONTEXT_TMPFILES=()
+
+cleanup_tmpfiles() {
+  if [ "${#GIT_CONTEXT_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${GIT_CONTEXT_TMPFILES[@]}"
+  fi
+}
+
+register_tmpfile() {
+  GIT_CONTEXT_TMPFILES+=("$1")
+}
+
 default_pull_rebase() {
   printf '%s\n' false
 }
@@ -618,6 +630,9 @@ generate_signing_key() {
 
   batch_file=$(mktemp)
   status_file=$(mktemp)
+  register_tmpfile "$batch_file"
+  register_tmpfile "$status_file"
+  trap 'cleanup_tmpfiles' EXIT
   {
     printf '%s\n' 'Key-Type: RSA'
     printf '%s\n' 'Key-Length: 3072'
@@ -634,13 +649,10 @@ generate_signing_key() {
   exec 3>"$status_file"
   if ! gpg --batch --status-fd 3 --generate-key "$batch_file"; then
     exec 3>&-
-    rm -f "$batch_file"
-    rm -f "$status_file"
     return 1
   fi
   exec 3>&-
 
-  rm -f "$batch_file"
   while IFS= read -r line; do
     case "$line" in
     '[GNUPG:] KEY_CREATED '*)
@@ -648,8 +660,6 @@ generate_signing_key() {
       ;;
     esac
   done <"$status_file"
-  rm -f "$status_file"
-
   if [ -z "$signing_key" ]; then
     echo 'Error: failed to determine generated GPG signing key' >&2
     return 1
