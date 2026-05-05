@@ -8,6 +8,40 @@ git_api_default_api_version() {
   printf '%s\n' '2026-03-10'
 }
 
+git_api_data_dir() {
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/git-api"
+}
+
+git_api_token_file() {
+  printf '%s/pat-token\n' "$(git_api_data_dir)"
+}
+
+git_api_ensure_data_dir() {
+  mkdir -p "$(git_api_data_dir)"
+}
+
+git_api_write_token() {
+  local token="$1"
+  local token_file
+
+  token_file=$(git_api_token_file)
+  git_api_ensure_data_dir
+  umask 077
+  printf '%s\n' "$token" >"$token_file"
+}
+
+git_api_read_token() {
+  local token_file
+
+  token_file=$(git_api_token_file)
+  if [ -f "$token_file" ]; then
+    printf '%s\n' "$(<"$token_file")"
+    return 0
+  fi
+
+  printf '%s\n' ''
+}
+
 git_api_reference_root() {
   local script_dir="$1"
   local candidate
@@ -84,6 +118,16 @@ git_api_urlencode_path_value() {
 }
 
 git_api_token() {
+  if [ -n "${GIT_API_TOKEN_OVERRIDE:-}" ]; then
+    printf '%s\n' "$GIT_API_TOKEN_OVERRIDE"
+    return 0
+  fi
+
+  if [ -n "${PAT_TOKEN:-}" ]; then
+    printf '%s\n' "$PAT_TOKEN"
+    return 0
+  fi
+
   if [ -n "${GITHUB_PAT:-}" ]; then
     printf '%s\n' "$GITHUB_PAT"
     return 0
@@ -94,7 +138,7 @@ git_api_token() {
     return 0
   fi
 
-  printf '%s\n' ''
+  git_api_read_token
 }
 
 git_api_validate_key_value() {

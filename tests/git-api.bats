@@ -6,6 +6,7 @@ TOOL="$REPO_ROOT/tools/bin/git-api"
 setup() {
   TMP_DIR="$(mktemp -d)" || return 1
   export TMP_DIR
+  export XDG_DATA_HOME="$TMP_DIR/xdg-data"
   export PATH="$TMP_DIR/bin:$PATH"
 
   mkdir -p "$TMP_DIR/bin"
@@ -130,9 +131,33 @@ assert_contains() {
   run "$TOOL" --help
 
   [ "$status" -eq 0 ] || fail 'help should succeed'
+  assert_contains "$output" 'configure' 'help should list configure'
   assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '<operationId> [path-args...] [flags]' 'help should document operationId commands'
   assert_contains "$output" 'git-api repos/get octocat hello-world' 'help should show an operationId example'
+}
+
+@test "configure stores a PAT token for later requests" {
+  run bash -lc "printf 'secret-pat\n' | '$TOOL' configure"
+
+  [ "$status" -eq 0 ] || fail 'configure should succeed'
+  assert_contains "$output" 'Configured git-api PAT_TOKEN.' 'configure should confirm the saved token'
+  assert_eq "$(<"$XDG_DATA_HOME/git-api/pat-token")" 'secret-pat' 'configure should store the PAT token'
+
+  run "$TOOL" repos/get octo demo
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with configured auth'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer secret-pat' 'configured PAT token should be sent as a bearer header'
+}
+
+@test "token flag overrides the configured token" {
+  mkdir -p "$XDG_DATA_HOME/git-api"
+  printf '%s\n' 'stored-pat' >"$XDG_DATA_HOME/git-api/pat-token"
+
+  run "$TOOL" --token override-pat repos/get octo demo
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with token override'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer override-pat' 'token flag should override the stored token'
 }
 
 @test "list prints indexed operation ids by default" {

@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands table version
+picotools_source_modules "$SCRIPT_DIR" commands prompt table version
 
 # shellcheck source=git-api.d/common.sh
 # shellcheck disable=SC1091
@@ -23,14 +23,16 @@ picotools_source_modules "$SCRIPT_DIR" commands table version
 
 usage() {
   cat <<'EOF'
-Usage: git-api <command>
+Usage: git-api [global-flags] <command>
 
 Commands:
+  configure                              Store a PAT token for authenticated requests
   list [prefix]                          List common operationIds or filter by prefix
   show <operationId>                     Show operation docs and parameter info
   <operationId> [path-args...] [flags]   Call a GitHub REST operation by operationId
 
 Options:
+  --token TOKEN              Override the auth token for this invocation
   Query flags come from the operation spec and use --<param-name>
   --field KEY=VALUE          JSON body field
   --header KEY=VALUE         Extra request header
@@ -42,6 +44,8 @@ Options:
   -v, --version, version     Show the tool version
 
 Examples:
+  git-api configure
+  git-api --token ghp_xxx repos/get octocat hello-world
   git-api list
   git-api list repos/
   git-api show repos/get
@@ -54,6 +58,10 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+prompt_secret_value() {
+  picotools_prompt_secret_value "$@"
 }
 
 debug_mode=false
@@ -87,6 +95,14 @@ render_operations() {
 
   git_api_debug_log "Rendering ${#rows[@]} operation(s)$prefix_suffix"
   picotools_print_table $'OperationId\tMethod\tPath\tSummary' "${rows[@]}"
+}
+
+configure_tool() {
+  local token
+
+  token=$(prompt_secret_value 'PAT_TOKEN' '' true)
+  git_api_write_token "$token"
+  echo 'Configured git-api PAT_TOKEN.'
 }
 
 show_operation() {
@@ -312,11 +328,27 @@ call_operation() {
 main() {
   local command="${1:-}"
 
-  while [ "$command" = '--debug' ]; do
-    debug_mode=true
-    shift
-    command="${1:-}"
+  while [ "$#" -gt 0 ]; do
+    case "${1:-}" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    --token)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --token requires a value' >&2
+        exit 1
+      }
+      export GIT_API_TOKEN_OVERRIDE="$2"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+    esac
   done
+
+  command="${1:-}"
 
   case "$command" in
   -h | --help | help)
@@ -336,6 +368,9 @@ main() {
   shift
 
   case "$command" in
+  configure)
+    configure_tool
+    ;;
   list)
     render_operations "${1:-}"
     ;;
