@@ -106,10 +106,11 @@ git_api_request() {
 
   token=$(git_api_token)
   tmpfile=$(mktemp)
+  git_api_register_tmpfile "$tmpfile"
+  trap 'git_api_cleanup_tmpfiles' EXIT
 
   if [ -n "$body_file" ] && [ "${#field_args[@]}" -gt 0 ]; then
     echo 'Error: use either --field or --body-file, not both' >&2
-    rm -f "$tmpfile"
     exit 1
   fi
 

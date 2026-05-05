@@ -9,7 +9,9 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" prompt table version
+picotools_source_modules "$SCRIPT_DIR" commands prompt table version
+
+MODEL_PROVIDER_TMPFILES=()
 
 usage() {
   cat <<'EOF'
@@ -66,6 +68,16 @@ debug_log() {
   fi
 }
 
+cleanup_tmpfiles() {
+  if [ "${#MODEL_PROVIDER_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${MODEL_PROVIDER_TMPFILES[@]}"
+  fi
+}
+
+register_tmpfile() {
+  MODEL_PROVIDER_TMPFILES+=("$1")
+}
+
 args_include_debug_flag() {
   local arg
 
@@ -108,6 +120,7 @@ data_dir() {
 }
 
 ensure_storage_dirs() {
+  picotools_require_command git
   mkdir -p "$(config_dir)" "$(data_dir)"
 }
 
@@ -229,6 +242,7 @@ write_profile_value() {
   local key="$2"
   local value="$3"
 
+  picotools_require_command git
   git config -f "$file" "$key" "$value"
 }
 
@@ -236,6 +250,7 @@ unset_profile_value() {
   local file="$1"
   local key="$2"
 
+  picotools_require_command git
   git config -f "$file" --unset-all "$key" 2>/dev/null || true
 }
 
@@ -243,6 +258,7 @@ read_profile_value() {
   local file="$1"
   local key="$2"
 
+  picotools_require_command git
   git config -f "$file" --get "$key"
 }
 
@@ -250,6 +266,7 @@ read_profile_value_optional() {
   local file="$1"
   local key="$2"
 
+  picotools_require_command git
   git config -f "$file" --get "$key" 2>/dev/null || true
 }
 
@@ -418,14 +435,7 @@ require_existing_profile_file() {
 }
 
 require_ask_tools() {
-  local tool
-
-  for tool in curl jq; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      echo "Error: required tool not found: $tool" >&2
-      exit 1
-    fi
-  done
+  picotools_require_commands curl jq
 }
 
 select_profile_model() {
@@ -504,6 +514,10 @@ provider_chat_completion() {
   payload_file=$(mktemp)
   system_message_file=$(mktemp)
   user_message_file=$(mktemp)
+  register_tmpfile "$payload_file"
+  register_tmpfile "$system_message_file"
+  register_tmpfile "$user_message_file"
+  trap 'cleanup_tmpfiles' EXIT
   printf '%s' "$system_message" >"$system_message_file"
   printf '%s' "$user_message" >"$user_message_file"
   jq -n \
@@ -513,6 +527,7 @@ provider_chat_completion() {
     '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
   rm -f "$system_message_file" "$user_message_file"
   tmpfile=$(mktemp)
+  register_tmpfile "$tmpfile"
   payload_size=$(wc -c <"$payload_file")
   debug_log "Payload size: ${payload_size} bytes"
 
@@ -533,10 +548,6 @@ provider_chat_completion() {
   debug_log 'Starting HTTP request'
 
   http_code=$(curl "${curl_args[@]}" "${base_url}chat/completions") || {
-    rm -f "$system_message_file"
-    rm -f "$user_message_file"
-    rm -f "$payload_file"
-    rm -f "$tmpfile"
     exit 1
   }
 
