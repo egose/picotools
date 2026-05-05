@@ -103,6 +103,10 @@ url=''
 body=''
 auth=''
 
+if [ -n "${CURL_ARGS_LOG:-}" ]; then
+  printf '%s\n' "$*" >"$CURL_ARGS_LOG"
+fi
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
   -o)
@@ -441,6 +445,35 @@ run_tool() {
   assert_contains "$(<"$jq_args_log")" '--rawfile user_message ' 'ask should pass user prompt bodies to jq via temporary files'
   assert_not_contains "$(<"$jq_args_log")" '--arg system_message <inline>' 'ask should avoid sending large system prompt bodies as jq CLI arguments'
   assert_not_contains "$(<"$jq_args_log")" '--arg user_message <inline>' 'ask should avoid sending large user prompt bodies as jq CLI arguments'
+}
+
+@test "ask prints debug steps and honors curl max time env" {
+  local stub_bin curl_args_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_args_log="$TMP_HOME/curl-args.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$TMP_HOME/curl-url.log" \
+    CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
+    CURL_BODY_LOG="$TMP_HOME/curl-body.log" \
+    CURL_ARGS_LOG="$curl_args_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"debug answer"}}]}' \
+    MODEL_PROVIDER_DEBUG=true \
+    MODEL_PROVIDER_CURL_MAX_TIME=42 \
+    "$TOOL" ask work-openai --model gpt-4o --message 'Hello from test' 2>&1)
+
+  assert_contains "$output" '[model-provider] Preparing chat completion request for profile' 'ask should print request preparation in debug mode'
+  assert_contains "$output" '[model-provider] Starting HTTP request' 'ask should print the HTTP request start in debug mode'
+  assert_contains "$output" '[model-provider] HTTP request completed with status 200' 'ask should print the HTTP status in debug mode'
+  assert_contains "$output" 'debug answer' 'ask should still print the response text in debug mode'
+  assert_contains "$(<"$curl_args_log")" '--max-time 42' 'ask should pass the configured curl max time'
 }
 
 @test "ask supports interactive mode with no arguments" {

@@ -34,11 +34,40 @@ Ask:
   model-provider ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
   model-provider ask <profile> --user-message TEXT [--model MODEL] [--system-message TEXT]
   model-provider ask <profile> --message-file PATH [--model MODEL] [--system-message-file PATH]
+
+Environment:
+  MODEL_PROVIDER_DEBUG=true          Print request debug steps to stderr
+  MODEL_PROVIDER_CURL_MAX_TIME=<s>   Set curl --max-time for ask requests
 EOF
 }
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[model-provider] %s\n' "$1" >&2
+  fi
+}
+
+curl_max_time() {
+  local value="${MODEL_PROVIDER_CURL_MAX_TIME:-}"
+
+  if [ -z "$value" ]; then
+    return 1
+  fi
+
+  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+    echo 'Error: MODEL_PROVIDER_CURL_MAX_TIME must be a non-negative integer' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$value"
 }
 
 config_dir() {
@@ -431,7 +460,8 @@ provider_chat_completion() {
   local model="$2"
   local system_message="$3"
   local user_message="$4"
-  local name provider_type resource_name endpoint_url base_url token payload_file tmpfile system_message_file user_message_file http_code response_text error_message
+  local name provider_type resource_name endpoint_url base_url token payload_file tmpfile system_message_file user_message_file http_code response_text error_message payload_size response_size max_time
+  local -a curl_args=()
 
   name=$(profile_name_from_file "$file")
   provider_type=$(read_profile_value "$file" provider.type)
@@ -439,6 +469,9 @@ provider_chat_completion() {
   endpoint_url=$(provider_endpoint_url_value "$file")
   base_url=$(provider_openai_base_url "$provider_type" "$resource_name" "$endpoint_url")
   token=$(read_token "$name")
+  debug_log "Preparing chat completion request for profile '$name' model '$model'"
+  debug_log "Provider type: $provider_type"
+  debug_log "Request URL: ${base_url}chat/completions"
   payload_file=$(mktemp)
   system_message_file=$(mktemp)
   user_message_file=$(mktemp)
@@ -451,12 +484,26 @@ provider_chat_completion() {
     '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
   rm -f "$system_message_file" "$user_message_file"
   tmpfile=$(mktemp)
+  payload_size=$(wc -c <"$payload_file")
+  debug_log "Payload size: ${payload_size} bytes"
 
-  http_code=$(curl -sS -o "$tmpfile" -w '%{http_code}' \
-    -H 'Content-Type: application/json' \
-    -H "Authorization: Bearer $token" \
-    --data-binary "@$payload_file" \
-    "${base_url}chat/completions") || {
+  curl_args=(
+    -sS
+    -o "$tmpfile"
+    -w '%{http_code}'
+    -H 'Content-Type: application/json'
+    -H "Authorization: Bearer $token"
+    --data-binary "@$payload_file"
+  )
+
+  if max_time=$(curl_max_time); then
+    curl_args+=(--max-time "$max_time")
+    debug_log "Using curl --max-time ${max_time}s"
+  fi
+
+  debug_log 'Starting HTTP request'
+
+  http_code=$(curl "${curl_args[@]}" "${base_url}chat/completions") || {
     rm -f "$system_message_file"
     rm -f "$user_message_file"
     rm -f "$payload_file"
@@ -465,6 +512,7 @@ provider_chat_completion() {
   }
 
   rm -f "$payload_file"
+  debug_log "HTTP request completed with status $http_code"
 
   if [[ "$http_code" != 2* ]]; then
     error_message=$(jq -r '.error.message // .message // empty' <"$tmpfile" 2>/dev/null || true)
@@ -478,7 +526,9 @@ provider_chat_completion() {
   fi
 
   response_text=$(jq -r '.choices[0].message.content // empty' <"$tmpfile")
+  response_size=$(wc -c <"$tmpfile")
   rm -f "$tmpfile"
+  debug_log "Response size: ${response_size} bytes"
 
   if [ -z "$response_text" ]; then
     echo 'Error: response did not contain message content' >&2
