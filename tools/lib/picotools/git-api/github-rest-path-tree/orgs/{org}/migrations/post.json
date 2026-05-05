@@ -1,0 +1,128 @@
+{
+  "summary": "Start an organization migration",
+  "description": "Initiates the generation of a migration archive.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/start-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/orgs#start-an-organization-migration"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repositories": {
+              "type": "array",
+              "description": "A list of arrays indicating which repositories should be migrated.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "lock_repositories": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether repositories should be locked (to prevent manipulation) while migrating data.",
+              "default": false
+            },
+            "exclude_metadata": {
+              "type": "boolean",
+              "description": "Indicates whether metadata should be excluded and only git source should be included for the migration.",
+              "default": false
+            },
+            "exclude_git_data": {
+              "type": "boolean",
+              "description": "Indicates whether the repository git data should be excluded from the migration.",
+              "default": false
+            },
+            "exclude_attachments": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether attachments should be excluded from the migration (to reduce migration archive file size).",
+              "default": false
+            },
+            "exclude_releases": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether releases should be excluded from the migration (to reduce migration archive file size).",
+              "default": false
+            },
+            "exclude_owner_projects": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether projects owned by the organization or users should be excluded. from the migration.",
+              "default": false
+            },
+            "org_metadata_only": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether this should only include organization metadata (repositories array should be empty and will ignore other flags).",
+              "default": false
+            },
+            "exclude": {
+              "type": "array",
+              "description": "Exclude related items from being returned in the response in order to improve performance of the request.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "repositories"
+                ]
+              }
+            }
+          },
+          "required": [
+            "repositories"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "repositories": [
+                "github/Hello-World"
+              ],
+              "lock_repositories": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/migration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/migration-with-short-org-2"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "orgs"
+  }
+}

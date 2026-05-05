@@ -1,0 +1,46 @@
+{
+  "summary": "List organization pattern configurations",
+  "description": "Lists the secret scanning pattern configurations for an organization.\n\nPersonal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "secret-scanning"
+  ],
+  "operationId": "secret-scanning/list-org-pattern-configs",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/push-protection#list-organization-pattern-configurations"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "secret-scanning",
+    "subcategory": "push-protection"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/secret-scanning-pattern-configuration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/secret-scanning-pattern-configuration"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "summary": "Get GitHub Actions cache retention limit for an organization",
+  "description": "Gets GitHub Actions cache retention limit for an organization. All repositories under this\norganization may not set a higher cache retention limit.\n\nOAuth tokens and personal access tokens (classic) need the `admin:organization` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-actions-cache-retention-limit-for-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/cache#get-github-actions-cache-retention-limit-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-cache-retention-limit-for-organization"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-cache-retention-limit"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "cache"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "summary": "Set self-hosted runners in a group for an organization",
+  "description": "Replaces the list of self-hosted runners that are part of an organization runner group.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/set-self-hosted-runners-in-group-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runner-groups#set-self-hosted-runners-in-a-group-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/runner-group-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "runners": {
+              "description": "List of runner IDs to add to the runner group.",
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "description": "Unique identifier of the runner."
+              }
+            }
+          },
+          "required": [
+            "runners"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "runners": [
+                9,
+                2
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "self-hosted-runner-groups"
+  }
+}

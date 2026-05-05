@@ -1,0 +1,53 @@
+{
+  "summary": "Fetch a software bill of materials (SBOM) for a repository.",
+  "description": "Fetches a previously generated software bill of materials (SBOM) for a repository.\nWhen the SBOM is ready, the response is a 302 redirect to a temporary download URL for the SBOM in SPDX JSON format.\nThe generated SBOM report may be retained for up to one week from the original request.\nThe temporary download URL returned by this endpoint expires separately, and its expiry is set when the fetch request is made.",
+  "tags": [
+    "dependency-graph"
+  ],
+  "operationId": "dependency-graph/fetch-sbom-report",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependency-graph/sboms#fetch-a-software-bill-of-materials-sbom-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "sbom_uuid",
+      "in": "path",
+      "required": true,
+      "description": "The unique identifier of the SBOM export.",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "302": {
+      "description": "Redirects to a temporary download URL for the completed SBOM.",
+      "headers": {
+        "Location": {
+          "$ref": "#/components/headers/location"
+        }
+      }
+    },
+    "202": {
+      "description": "SBOM is still being processed, no content is returned."
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "category": "dependency-graph",
+    "subcategory": "sboms"
+  }
+}

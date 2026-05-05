@@ -1,0 +1,66 @@
+{
+  "summary": "List GitHub-hosted runners for an organization",
+  "description": "Lists all GitHub-hosted runners configured in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `manage_runner:org` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/list-hosted-runners-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#list-github-hosted-runners-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "runners"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "runners": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/actions-hosted-runner"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

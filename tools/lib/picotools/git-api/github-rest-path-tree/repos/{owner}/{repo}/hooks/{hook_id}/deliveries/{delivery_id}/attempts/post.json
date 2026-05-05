@@ -1,0 +1,43 @@
+{
+  "summary": "Redeliver a delivery for a repository webhook",
+  "description": "Redeliver a webhook delivery for a webhook configured in a repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/redeliver-webhook-delivery",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#redeliver-a-delivery-for-a-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    },
+    {
+      "$ref": "#/components/parameters/delivery-id"
+    }
+  ],
+  "responses": {
+    "202": {
+      "$ref": "#/components/responses/accepted"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

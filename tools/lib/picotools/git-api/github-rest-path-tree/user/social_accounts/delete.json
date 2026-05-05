@@ -1,0 +1,80 @@
+{
+  "summary": "Delete social accounts for the authenticated user",
+  "description": "Deletes one or more social accounts from the authenticated user's profile.\n\nOAuth app tokens and personal access tokens (classic) need the `user` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/delete-social-account-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/social-accounts#delete-social-accounts-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account_urls": {
+              "description": "Full URLs for the social media profiles to delete.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "https://twitter.com/github"
+              },
+              "example": []
+            }
+          },
+          "required": [
+            "account_urls"
+          ],
+          "example": {
+            "account_urls": [
+              "https://www.linkedin.com/company/github/",
+              "https://twitter.com/github"
+            ]
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Deleting multiple social accounts",
+            "value": {
+              "account_urls": [
+                "https://facebook.com/GitHub",
+                "https://www.youtube.com/@GitHub"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "social-accounts"
+  }
+}

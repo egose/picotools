@@ -1,0 +1,40 @@
+{
+  "summary": "Delete a reference",
+  "description": "Deletes the provided reference.",
+  "tags": [
+    "git"
+  ],
+  "operationId": "git/delete-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/git/refs#delete-a-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/git-ref-only"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "422": {
+      "description": "Validation failed, an attempt was made to delete the default branch, or the endpoint has been spammed."
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "git",
+    "subcategory": "refs"
+  }
+}

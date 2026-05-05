@@ -1,0 +1,69 @@
+{
+  "summary": "List repository notifications for the authenticated user",
+  "description": "Lists all notifications for the current user in the specified repository.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/list-repo-notifications-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/notifications#list-repository-notifications-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/all"
+    },
+    {
+      "$ref": "#/components/parameters/participating"
+    },
+    {
+      "$ref": "#/components/parameters/since"
+    },
+    {
+      "$ref": "#/components/parameters/before"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/thread"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/thread-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "notifications"
+  }
+}

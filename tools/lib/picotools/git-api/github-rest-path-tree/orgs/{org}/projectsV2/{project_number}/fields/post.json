@@ -1,0 +1,197 @@
+{
+  "summary": "Add a field to an organization-owned project.",
+  "description": "Add a field to an organization-owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/add-field-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/fields#add-a-field-to-an-organization-owned-project"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/project-number"
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "issue_field_id": {
+                  "type": "integer",
+                  "description": "The ID of the IssueField to create the field for."
+                }
+              },
+              "required": [
+                "issue_field_id"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the field."
+                },
+                "data_type": {
+                  "type": "string",
+                  "description": "The field's data type.",
+                  "enum": [
+                    "text",
+                    "number",
+                    "date"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "data_type"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the field."
+                },
+                "data_type": {
+                  "type": "string",
+                  "description": "The field's data type.",
+                  "enum": [
+                    "single_select"
+                  ]
+                },
+                "single_select_options": {
+                  "type": "array",
+                  "description": "The options available for single select fields. At least one option must be provided when creating a single select field.",
+                  "items": {
+                    "$ref": "#/components/schemas/projects-v2-field-single-select-option"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "data_type",
+                "single_select_options"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the field."
+                },
+                "data_type": {
+                  "type": "string",
+                  "description": "The field's data type.",
+                  "enum": [
+                    "iteration"
+                  ]
+                },
+                "iteration_configuration": {
+                  "$ref": "#/components/schemas/projects-v2-field-iteration-configuration"
+                }
+              },
+              "required": [
+                "name",
+                "data_type",
+                "iteration_configuration"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "examples": {
+          "text_field": {
+            "summary": "Create a text field",
+            "value": {
+              "name": "Team notes",
+              "data_type": "text"
+            }
+          },
+          "number_field": {
+            "summary": "Create a number field",
+            "value": {
+              "name": "Story points",
+              "data_type": "number"
+            }
+          },
+          "date_field": {
+            "summary": "Create a date field",
+            "value": {
+              "name": "Due date",
+              "data_type": "date"
+            }
+          },
+          "single_select_field": {
+            "$ref": "#/components/examples/projects-v2-field-single-select-request"
+          },
+          "iteration_field": {
+            "$ref": "#/components/examples/projects-v2-field-iteration-request"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response for adding a field to an organization-owned project.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-field"
+          },
+          "examples": {
+            "text_field": {
+              "$ref": "#/components/examples/projects-v2-field-text"
+            },
+            "number_field": {
+              "$ref": "#/components/examples/projects-v2-field-number"
+            },
+            "date_field": {
+              "$ref": "#/components/examples/projects-v2-field-date"
+            },
+            "single_select_field": {
+              "$ref": "#/components/examples/projects-v2-field-single-select"
+            },
+            "iteration_field": {
+              "$ref": "#/components/examples/projects-v2-field-iteration"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "fields"
+  }
+}

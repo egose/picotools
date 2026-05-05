@@ -1,0 +1,85 @@
+{
+  "summary": "Transfer a repository",
+  "description": "A transfer request will need to be accepted by the new owner when transferring a personal repository to another user. The response will contain the original `owner`, and the transfer will continue asynchronously. For more details on the requirements to transfer personal and organization-owned repositories, see [about repository transfers](https://docs.github.com/articles/about-repository-transfers/).",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/transfer",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#transfer-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "new_owner": {
+              "type": "string",
+              "description": "The username or organization name the repository will be transferred to."
+            },
+            "new_name": {
+              "type": "string",
+              "description": "The new name to be given to the repository."
+            },
+            "team_ids": {
+              "type": "array",
+              "description": "ID of the team or teams to add to the repository. Teams can only be added to organization-owned repositories.",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "new_owner"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "new_owner": "github",
+              "team_ids": [
+                12,
+                345
+              ],
+              "new_name": "octorepo"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/minimal-repository"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

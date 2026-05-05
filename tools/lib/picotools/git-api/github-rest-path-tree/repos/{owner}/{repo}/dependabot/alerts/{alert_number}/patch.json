@@ -1,0 +1,127 @@
+{
+  "summary": "Update a Dependabot alert",
+  "description": "The authenticated user must have access to security alerts for the repository to use this endpoint. For more information, see \"[Granting access to security alerts](https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-security-and-analysis-settings-for-your-repository#granting-access-to-security-alerts).\"\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "tags": [
+    "dependabot"
+  ],
+  "operationId": "dependabot/update-alert",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependabot/alerts#update-a-dependabot-alert"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "description": "The state of the Dependabot alert.\nA `dismissed_reason` must be provided when setting the state to `dismissed`.",
+              "enum": [
+                "dismissed",
+                "open"
+              ]
+            },
+            "dismissed_reason": {
+              "type": "string",
+              "description": "**Required when `state` is `dismissed`.** A reason for dismissing the alert.",
+              "enum": [
+                "fix_started",
+                "inaccurate",
+                "no_bandwidth",
+                "not_used",
+                "tolerable_risk"
+              ]
+            },
+            "dismissed_comment": {
+              "type": "string",
+              "description": "An optional comment associated with dismissing the alert.",
+              "maxLength": 280
+            },
+            "assignees": {
+              "type": "array",
+              "description": "Usernames to assign to this Dependabot Alert.\nPass one or more user logins to _replace_ the set of assignees on this alert.\nSend an empty array (`[]`) to clear all assignees from the alert.",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "state"
+              ]
+            },
+            {
+              "required": [
+                "assignees"
+              ]
+            }
+          ],
+          "additionalProperties": false
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "state": "dismissed",
+              "dismissed_reason": "tolerable_risk",
+              "dismissed_comment": "This alert is accurate but we use a sanitizer."
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/dependabot-alert"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/dependabot-alert-dismissed"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "dependabot",
+    "subcategory": "alerts"
+  }
+}

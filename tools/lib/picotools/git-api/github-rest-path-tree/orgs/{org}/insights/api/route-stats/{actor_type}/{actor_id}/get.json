@@ -1,0 +1,66 @@
+{
+  "summary": "Get route stats by actor",
+  "description": "Get API request count statistics for an actor broken down by route within a specified time frame.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "api-insights/get-route-stats-by-actor",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/api-insights#get-route-stats-by-actor"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-actor-type"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-actor-id"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-min-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-max-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-route-stats-sort"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-api-route-substring"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/api-insights-route-stats"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/api-insights-route-stats"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "api-insights"
+  }
+}

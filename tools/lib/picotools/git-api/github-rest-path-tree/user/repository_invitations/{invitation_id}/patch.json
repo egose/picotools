@@ -1,0 +1,43 @@
+{
+  "summary": "Accept a repository invitation",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/accept-invitation-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/invitations#accept-a-repository-invitation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/invitation-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "451": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "collaborators",
+    "subcategory": "invitations"
+  }
+}

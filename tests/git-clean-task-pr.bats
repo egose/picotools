@@ -83,3 +83,10 @@ create_repo_with_remote() {
   status_output="$(git -C "$REPO_DIR" status --short)"
   assert_contains "$status_output" 'A  feature.txt' 'should leave the feature changes staged and ready for a new commit'
 }
+
+@test "help documents debug mode" {
+  run bash "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'git-clean-task-pr --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
+}

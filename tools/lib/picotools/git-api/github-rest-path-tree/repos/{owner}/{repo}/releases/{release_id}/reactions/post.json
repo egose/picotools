@@ -1,0 +1,98 @@
+{
+  "summary": "Create reaction for a release",
+  "description": "Create a reaction to a [release](https://docs.github.com/rest/releases/releases#get-a-release). A response with a `Status: 200 OK` means that you already added the reaction type to this release.",
+  "tags": [
+    "reactions"
+  ],
+  "operationId": "reactions/create-for-release",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/reactions/reactions#create-reaction-for-a-release"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/release-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "The [reaction type](https://docs.github.com/rest/reactions/reactions#about-reactions) to add to the release.",
+              "enum": [
+                "+1",
+                "laugh",
+                "heart",
+                "hooray",
+                "rocket",
+                "eyes"
+              ]
+            }
+          },
+          "required": [
+            "content"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "content": "heart"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Reaction exists",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/reaction"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/reaction"
+            }
+          }
+        }
+      }
+    },
+    "201": {
+      "description": "Reaction created",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/reaction"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/reaction"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "reactions",
+    "subcategory": "reactions"
+  }
+}

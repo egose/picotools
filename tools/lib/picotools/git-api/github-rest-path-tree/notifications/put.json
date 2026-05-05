@@ -1,0 +1,82 @@
+{
+  "summary": "Mark notifications as read",
+  "description": "Marks all notifications as \"read\" for the current user. If the number of notifications is too large to complete in one request, you will receive a `202 Accepted` status and GitHub will run an asynchronous process to mark notifications as \"read.\" To check whether any \"unread\" notifications remain, you can use the [List notifications for the authenticated user](https://docs.github.com/rest/activity/notifications#list-notifications-for-the-authenticated-user) endpoint and pass the query parameter `all=false`.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/mark-notifications-as-read",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/notifications#mark-notifications-as-read"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "last_read_at": {
+              "description": "Describes the last point that notifications were checked. Anything updated since this time will not be marked as read. If you omit this parameter, all notifications are marked as read. This is a timestamp in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format: `YYYY-MM-DDTHH:MM:SSZ`. Default: The current timestamp.",
+              "type": "string",
+              "format": "date-time"
+            },
+            "read": {
+              "description": "Whether the notification has been read.",
+              "type": "boolean"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "last_read_at": "2022-06-10T00:00:00Z",
+              "read": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/notifications-mark-read"
+            }
+          }
+        }
+      }
+    },
+    "205": {
+      "description": "Reset Content"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "notifications"
+  }
+}

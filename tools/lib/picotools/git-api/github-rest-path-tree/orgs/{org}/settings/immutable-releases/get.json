@@ -1,0 +1,42 @@
+{
+  "summary": "Get immutable releases settings for an organization",
+  "description": "Gets the immutable releases policy for repositories in an organization.\n\nOAuth tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/get-immutable-releases-settings",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#get-immutable-releases-settings-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Immutable releases settings response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/immutable-releases-organization-settings"
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "enforced_repositories": "all"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "orgs"
+  }
+}

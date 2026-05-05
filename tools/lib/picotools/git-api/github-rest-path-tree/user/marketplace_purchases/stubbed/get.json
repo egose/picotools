@@ -1,0 +1,57 @@
+{
+  "summary": "List subscriptions for the authenticated user (stubbed)",
+  "description": "Lists the active subscriptions for the authenticated user.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/list-subscriptions-for-authenticated-user-stubbed",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/marketplace#list-subscriptions-for-the-authenticated-user-stubbed"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/user-marketplace-purchase"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/user-marketplace-purchase-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "marketplace"
+  }
+}

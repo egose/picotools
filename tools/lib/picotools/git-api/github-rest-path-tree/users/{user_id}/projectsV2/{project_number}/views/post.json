@@ -1,0 +1,167 @@
+{
+  "summary": "Create a view for a user-owned project",
+  "description": "Create a new view in a user-owned project. Views allow you to customize how items in a project are displayed and filtered.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/create-view-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/views#create-a-view-for-a-user-owned-project"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/user-id"
+    },
+    {
+      "$ref": "#/components/parameters/project-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the view.",
+              "example": "Sprint Board"
+            },
+            "layout": {
+              "type": "string",
+              "description": "The layout of the view.",
+              "enum": [
+                "table",
+                "board",
+                "roadmap"
+              ],
+              "example": "board"
+            },
+            "filter": {
+              "type": "string",
+              "description": "The filter query for the view. See [Filtering projects](https://docs.github.com/issues/planning-and-tracking-with-projects/customizing-views-in-your-project/filtering-projects) for more information.",
+              "example": "is:issue is:open"
+            },
+            "visible_fields": {
+              "type": "array",
+              "description": "`visible_fields` is not applicable to `roadmap` layout views.\nFor `table` and `board` layouts, this represents the field IDs that should be visible in the view. If not provided, the default visible fields will be used.",
+              "items": {
+                "type": "integer"
+              },
+              "example": [
+                123,
+                456,
+                789
+              ]
+            }
+          },
+          "required": [
+            "name",
+            "layout"
+          ],
+          "additionalProperties": false
+        },
+        "examples": {
+          "table_view": {
+            "summary": "Create a table view",
+            "value": {
+              "name": "All Issues",
+              "layout": "table",
+              "filter": "is:issue",
+              "visible_fields": [
+                123,
+                456,
+                789
+              ]
+            }
+          },
+          "board_view": {
+            "summary": "Create a board view with filter",
+            "value": {
+              "name": "Sprint Board",
+              "layout": "board",
+              "filter": "is:issue is:open label:sprint",
+              "visible_fields": [
+                123,
+                456,
+                789
+              ]
+            }
+          },
+          "roadmap_view": {
+            "summary": "Create a roadmap view",
+            "value": {
+              "name": "Product Roadmap",
+              "layout": "roadmap"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response for creating a view in a user-owned project.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-view"
+          },
+          "examples": {
+            "table_view": {
+              "summary": "Response for creating a table view",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-view"
+              }
+            },
+            "board_view": {
+              "summary": "Response for creating a board view with filter",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-view"
+              }
+            },
+            "roadmap_view": {
+              "summary": "Response for creating a roadmap view",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-view"
+              }
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "503": {
+      "description": "Service unavailable",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "projects",
+    "subcategory": "views"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "summary": "Create an OIDC custom property inclusion for an enterprise",
+  "description": "Adds a repository custom property to be included in the OIDC token for repository actions in an enterprise.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:enterprise` scope to use this endpoint.",
+  "tags": [
+    "oidc"
+  ],
+  "operationId": "oidc/create-oidc-custom-property-inclusion-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#create-an-oidc-custom-property-inclusion-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/oidc-custom-property-inclusion-input"
+        },
+        "examples": {
+          "default": {
+            "$ref": "#/components/examples/oidc-custom-property-inclusion"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "OIDC custom property inclusion created",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/oidc-custom-property-inclusion"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/oidc-custom-property-inclusion"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "description": "Invalid input"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "422": {
+      "description": "Property inclusion already exists"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

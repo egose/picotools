@@ -1,0 +1,49 @@
+{
+  "summary": "Get interaction restrictions for an organization",
+  "description": "Shows which type of GitHub user can interact with this organization and when the restriction expires. If there is no restrictions, you will see an empty response.",
+  "tags": [
+    "interactions"
+  ],
+  "operationId": "interactions/get-restrictions-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/interactions/orgs#get-interaction-restrictions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/interaction-limit-response"
+              },
+              {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            ]
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/interaction-limit-response"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "interactions",
+    "subcategory": "orgs"
+  }
+}

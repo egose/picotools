@@ -1,0 +1,35 @@
+{
+  "summary": "Add a security manager team",
+  "description": "> [!WARNING]\n> **Closing down notice:** This operation is closing down and will be removed starting January 1, 2026. Please use the \"[Organization Roles](https://docs.github.com/rest/orgs/organization-roles)\" endpoints instead.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/add-security-manager-team",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/security-managers#add-a-security-manager-team"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/team-slug"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "orgs",
+    "subcategory": "security-managers",
+    "deprecationDate": "2024-12-01",
+    "removalDate": "2026-01-01"
+  },
+  "deprecated": true
+}

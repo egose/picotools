@@ -20,6 +20,7 @@ Deletes merged remote branches except the default branch and the current branch.
 
 Options:
   --yes       Skip the confirmation prompt
+  --debug     Print progress details to stderr
   -h, --help, help        Show this help message
   -v, --version, version  Show the tool version
 
@@ -32,6 +33,18 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[git-clean-branches] %s\n' "$1" >&2
+  fi
+}
+
 main() {
   local assume_yes=false
   local remote=origin
@@ -42,6 +55,9 @@ main() {
     case "$arg" in
     --yes)
       assume_yes=true
+      ;;
+    --debug)
+      debug_mode=true
       ;;
     -h | --help | help)
       usage
@@ -70,6 +86,7 @@ main() {
     exit 1
   fi
 
+  debug_log "Cleaning branches against remote '$remote'"
   local current_branch
   current_branch=$(git branch --show-current)
   if [ -z "$current_branch" ]; then
@@ -77,6 +94,7 @@ main() {
     exit 1
   fi
 
+  debug_log "Fetching '$remote' with prune"
   git fetch "$remote" --prune
 
   local default_branch
@@ -130,6 +148,7 @@ main() {
   printf 'Remote: %s\n' "$remote"
   printf 'Default branch: %s\n' "$default_branch"
   printf 'Current branch: %s\n' "$current_branch"
+  debug_log "Collected ${#local_branches[@]} local and ${#remote_branches[@]} remote branch(es) to delete"
 
   if [ "${#local_branches[@]}" -eq 0 ] && [ "${#remote_branches[@]}" -eq 0 ]; then
     echo "Nothing to delete."
@@ -151,10 +170,12 @@ main() {
   fi
 
   for branch in "${local_branches[@]}"; do
+    debug_log "Deleting local branch '$branch'"
     git branch -D "$branch"
   done
 
   for branch in "${remote_branches[@]}"; do
+    debug_log "Deleting remote branch '$remote/$branch'"
     git push "$remote" --delete "$branch"
   done
 }

@@ -1,0 +1,42 @@
+{
+  "summary": "Remove selected repository from an organization variable",
+  "description": "Removes a repository from an organization variable that is\navailable to selected repositories. Organization variables that are available to\nselected repositories have their `visibility` field set to `selected`.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint. If the repository is private, the `repo` scope is also required.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/remove-selected-repo-from-org-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#remove-selected-repository-from-an-organization-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/variable-name"
+    },
+    {
+      "name": "repository_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "409": {
+      "description": "Response when the visibility of the variable is not set to `selected`"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

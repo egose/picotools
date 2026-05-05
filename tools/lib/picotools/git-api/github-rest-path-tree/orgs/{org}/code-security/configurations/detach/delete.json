@@ -1,0 +1,77 @@
+{
+  "summary": "Detach configurations from repositories",
+  "description": "Detach code security configuration(s) from a set of repositories.\nRepositories will retain their settings but will no longer be associated with the configuration.\n\nThe authenticated user must be an administrator or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `write:org` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/detach-configuration",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#detach-configurations-from-repositories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "selected_repository_ids"
+          ],
+          "properties": {
+            "selected_repository_ids": {
+              "type": "array",
+              "description": "An array of repository IDs to detach from configurations. Up to 250 IDs can be provided.",
+              "minItems": 1,
+              "maxItems": 250,
+              "items": {
+                "type": "integer",
+                "description": "Unique identifier of the repository."
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Example for detaching repositories from configurations.",
+            "value": {
+              "selected_repository_ids": [
+                32,
+                91
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

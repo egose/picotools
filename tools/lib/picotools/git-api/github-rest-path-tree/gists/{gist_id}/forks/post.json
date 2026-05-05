@@ -1,0 +1,60 @@
+{
+  "summary": "Fork a gist",
+  "description": "",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/fork",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#fork-a-gist"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gist-id"
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/base-gist"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/base-gist"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/gists/aa5a315d61ae9438b18d",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

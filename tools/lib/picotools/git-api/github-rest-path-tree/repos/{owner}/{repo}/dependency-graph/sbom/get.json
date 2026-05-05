@@ -1,0 +1,53 @@
+{
+  "summary": "Export a software bill of materials (SBOM) for a repository.",
+  "description": "Exports the software bill of materials (SBOM) for a repository in SPDX JSON format.",
+  "tags": [
+    "dependency-graph"
+  ],
+  "operationId": "dependency-graph/export-sbom",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependency-graph/sboms#export-a-software-bill-of-materials-sbom-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/dependency-graph-spdx-sbom"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/dependency-graph-export-sbom-response"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "category": "dependency-graph",
+    "subcategory": "sboms"
+  }
+}

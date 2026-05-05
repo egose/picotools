@@ -1,0 +1,84 @@
+{
+  "summary": "Create a public SSH key for the authenticated user",
+  "description": "Adds a public SSH key to the authenticated user's GitHub account.\n\nOAuth app tokens and personal access tokens (classic) need the `write:public_key` scope to use this endpoint.",
+  "operationId": "users/create-public-ssh-key-for-authenticated-user",
+  "tags": [
+    "users"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/keys#create-a-public-ssh-key-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "title": {
+              "description": "A descriptive name for the new key.",
+              "type": "string",
+              "example": "Personal MacBook Air"
+            },
+            "key": {
+              "description": "The public SSH key to add to your GitHub account.",
+              "type": "string",
+              "pattern": "^ssh-(rsa|dss|ed25519) |^ecdsa-sha2-nistp(256|384|521) "
+            }
+          },
+          "required": [
+            "key"
+          ],
+          "type": "object"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "title": "ssh-rsa AAAAB3NzaC1yc2EAAA",
+              "key": "2Sg8iYjAxxmI2LvUXpJjkYrMxURPc8r+dB7TJyvv1234"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/key"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/key"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "keys"
+  }
+}

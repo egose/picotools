@@ -1,0 +1,43 @@
+{
+  "summary": "Remove all labels from an issue",
+  "description": "Removes all labels from an issue.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/remove-all-labels",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/labels#remove-all-labels-from-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "labels"
+  }
+}

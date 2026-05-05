@@ -1,0 +1,106 @@
+{
+  "summary": "Set status check contexts",
+  "description": "Protected branches are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, GitHub Enterprise Cloud, and GitHub Enterprise Server. For more information, see [GitHub's products](https://docs.github.com/github/getting-started-with-github/githubs-products) in the GitHub Help documentation.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/set-status-check-contexts",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branch-protection#set-status-check-contexts"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "contexts": {
+                  "type": "array",
+                  "description": "The name of the status checks",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "contexts"
+              ],
+              "example": {
+                "contexts": [
+                  "contexts"
+                ]
+              }
+            },
+            {
+              "type": "array",
+              "description": "The name of the status checks",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example updating status checks for a branch protection rule",
+            "value": {
+              "contexts": [
+                "continuous-integration/travis-ci"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "examples": {
+            "default": {
+              "value": [
+                "continuous-integration/travis-ci"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "requestBodyParameterName": "contexts",
+    "category": "branches",
+    "subcategory": "branch-protection"
+  }
+}

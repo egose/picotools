@@ -1,0 +1,34 @@
+{
+  "summary": "Delete a repository invitation",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-invitation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/invitations#delete-a-repository-invitation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/invitation-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "collaborators",
+    "subcategory": "invitations"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Delete an issue comment",
+  "description": "You can use the REST API to delete comments on issues and pull requests. Every pull request is an issue, but not every issue is a pull request.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/delete-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/comments#delete-an-issue-comment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/comment-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "comments"
+  }
+}

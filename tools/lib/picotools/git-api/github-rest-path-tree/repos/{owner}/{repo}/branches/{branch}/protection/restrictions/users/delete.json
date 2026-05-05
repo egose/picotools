@@ -1,0 +1,90 @@
+{
+  "summary": "Remove user access restrictions",
+  "description": "Protected branches are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, GitHub Enterprise Cloud, and GitHub Enterprise Server. For more information, see [GitHub's products](https://docs.github.com/github/getting-started-with-github/githubs-products) in the GitHub Help documentation.\n\nRemoves the ability of a user to push to this branch.\n\n| Type    | Description                                                                                                                                   |\n| ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |\n| `array` | Usernames of the people who should no longer have push access. **Note**: The list of users, apps, and teams in total is limited to 100 items. |",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/remove-user-access-restrictions",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branch-protection#remove-user-access-restrictions"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "users": {
+              "type": "array",
+              "description": "The username for users",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "users"
+          ],
+          "example": {
+            "users": [
+              "mona"
+            ]
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Example removing a user in a branch protection rule",
+            "value": {
+              "users": [
+                "octocat"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/simple-user"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/simple-user-items"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "requestBodyParameterName": "users",
+    "category": "branches",
+    "subcategory": "branch-protection"
+  }
+}

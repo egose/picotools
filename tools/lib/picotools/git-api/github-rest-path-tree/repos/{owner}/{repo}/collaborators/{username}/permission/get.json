@@ -1,0 +1,49 @@
+{
+  "summary": "Get repository permissions for a user",
+  "description": "Checks the repository permission and role of a collaborator.\n\nThe `permission` attribute provides the legacy base roles of `admin`, `write`, `read`, and `none`, where the\n`maintain` role is mapped to `write` and the `triage` role is mapped to `read`.\nThe `role_name` attribute provides the name of the assigned role, including custom roles. The\n`permission` can also be used to determine which base level of access the collaborator has to the repository.\n\nThe calculated permissions are the highest role assigned to the collaborator after considering all sources of grants, including: repo, teams, organization, and enterprise.\nThere is presently not a way to differentiate between an organization level grant and a repository level grant from this endpoint response.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-collaborator-permission-level",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/collaborators#get-repository-permissions-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "if user has admin permissions",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-collaborator-permission"
+          },
+          "examples": {
+            "response-if-user-has-admin-permissions": {
+              "$ref": "#/components/examples/repository-collaborator-permission-response-if-user-has-admin-permissions"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "collaborators",
+    "subcategory": "collaborators"
+  }
+}

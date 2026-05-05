@@ -1,0 +1,82 @@
+{
+  "summary": "Update Git LFS preference",
+  "description": "You can import repositories from Subversion, Mercurial, and TFS that include files larger than 100MB. This ability\nis powered by [Git LFS](https://git-lfs.com).\n\nYou can learn more about our LFS feature and working with large files [on our help\nsite](https://docs.github.com/repositories/working-with-files/managing-large-files).\n\n> [!WARNING]\n> **Endpoint closing down notice:** Due to very low levels of usage and available alternatives, this endpoint is closing down and will no longer be available from 00:00 UTC on April 12, 2024. For more details and alternatives, see the [changelog](https://gh.io/source-imports-api-deprecation).",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/set-lfs-preference",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/source-imports#update-git-lfs-preference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "use_lfs": {
+              "type": "string",
+              "description": "Whether to store large files during the import. `opt_in` means large files will be stored using Git LFS. `opt_out` means large files will be removed during the import.",
+              "enum": [
+                "opt_in",
+                "opt_out"
+              ]
+            }
+          },
+          "required": [
+            "use_lfs"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "use_lfs": "opt_in"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/import"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/import"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "503": {
+      "$ref": "#/components/responses/porter_maintenance"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "migrations",
+    "subcategory": "source-imports",
+    "deprecationDate": "2023-10-12",
+    "removalDate": "2024-04-12"
+  },
+  "deprecated": true
+}

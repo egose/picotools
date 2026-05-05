@@ -1,0 +1,52 @@
+{
+  "summary": "Get Copilot content exclusion rules for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nGets information about an organization's Copilot content exclusion path rules.\nTo configure these settings, go to the organization's settings on GitHub.\nFor more information, see \"[Excluding content from GitHub Copilot](https://docs.github.com/copilot/managing-copilot/configuring-and-auditing-content-exclusion/excluding-content-from-github-copilot#configuring-content-exclusions-for-your-organization).\"\n\nOrganization owners can view details about Copilot content exclusion rules for the organization.\n\nOAuth app tokens and personal access tokens (classic) need either the `copilot` or `read:org` scopes to use this endpoint.\n\n> [!CAUTION]\n> * At this time, the API does not support comments. This endpoint will not return any comments in the existing rules.\n> * At this time, the API does not support duplicate keys. If your content exclusion configuration contains duplicate keys, the API will return only the last occurrence of that key. For example, if duplicate entries are present, only the final value will be included in the response.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/copilot-content-exclusion-for-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-content-exclusion-management#get-copilot-content-exclusion-rules-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "OK",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/copilot-organization-content-exclusion-details"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/copilot-organization-content-exclusion-details"
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-content-exclusion-management"
+  }
+}

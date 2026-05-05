@@ -1,0 +1,94 @@
+{
+  "summary": "Create an organization variable",
+  "description": "Creates an organization variable that you can reference in a GitHub Actions workflow.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth tokens and personal access tokens (classic) need the`admin:org` scope to use this endpoint. If the repository is private, OAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/create-org-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#create-an-organization-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the variable."
+            },
+            "value": {
+              "type": "string",
+              "description": "The value of the variable."
+            },
+            "visibility": {
+              "type": "string",
+              "description": "The type of repositories in the organization that can access the variable. `selected` means only the repositories specified by `selected_repository_ids` can access the variable.",
+              "enum": [
+                "all",
+                "private",
+                "selected"
+              ]
+            },
+            "selected_repository_ids": {
+              "type": "array",
+              "description": "An array of repository ids that can access the organization variable. You can only provide a list of repository ids when the `visibility` is set to `selected`.",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "name",
+            "value",
+            "visibility"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "USERNAME",
+              "value": "octocat",
+              "visibility": "selected",
+              "selected_repository_ids": [
+                1296269,
+                1296280
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response when creating a variable",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/empty-object"
+          },
+          "examples": {
+            "default": {
+              "value": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

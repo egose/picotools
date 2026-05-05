@@ -1,0 +1,49 @@
+{
+  "summary": "Get organization membership for a user",
+  "description": "In order to get a user's membership with an organization, the authenticated user must be an organization member. The `state` parameter in the response can be used to identify the user's membership status.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/get-membership-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/members#get-organization-membership-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-membership"
+          },
+          "examples": {
+            "response-if-user-has-an-active-admin-membership-with-organization": {
+              "$ref": "#/components/examples/org-membership-response-if-user-has-an-active-admin-membership-with-organization"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "members"
+  }
+}

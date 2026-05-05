@@ -1,0 +1,94 @@
+{
+  "summary": "Reprioritize sub-issue",
+  "description": "You can use the REST API to reprioritize a sub-issue to a different position in the parent list.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/reprioritize-sub-issue",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/sub-issues#reprioritize-sub-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "sub_issue_id": {
+              "type": "integer",
+              "description": "The id of the sub-issue to reprioritize"
+            },
+            "after_id": {
+              "type": "integer",
+              "description": "The id of the sub-issue to be prioritized after (either positional argument after OR before should be specified)."
+            },
+            "before_id": {
+              "type": "integer",
+              "description": "The id of the sub-issue to be prioritized before (either positional argument after OR before should be specified)."
+            }
+          },
+          "required": [
+            "sub_issue_id"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "sub_issue_id": 6,
+              "after_id": 5
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "sub-issues"
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "summary": "Add a collaborator to a Copilot Space for a user",
+  "description": "Adds a collaborator to a specific Copilot Space owned by a user. The authenticated user must be the owner of the space or have admin access to the space.\n\nTeam collaborators are not supported for user-owned Copilot Spaces.\n\nOAuth app tokens and personal access tokens (classic) need the `user` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/add-collaborator-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/collaborators#add-a-collaborator-to-a-copilot-space-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "actor_type",
+            "actor_identifier",
+            "role"
+          ],
+          "properties": {
+            "actor_type": {
+              "type": "string",
+              "enum": [
+                "User",
+                "Team"
+              ],
+              "description": "The type of actor (must be `User` for user-owned spaces; `Team` will be rejected)."
+            },
+            "actor_identifier": {
+              "type": "string",
+              "description": "The username of the collaborator. The numeric user ID is also accepted."
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "reader",
+                "writer",
+                "admin"
+              ],
+              "description": "The role to grant to the collaborator."
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "actor_type": "User",
+              "actor_identifier": "octocat",
+              "role": "writer"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/copilot-space-collaborator"
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "actor_type": "User",
+                "role": "writer",
+                "login": "octocat",
+                "id": 12345,
+                "node_id": "MDQ6VXNlcjEyMzQ1",
+                "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/octocat",
+                "html_url": "https://github.com/octocat",
+                "followers_url": "https://api.github.com/users/octocat/followers",
+                "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+                "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+                "organizations_url": "https://api.github.com/users/octocat/orgs",
+                "repos_url": "https://api.github.com/users/octocat/repos",
+                "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/octocat/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false,
+                "name": "The Octocat",
+                "company": "GitHub",
+                "blog": "https://github.com/blog",
+                "location": "San Francisco",
+                "email": "octocat@github.com",
+                "hireable": false,
+                "bio": "There once was...",
+                "twitter_username": "octocat",
+                "public_repos": 2,
+                "public_gists": 1,
+                "followers": 20,
+                "following": 0,
+                "created_at": "2008-01-14T04:33:35Z",
+                "updated_at": "2008-01-14T04:33:35Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": false,
+    "category": "copilot-spaces",
+    "subcategory": "collaborators"
+  }
+}

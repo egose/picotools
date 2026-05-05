@@ -1,0 +1,96 @@
+{
+  "summary": "Delete attestations in bulk",
+  "description": "Delete artifact attestations in bulk by either subject digests or unique ID.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/delete-attestations-bulk",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/attestations#delete-attestations-in-bulk"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "oneOf": [
+            {
+              "properties": {
+                "subject_digests": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "List of subject digests associated with the artifact attestations to delete.",
+                  "minItems": 1,
+                  "maxItems": 1024
+                }
+              },
+              "required": [
+                "subject_digests"
+              ]
+            },
+            {
+              "properties": {
+                "attestation_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  },
+                  "description": "List of unique IDs associated with the artifact attestations to delete.",
+                  "minItems": 1,
+                  "maxItems": 1024
+                }
+              },
+              "required": [
+                "attestation_ids"
+              ]
+            }
+          ],
+          "description": "The request body must include either `subject_digests` or `attestation_ids`, but not both."
+        },
+        "examples": {
+          "by-subject-digests": {
+            "summary": "Delete by subject digests",
+            "value": {
+              "subject_digests": [
+                "sha256:abc123",
+                "sha512:def456"
+              ]
+            }
+          },
+          "by-attestation-ids": {
+            "summary": "Delete by attestation IDs",
+            "value": {
+              "attestation_ids": [
+                111,
+                222
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "attestations"
+  }
+}

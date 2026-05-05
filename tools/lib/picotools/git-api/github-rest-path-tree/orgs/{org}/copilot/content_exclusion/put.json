@@ -1,0 +1,127 @@
+{
+  "summary": "Set Copilot content exclusion rules for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nSets Copilot content exclusion path rules for an organization.\nTo configure these settings, go to the organization's settings on GitHub.\nFor more information, see \"[Excluding content from GitHub Copilot](https://docs.github.com/copilot/managing-copilot/configuring-and-auditing-content-exclusion/excluding-content-from-github-copilot#configuring-content-exclusions-for-your-organization).\"\n\nOrganization owners can set Copilot content exclusion rules for the organization.\n\nOAuth app tokens and personal access tokens (classic) need the `copilot` scope to use this endpoint.\n\n> [!CAUTION]\n> * At this time, the API does not support comments. When using this endpoint, any existing comments in your rules will be deleted.\n> * At this time, the API does not support duplicate keys. If you submit content exclusions through the API with duplicate keys, only the last occurrence will be saved. Earlier entries with the same key will be overwritten.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/set-copilot-content-exclusion-for-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-content-exclusion-management#set-copilot-content-exclusion-rules-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "description": "The content exclusion rules to set",
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "The path to the file that will be excluded."
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "ifAnyMatch": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "ifAnyMatch"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "ifNoneMatch": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "ifNoneMatch"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Example of content exclusion paths",
+            "value": {
+              "octo-repo": [
+                "/src/some-dir/kernel.rs"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Success",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "message": "Content exclusion rules updated successfully."
+              }
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "413": {
+      "$ref": "#/components/responses/too_large"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": null,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-content-exclusion-management"
+  }
+}

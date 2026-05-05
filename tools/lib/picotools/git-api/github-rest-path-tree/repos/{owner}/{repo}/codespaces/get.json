@@ -1,0 +1,76 @@
+{
+  "summary": "List codespaces in a repository for the authenticated user",
+  "description": "Lists the codespaces associated to a specified repository and the authenticated user.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/list-in-repository-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/codespaces#list-codespaces-in-a-repository-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "codespaces"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "codespaces": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/codespace"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespaces-list-for-repository"
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "codespaces"
+  }
+}

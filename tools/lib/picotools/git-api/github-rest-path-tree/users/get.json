@@ -1,0 +1,57 @@
+{
+  "summary": "List users",
+  "description": "Lists all users, in the order that they signed up on GitHub. This list includes personal user accounts and organization accounts.\n\nNote: Pagination is powered exclusively by the `since` parameter. Use the [Link header](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api#using-link-headers) to get the URL for the next page of users.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/list",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/users#list-users"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/since-user"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/simple-user"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/simple-user-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "example": "<https://api.github.com/users?since=135>; rel=\"next\"",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "users"
+  }
+}

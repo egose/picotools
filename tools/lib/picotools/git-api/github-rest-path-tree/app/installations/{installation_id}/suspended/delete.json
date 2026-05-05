@@ -1,0 +1,31 @@
+{
+  "summary": "Unsuspend an app installation",
+  "description": "Removes a GitHub App installation suspension.\n\nYou must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/unsuspend-installation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/apps#unsuspend-an-app-installation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/installation-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "apps"
+  }
+}

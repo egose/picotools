@@ -1,0 +1,23 @@
+{
+  "summary": "Remove interaction restrictions from your public repositories",
+  "description": "Removes any interaction restrictions from your public repositories.",
+  "tags": [
+    "interactions"
+  ],
+  "operationId": "interactions/remove-restrictions-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/interactions/user#remove-interaction-restrictions-from-your-public-repositories"
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "interactions",
+    "subcategory": "user"
+  }
+}

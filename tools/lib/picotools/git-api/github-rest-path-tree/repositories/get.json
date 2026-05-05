@@ -1,0 +1,57 @@
+{
+  "summary": "List public repositories",
+  "description": "Lists all public repositories in the order that they were created.\n\nNote:\n- For GitHub Enterprise Server, this endpoint will only list repositories available to all users on the enterprise.\n- Pagination is powered exclusively by the `since` parameter. Use the [Link header](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api#using-link-headers) to get the URL for the next page of repositories.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-public",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#list-public-repositories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/since-repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/minimal-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/public-repository-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "example": "<https://api.github.com/repositories?since=364>; rel=\"next\"",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

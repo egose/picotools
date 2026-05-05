@@ -1,0 +1,78 @@
+{
+  "summary": "Update an organization membership for the authenticated user",
+  "description": "Converts the authenticated user to an active member of the organization, if that user has a pending invitation from the organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/update-membership-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/members#update-an-organization-membership-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "description": "The state that the membership should be in. Only `\"active\"` will be accepted.",
+              "enum": [
+                "active"
+              ]
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "state": "active"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-membership"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-membership-2"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "members"
+  }
+}

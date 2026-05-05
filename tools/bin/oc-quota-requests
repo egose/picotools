@@ -30,9 +30,10 @@ the quota-comparison totals.
 Options:
   -n, --namespace NS    Namespace/project to target
       --quota-name NAME Quota resource name (default: compute-long-running-quota)
+  --debug               Print progress details to stderr
   -h, --help, help      Show this help message
   -v, --version, version
-                        Show the tool version
+                         Show the tool version
 
 Examples:
   oc-quota-requests
@@ -45,11 +46,37 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[oc-quota-requests] %s\n' "$1" >&2
+  fi
+}
+
 run_oc() {
+  local namespace_suffix=''
+
+  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
+    namespace_suffix=" in namespace '$OC_QUOTA_REQUESTS_NAMESPACE'"
+  fi
+
+  debug_log "Running oc $*$namespace_suffix"
   picotools_oc "$OC_QUOTA_REQUESTS_NAMESPACE" "$@"
 }
 
 run_oc_adm_top_pods() {
+  local namespace_suffix=''
+
+  if [ -n "$OC_QUOTA_REQUESTS_NAMESPACE" ]; then
+    namespace_suffix=" in namespace '$OC_QUOTA_REQUESTS_NAMESPACE'"
+  fi
+
+  debug_log "Running oc adm top pods$namespace_suffix"
   picotools_oc_adm_top_pods "$OC_QUOTA_REQUESTS_NAMESPACE"
 }
 
@@ -472,6 +499,8 @@ fetch_quota_scope_rules() {
 
   QUOTA_SCOPE_NAMES=()
   QUOTA_SCOPE_EXPRESSIONS=()
+
+  debug_log "Fetching scope rules for quota '$OC_QUOTA_REQUESTS_QUOTA_NAME'"
 
   scopes_output=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{range .spec.scopes[*]}{.}{"\n"}{end}')
   while IFS= read -r line; do
@@ -909,6 +938,10 @@ main() {
       OC_QUOTA_REQUESTS_QUOTA_NAME="$2"
       shift 2
       ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
     *)
       echo "Error: unknown argument: $1" >&2
       usage >&2
@@ -921,6 +954,7 @@ main() {
 
   picotools_require_oc
   namespace_name=$(current_namespace)
+  debug_log "Analyzing quota '$OC_QUOTA_REQUESTS_QUOTA_NAME' in namespace '$namespace_name'"
 
   quota_data=$(run_oc get quota "$OC_QUOTA_REQUESTS_QUOTA_NAME" -o jsonpath='{.status.hard.requests\.cpu}{"\t"}{.status.hard.requests\.memory}{"\t"}{.status.used.requests\.cpu}{"\t"}{.status.used.requests\.memory}')
   IFS=$'\t' read -r quota_hard_cpu_raw quota_hard_memory_raw quota_used_cpu_raw quota_used_memory_raw <<<"$quota_data"
@@ -944,6 +978,7 @@ main() {
       fi
 
       pod_names+=("$pod_name")
+      debug_log "Collecting request totals for pod '$pod_name'"
       pod_totals=$(pod_request_totals "$pod_name")
       IFS=$'\t' read -r POD_REQUEST_CPU_MILLICORES["$pod_name"] POD_REQUEST_MEMORY_BYTES["$pod_name"] <<<"$pod_totals"
       pod_match_state=$(pod_quota_match_status "$pod_name")
@@ -974,6 +1009,8 @@ main() {
     POD_USAGE_CPU_MILLICORES["$usage_pod_name"]=$(parse_cpu_to_millicores "$usage_cpu_raw")
     POD_USAGE_MEMORY_BYTES["$usage_pod_name"]=$(parse_memory_to_bytes "$usage_memory_raw")
   done < <(run_oc_adm_top_pods)
+
+  debug_log "Collected metrics for ${#POD_USAGE_CPU_MILLICORES[@]} pod(s)"
 
   for pod_name in "${pod_names[@]}"; do
     case "${POD_QUOTA_MATCH_STATE[$pod_name]:-unknown}" in

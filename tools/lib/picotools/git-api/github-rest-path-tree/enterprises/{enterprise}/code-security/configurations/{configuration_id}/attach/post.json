@@ -1,0 +1,72 @@
+{
+  "summary": "Attach an enterprise configuration to repositories",
+  "description": "Attaches an enterprise code security configuration to repositories. If the repositories specified are already attached to a configuration, they will be re-attached to the provided configuration.\n\nIf insufficient GHAS licenses are available to attach the configuration to a repository, only free features will be enabled.\n\nThe authenticated user must be an administrator for the enterprise to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:enterprise` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/attach-enterprise-configuration",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#attach-an-enterprise-configuration-to-repositories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/configuration-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "scope": {
+              "type": "string",
+              "description": "The type of repositories to attach the configuration to.",
+              "enum": [
+                "all",
+                "all_without_configurations"
+              ]
+            }
+          },
+          "required": [
+            "scope"
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example for attaching a configuration to some repositories",
+            "value": {
+              "scope": "all"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "202": {
+      "$ref": "#/components/responses/accepted"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

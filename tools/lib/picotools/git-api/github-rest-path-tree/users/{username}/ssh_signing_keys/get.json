@@ -1,0 +1,54 @@
+{
+  "summary": "List SSH signing keys for a user",
+  "description": "Lists the SSH signing keys for a user. This operation is accessible by anyone.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/list-ssh-signing-keys-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/ssh-signing-keys#list-ssh-signing-keys-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ssh-signing-key"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/ssh-signing-key-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "ssh-signing-keys"
+  }
+}

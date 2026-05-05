@@ -1,0 +1,69 @@
+{
+  "summary": "Get all budgets for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nGets all budgets for an organization. The authenticated user must be an organization admin or billing manager.\nEach page returns up to 10 budgets.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/get-all-budgets-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/budgets#get-all-budgets-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "page",
+      "description": "The page number of the results to fetch.",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "default": 1
+      }
+    },
+    {
+      "name": "per_page",
+      "description": "The number of results per page (max 10).",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "default": 10
+      }
+    },
+    {
+      "name": "scope",
+      "description": "Filter budgets by scope type.",
+      "in": "query",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "enterprise",
+          "organization",
+          "repository",
+          "cost_center"
+        ]
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/get_all_budgets"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "billing",
+    "subcategory": "budgets"
+  }
+}

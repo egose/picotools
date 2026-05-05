@@ -1,0 +1,28 @@
+{
+  "summary": "Remove interaction restrictions for an organization",
+  "description": "Removes all interaction restrictions from public repositories in the given organization. You must be an organization owner to remove restrictions.",
+  "tags": [
+    "interactions"
+  ],
+  "operationId": "interactions/remove-restrictions-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/interactions/orgs#remove-interaction-restrictions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "interactions",
+    "subcategory": "orgs"
+  }
+}

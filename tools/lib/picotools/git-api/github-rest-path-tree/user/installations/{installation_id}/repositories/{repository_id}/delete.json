@@ -1,0 +1,43 @@
+{
+  "summary": "Remove a repository from an app installation",
+  "description": "Remove a single repository from an installation. The authenticated user must have admin access to the repository. The installation must have the `repository_selection` of `selected`.\n\nThis endpoint only works for PATs (classic) with the `repo` scope.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/remove-repo-from-installation-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/installations#remove-a-repository-from-an-app-installation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/installation-id"
+    },
+    {
+      "$ref": "#/components/parameters/repository-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Returned when the application is installed on `all` repositories in the organization, or if this request would remove the last repository that the application has access to in the organization."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "installations"
+  }
+}

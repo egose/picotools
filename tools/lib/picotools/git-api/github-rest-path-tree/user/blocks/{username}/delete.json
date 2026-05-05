@@ -1,0 +1,40 @@
+{
+  "summary": "Unblock a user",
+  "description": "Unblocks the given user and returns a 204.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/unblock",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/blocking#unblock-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "blocking"
+  }
+}

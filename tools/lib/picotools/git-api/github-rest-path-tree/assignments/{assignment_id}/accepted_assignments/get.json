@@ -1,0 +1,48 @@
+{
+  "summary": "List accepted assignments for an assignment",
+  "description": "Lists any assignment repositories that have been created by students accepting a GitHub Classroom assignment. Accepted assignments will only be returned if the current user is an administrator of the GitHub Classroom for the assignment.",
+  "tags": [
+    "classroom"
+  ],
+  "operationId": "classroom/list-accepted-assignments-for-an-assignment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/classroom/classroom#list-accepted-assignments-for-an-assignment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/assignment-id"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/classroom-accepted-assignment"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/classroom-accepted-assignment"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "classroom",
+    "subcategory": "classroom"
+  }
+}

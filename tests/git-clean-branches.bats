@@ -121,12 +121,20 @@ checkout_topic_branch() {
   mkdir -p "$TMP_HOME/worktrees"
   git -C "$REPO_DIR" worktree add -q "$worktree_dir" feat/git-context
 
-  run bash -c 'cd "$1" && "$2" --yes' _ "$REPO_DIR" "$TOOL"
+  run bash -c 'cd "$1" && "$2" --debug --yes' _ "$REPO_DIR" "$TOOL"
 
   [ "$status" -eq 0 ] || fail 'cleaning branches should succeed when another worktree exists'
+  assert_contains "$output" "[git-clean-branches] Cleaning branches against remote 'origin'" 'debug mode should identify the selected remote'
   assert_contains "$output" 'Local branches to delete:' 'should still delete other local branches'
   assert_contains "$output" '  dv' 'should include deletable local branches'
   assert_not_contains "$output" '  feat/git-context' 'should skip branches used by another worktree'
   assert_branch_missing "$REPO_DIR" 'dv' 'should delete local branches not used by a worktree'
   assert_branch_exists "$REPO_DIR" 'feat/git-context' 'should preserve branches checked out in another worktree'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'git-clean-branches --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

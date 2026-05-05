@@ -1,0 +1,57 @@
+{
+  "summary": "List deploy keys",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-deploy-keys",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deploy-keys/deploy-keys#list-deploy-keys"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/deploy-key"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deploy-key-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deploy-keys",
+    "subcategory": "deploy-keys"
+  }
+}

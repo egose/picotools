@@ -56,9 +56,11 @@ assert_contains() {
     'python 3.11.9 # existing plugin add failure should be ignored' \
     >"$tool_versions_file"
 
-  run "$TOOL" "$tool_versions_file"
+  run "$TOOL" --debug "$tool_versions_file"
 
   [ "$status" -eq 0 ] || fail 'asdf-install should succeed for a valid tool-versions file'
+  assert_contains "$output" "[asdf-install] Using tool versions file '$tool_versions_file'" 'should print the selected file in debug mode'
+  assert_contains "$output" "[asdf-install] Ensuring asdf plugin 'nodejs' is installed" 'should log plugin discovery in debug mode'
   assert_contains "$output" 'Installing nodejs 20.11.1...' 'should print the nodejs install step'
   assert_contains "$output" 'Installing python 3.11.9...' 'should print the python install step'
 
@@ -76,4 +78,11 @@ assert_contains() {
 
   [ "$status" -eq 1 ] || fail 'asdf-install should fail when the input file is missing'
   assert_contains "$output" 'Error: file not found:' 'should explain that the input file does not exist'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'asdf-install --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

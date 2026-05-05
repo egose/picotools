@@ -1,0 +1,52 @@
+{
+  "summary": "Get large files",
+  "description": "List files larger than 100MB found during the import\n\n> [!WARNING]\n> **Endpoint closing down notice:** Due to very low levels of usage and available alternatives, this endpoint is closing down and will no longer be available from 00:00 UTC on April 12, 2024. For more details and alternatives, see the [changelog](https://gh.io/source-imports-api-deprecation).",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/get-large-files",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/source-imports#get-large-files"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/porter-large-file"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/porter-large-file-items"
+            }
+          }
+        }
+      }
+    },
+    "503": {
+      "$ref": "#/components/responses/porter_maintenance"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "migrations",
+    "subcategory": "source-imports",
+    "deprecationDate": "2023-10-12",
+    "removalDate": "2024-04-12"
+  },
+  "deprecated": true
+}

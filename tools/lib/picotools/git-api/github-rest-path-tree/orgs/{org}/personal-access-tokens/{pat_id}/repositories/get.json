@@ -1,0 +1,72 @@
+{
+  "summary": "List repositories a fine-grained personal access token has access to",
+  "description": "Lists the repositories a fine-grained personal access token has access to.\n\nOnly GitHub Apps can use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-pat-grant-repositories",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/personal-access-tokens#list-repositories-a-fine-grained-personal-access-token-has-access-to"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "pat_id",
+      "in": "path",
+      "description": "Unique identifier of the fine-grained personal access token.",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/minimal-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "personal-access-tokens"
+  }
+}

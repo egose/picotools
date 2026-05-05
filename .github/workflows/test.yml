@@ -36,7 +36,7 @@ jobs:
 
         chmod +x bin/* tools/bin/*
         mkdir -p dist tmp/download tmp/install
-        tar -czf dist/picotools-test.tar.gz -C . VERSION lib -C tools bin
+        tar -czf dist/picotools-test.tar.gz -C . VERSION lib -C tools bin lib
         cp dist/picotools-test.tar.gz tmp/download/
 
         ASDF_INSTALL_TYPE=version \
@@ -59,6 +59,11 @@ jobs:
 
         "$PWD/tmp/install/bin/gh-repo-sync" --help >/dev/null
         test "$("$PWD/tmp/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/git-api" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/git-api" --version)" = "$(cat VERSION)"
+        test -f "$PWD/tmp/install/lib/picotools/git-api/operation-id-index.json"
+        test -f "$PWD/tmp/install/lib/picotools/git-api/github-rest-path-tree/repos/{owner}/{repo}/get.json"
 
         "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"

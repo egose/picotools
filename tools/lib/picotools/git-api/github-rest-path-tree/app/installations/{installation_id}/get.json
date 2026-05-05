@@ -1,0 +1,43 @@
+{
+  "summary": "Get an installation for the authenticated app",
+  "description": "Enables an authenticated GitHub App to find an installation's information using the installation id.\n\nYou must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/get-installation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/apps#get-an-installation-for-the-authenticated-app"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/installation-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/installation"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/base-installation"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "apps",
+    "subcategory": "apps"
+  }
+}

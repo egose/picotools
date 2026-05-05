@@ -1,0 +1,86 @@
+{
+  "summary": "Get repositories associated with a code security configuration",
+  "description": "Lists the repositories associated with a code security configuration in an organization.\n\nThe authenticated user must be an administrator or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/get-repositories-for-configuration",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#get-repositories-associated-with-a-code-security-configuration"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/configuration-id"
+    },
+    {
+      "name": "per_page",
+      "description": "The number of results per page (max 100). For more information, see \"[Using pagination in the REST API](https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api).\"",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "integer",
+        "default": 30
+      }
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "name": "status",
+      "description": "A comma-separated list of statuses. If specified, only repositories with these attachment statuses will be returned.\n\nCan be: `all`, `attached`, `attaching`, `detached`, `removed`, `enforced`, `failed`, `updating`, `removed_by_enterprise`",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "all"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/code-security-configuration-repositories"
+            }
+          },
+          "examples": {
+            "default": {
+              "summary": "Example of code security configuration repositories",
+              "value": [
+                {
+                  "status": "attached",
+                  "repository": {
+                    "$ref": "#/components/examples/simple-repository"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

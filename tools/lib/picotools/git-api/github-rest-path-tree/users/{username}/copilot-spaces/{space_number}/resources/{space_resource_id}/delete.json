@@ -1,0 +1,51 @@
+{
+  "summary": "Delete a resource from a Copilot Space for a user",
+  "description": "Deletes a resource from a specific Copilot Space owned by a user.\nThe authenticated user must have write permissions on the space.\n\nOAuth app tokens and personal access tokens (classic) need the `write:user` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/delete-resource-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/resources#delete-a-resource-from-a-copilot-space-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "name": "space_resource_id",
+      "description": "The unique identifier of the resource.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": false,
+    "category": "copilot-spaces",
+    "subcategory": "resources"
+  }
+}

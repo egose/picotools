@@ -1,0 +1,37 @@
+{
+  "summary": "Remove team membership",
+  "description": "Remove membership of a specific user from a particular team in an enterprise.",
+  "tags": [
+    "enterprise-team-memberships"
+  ],
+  "operationId": "enterprise-team-memberships/remove",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-members#remove-team-membership"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-members"
+  }
+}

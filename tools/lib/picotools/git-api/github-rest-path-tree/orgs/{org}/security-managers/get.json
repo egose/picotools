@@ -1,0 +1,47 @@
+{
+  "summary": "List security manager teams",
+  "description": "> [!WARNING]\n> **Closing down notice:** This operation is closing down and will be removed starting January 1, 2026. Please use the \"[Organization Roles](https://docs.github.com/rest/orgs/organization-roles)\" endpoints instead.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-security-manager-teams",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/security-managers#list-security-manager-teams"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/team-simple"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-simple-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "orgs",
+    "subcategory": "security-managers",
+    "deprecationDate": "2024-12-01",
+    "removalDate": "2026-01-01"
+  },
+  "deprecated": true
+}

@@ -1,0 +1,96 @@
+{
+  "summary": "List workflow runs for a workflow",
+  "description": "List all workflow runs for a workflow. You can replace `workflow_id` with the workflow file name. For example, you could use `main.yaml`. You can use parameters to narrow the list of results. For more information about using parameters, see [Parameters](https://docs.github.com/rest/guides/getting-started-with-the-rest-api#parameters).\n\nAnyone with read access to the repository can use this endpoint\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with a private repository.\n\nThis endpoint will return up to 1,000 results for each search when using the following parameters: `actor`, `branch`, `check_suite_id`, `created`, `event`, `head_sha`, `status`.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/list-workflow-runs",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-id"
+    },
+    {
+      "$ref": "#/components/parameters/actor"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-run-branch"
+    },
+    {
+      "$ref": "#/components/parameters/event"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-run-status"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/created"
+    },
+    {
+      "$ref": "#/components/parameters/exclude-pull-requests"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-run-check-suite-id"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-run-head-sha"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "workflow_runs"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "workflow_runs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/workflow-run"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/workflow-run-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "workflow-runs"
+  }
+}

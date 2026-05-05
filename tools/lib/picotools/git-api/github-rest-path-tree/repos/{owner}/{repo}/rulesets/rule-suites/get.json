@@ -1,0 +1,67 @@
+{
+  "summary": "List repository rule suites",
+  "description": "Lists suites of rule evaluations at the repository level.\nFor more information, see \"[Managing rulesets for a repository](https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository#viewing-insights-for-rulesets).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-repo-rule-suites",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/rule-suites#list-repository-rule-suites"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/ref-in-query"
+    },
+    {
+      "$ref": "#/components/parameters/time-period"
+    },
+    {
+      "$ref": "#/components/parameters/actor-name-in-query"
+    },
+    {
+      "$ref": "#/components/parameters/rule-suite-result"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/rule-suites"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/rule-suite-items"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "rule-suites"
+  }
+}

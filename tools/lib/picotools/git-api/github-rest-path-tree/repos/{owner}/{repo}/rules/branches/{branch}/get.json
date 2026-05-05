@@ -1,0 +1,55 @@
+{
+  "summary": "Get rules for a branch",
+  "description": "Returns all active rules that apply to the specified branch. The branch does not need to exist; rules that would apply\nto a branch with that name will be returned. All active rules that apply will be returned, regardless of the level\nat which they are configured (e.g. repository or organization). Rules in rulesets with \"evaluate\" or \"disabled\"\nenforcement statuses are not returned.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-branch-rules",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/rules#get-rules-for-a-branch"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/repository-rule-detailed"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-rule-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "rules"
+  }
+}

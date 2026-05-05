@@ -1,0 +1,52 @@
+{
+  "summary": "Get a repository rule suite",
+  "description": "Gets information about a suite of rule evaluations from within a repository.\nFor more information, see \"[Managing rulesets for a repository](https://docs.github.com/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository#viewing-insights-for-rulesets).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-repo-rule-suite",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/rule-suites#get-a-repository-rule-suite"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/rule-suite-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/rule-suite"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/rule-suite"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "rule-suites"
+  }
+}

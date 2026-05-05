@@ -1,0 +1,40 @@
+{
+  "summary": "Unfollow a user",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `user:follow` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/unfollow",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/followers#unfollow-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "followers"
+  }
+}

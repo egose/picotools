@@ -1,0 +1,49 @@
+{
+  "summary": "Get top referral paths",
+  "description": "Get the top 10 popular contents over the last 14 days.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-top-paths",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/metrics/traffic#get-top-referral-paths"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/content-traffic"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/content-traffic-items"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "metrics",
+    "subcategory": "traffic"
+  }
+}

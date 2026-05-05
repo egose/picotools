@@ -1,0 +1,64 @@
+{
+  "summary": "Set the coding agent policy for an enterprise",
+  "description": "Sets the policy for Copilot cloud agent usage across an enterprise.\n\nEnterprise owners can configure whether Copilot cloud agent is enabled for all\norganizations, disabled for all organizations, configured by individual organization\nadmins, or enabled for selected organizations only.\n\nOnly enterprise owners can set the coding agent policy for their enterprise.\n\nOAuth app tokens and personal access tokens (classic) need either the `manage_billing:copilot` or `admin:enterprise` scopes to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/set-enterprise-coding-agent-policy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-coding-agent-management#set-the-coding-agent-policy-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "description": "The coding agent policy configuration",
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "policy_state": {
+              "type": "string",
+              "description": "The policy state for Copilot cloud agent in the enterprise. Can be one of `enabled_for_all_orgs`, `disabled_for_all_orgs`, `enabled_for_selected_orgs`, or `configured_by_org_admins`.",
+              "enum": [
+                "enabled_for_all_orgs",
+                "disabled_for_all_orgs",
+                "enabled_for_selected_orgs",
+                "configured_by_org_admins"
+              ]
+            }
+          },
+          "required": [
+            "policy_state"
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Enable coding agent for all organizations",
+            "value": {
+              "policy_state": "enabled_for_all_orgs"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": false,
+    "category": "copilot",
+    "subcategory": "copilot-coding-agent-management"
+  }
+}

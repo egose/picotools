@@ -1,0 +1,82 @@
+{
+  "summary": "Create a GPG key for the authenticated user",
+  "description": "Adds a GPG key to the authenticated user's GitHub account.\n\nOAuth app tokens and personal access tokens (classic) need the `write:gpg_key` scope to use this endpoint.",
+  "operationId": "users/create-gpg-key-for-authenticated-user",
+  "tags": [
+    "users"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/gpg-keys#create-a-gpg-key-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "name": {
+              "description": "A descriptive name for the new key.",
+              "type": "string"
+            },
+            "armored_public_key": {
+              "description": "A GPG key in ASCII-armored format.",
+              "type": "string"
+            }
+          },
+          "type": "object",
+          "required": [
+            "armored_public_key"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "Octocat's GPG Key",
+              "armored_public_key": "-----BEGIN PGP PUBLIC KEY BLOCK-----\nVersion: GnuPG v1\n\nmQINBFnZ2ZIBEADQ2Z7Z7\n-----END PGP PUBLIC KEY BLOCK-----"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/gpg-key"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/gpg-key"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "gpg-keys"
+  }
+}

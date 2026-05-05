@@ -1,0 +1,42 @@
+{
+  "summary": "Delete an organization Copilot Space",
+  "description": "Deletes a Copilot Space owned by an organization. The authenticated user must have permissions to delete spaces in the organization.\n\n**Warning:** This action is permanent and cannot be undone. Deleting a Copilot Space will remove all associated resources and configurations.\n\nOrganization members with appropriate permissions can delete Copilot Spaces owned by their organization.\n\nOAuth app tokens and personal access tokens (classic) need both the `read:org` and `repo` scopes to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/delete-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/copilot-spaces#delete-an-organization-copilot-space"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "The Copilot Space has been successfully deleted."
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "copilot-spaces"
+  }
+}

@@ -98,8 +98,9 @@ assert_not_contains() {
   printf '%s\n' 'nodejs 20.11.1' >"$WORKSPACE_DIR/.tool-versions"
   printf '%s\n' 'python 3.11.9' >"$WORKSPACE_DIR/apps/api/.tool-versions"
 
-  output=$("$TOOL" --yes --ignore-path apps/api "$WORKSPACE_DIR")
+  output=$("$TOOL" --debug --yes --ignore-path apps/api "$WORKSPACE_DIR" 2>&1)
 
+  assert_contains "$output" '[asdf-clean-unused] Scanning workspace' 'should log the target workspace in debug mode'
   assert_contains "$output" 'Scanned .tool-versions files: 1' 'should only count non-ignored tool-versions files'
   assert_contains "$output" 'Unused asdf plugins:' 'should print the unused plugin section'
   assert_contains "$output" '  python' 'should treat ignored-path tools as unused'
@@ -113,4 +114,11 @@ assert_not_contains() {
   assert_contains "$log_contents" 'plugin remove python' 'should remove the ignored-path plugin when it is otherwise unused'
   assert_contains "$log_contents" 'plugin remove ruby' 'should remove plugins not referenced by any scanned file'
   assert_contains "$log_contents" 'reshim' 'should reshim after removals complete'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'asdf-clean-unused --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

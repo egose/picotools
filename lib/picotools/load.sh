@@ -10,7 +10,7 @@ picotools_lib_dir_from_script_dir() {
   local candidate
 
   for candidate in "$script_dir/../lib/picotools" "$script_dir/../../lib/picotools"; do
-    if [ -d "$candidate" ]; then
+    if [ -d "$candidate" ] && [ -f "$candidate/load.sh" ]; then
       printf '%s\n' "$candidate"
       return 0
     fi

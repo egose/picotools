@@ -1,0 +1,31 @@
+{
+  "summary": "Disable Dependabot security updates",
+  "description": "Disables Dependabot security updates for a repository. The authenticated user must have admin access to the repository. For more information, see \"[Configuring Dependabot security updates](https://docs.github.com/articles/configuring-automated-security-fixes)\".",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/disable-automated-security-fixes",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#disable-dependabot-security-updates"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

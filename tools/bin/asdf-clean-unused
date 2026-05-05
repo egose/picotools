@@ -27,6 +27,7 @@ confirmation. Use --yes to skip the confirmation prompt.
 Options:
   --yes                      Remove unused versions and plugins without prompting
   --ignore-path PATH         Ignore an additional path while scanning; repeatable
+  --debug                    Print progress details to stderr
   -h, --help, help           Show this help message
   -v, --version, version     Show the tool version
 
@@ -37,6 +38,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[asdf-clean-unused] %s\n' "$1" >&2
+  fi
 }
 
 cleanup_tmp_dir() {
@@ -247,6 +260,10 @@ main() {
       ignored_paths_raw+=("$2")
       shift 2
       ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
     -h | --help | help)
       usage
       exit 0
@@ -277,16 +294,19 @@ main() {
 
   local workspace_abs
   workspace_abs="$(cd "$workspace" && pwd)"
+  debug_log "Scanning workspace '$workspace_abs'"
 
   local ignored_path
   for ignored_path in "${ignored_paths_raw[@]}"; do
     ignored_paths+=("$(normalize_ignore_path "$workspace_abs" "$ignored_path")")
+    debug_log "Ignoring additional path '$(normalize_ignore_path "$workspace_abs" "$ignored_path")'"
   done
 
   local tmp_dir
   tmp_dir="$(mktemp -d)"
   ASDF_CLEAN_UNUSED_TMP_DIR="$tmp_dir"
   trap 'cleanup_tmp_dir' EXIT
+  debug_log "Created temporary directory '$tmp_dir'"
 
   local tool_versions_files=()
   local file
@@ -302,6 +322,8 @@ main() {
     echo "No .tool-versions files found under $workspace_abs"
     exit 0
   fi
+
+  debug_log "Found ${#tool_versions_files[@]} .tool-versions file(s)"
 
   local used_tools_file="$tmp_dir/used-tools"
   collect_used_tools "$used_tools_file" "${tool_versions_files[@]}"
@@ -381,16 +403,19 @@ main() {
 
   while IFS=$'\t' read -r installed_tool version; do
     [ -n "$installed_tool" ] || continue
+    debug_log "Removing unused version '$installed_tool $version'"
     echo "Removing $installed_tool $version..."
     asdf uninstall "$installed_tool" "$version"
   done <"$version_actions_file"
 
   while IFS= read -r installed_tool; do
     [ -n "$installed_tool" ] || continue
+    debug_log "Removing unused plugin '$installed_tool'"
     echo "Removing plugin $installed_tool..."
     asdf plugin remove "$installed_tool"
   done <"$unused_tools_file"
 
+  debug_log 'Running asdf reshim'
   asdf reshim
 }
 

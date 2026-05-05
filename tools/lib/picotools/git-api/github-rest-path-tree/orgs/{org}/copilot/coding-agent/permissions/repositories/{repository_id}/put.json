@@ -1,0 +1,49 @@
+{
+  "summary": "Enable a repository for Copilot cloud agent in an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nAdds a repository to the list of selected repositories enabled for Copilot\ncloud agent in an organization. This method can only be called when the\ncloud agent repository policy is set to `selected`.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/enable-copilot-coding-agent-for-repository-in-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-coding-agent-management#enable-a-repository-for-copilot-cloud-agent-in-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/repository-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "No Content"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-coding-agent-management"
+  }
+}

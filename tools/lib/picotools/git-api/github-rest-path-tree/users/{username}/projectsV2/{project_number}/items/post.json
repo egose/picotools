@@ -1,0 +1,162 @@
+{
+  "summary": "Add item to user owned project",
+  "description": "Add an issue or pull request item to the specified user owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/add-item-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/items#add-item-to-user-owned-project"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/project-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "description": "Details of the item to add to the project. You can specify either the unique ID or the repository owner, name, and issue/PR number.",
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string",
+              "enum": [
+                "Issue",
+                "PullRequest"
+              ],
+              "description": "The type of item to add to the project. Must be either Issue or PullRequest."
+            },
+            "id": {
+              "type": "integer",
+              "description": "The unique identifier of the issue or pull request to add to the project."
+            },
+            "owner": {
+              "type": "string",
+              "description": "The repository owner login."
+            },
+            "repo": {
+              "type": "string",
+              "description": "The repository name."
+            },
+            "number": {
+              "type": "integer",
+              "description": "The issue or pull request number."
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "id"
+              ]
+            },
+            {
+              "required": [
+                "owner",
+                "repo",
+                "number"
+              ]
+            }
+          ]
+        },
+        "examples": {
+          "issue_with_id": {
+            "summary": "Add an issue using its unique ID",
+            "value": {
+              "type": "Issue",
+              "id": 3
+            }
+          },
+          "pull_request_with_id": {
+            "summary": "Add a pull request using its unique ID",
+            "value": {
+              "type": "PullRequest",
+              "id": 3
+            }
+          },
+          "issue_with_nwo": {
+            "summary": "Add an issue using repository owner, name, and issue number",
+            "value": {
+              "type": "Issue",
+              "owner": "octocat",
+              "repo": "hello-world",
+              "number": 42
+            }
+          },
+          "pull_request_with_nwo": {
+            "summary": "Add a pull request using repository owner, name, and PR number",
+            "value": {
+              "type": "PullRequest",
+              "owner": "octocat",
+              "repo": "hello-world",
+              "number": 123
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-item-simple"
+          },
+          "examples": {
+            "issue_with_id": {
+              "summary": "Response for adding an issue using its unique ID",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-item-simple"
+              }
+            },
+            "pull_request_with_id": {
+              "summary": "Response for adding a pull request using its unique ID",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-item-simple"
+              }
+            },
+            "issue_with_nwo": {
+              "summary": "Response for adding an issue using repository owner, name, and issue number",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-item-simple"
+              }
+            },
+            "pull_request_with_nwo": {
+              "summary": "Response for adding a pull request using repository owner, name, and PR number",
+              "value": {
+                "$ref": "#/components/examples/projects-v2-item-simple"
+              }
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "items"
+  }
+}

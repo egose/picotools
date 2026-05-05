@@ -1,0 +1,143 @@
+{
+  "summary": "Update a repository ruleset",
+  "description": "Update a ruleset for a repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-repo-ruleset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/rules#update-a-repository-ruleset"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "rules"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "ruleset_id",
+      "description": "The ID of the ruleset.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "description": "Request body",
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the ruleset."
+            },
+            "target": {
+              "type": "string",
+              "description": "The target of the ruleset",
+              "enum": [
+                "branch",
+                "tag",
+                "push"
+              ]
+            },
+            "enforcement": {
+              "$ref": "#/components/schemas/repository-rule-enforcement"
+            },
+            "bypass_actors": {
+              "type": "array",
+              "description": "The actors that can bypass the rules in this ruleset",
+              "items": {
+                "$ref": "#/components/schemas/repository-ruleset-bypass-actor"
+              }
+            },
+            "conditions": {
+              "$ref": "#/components/schemas/repository-ruleset-conditions"
+            },
+            "rules": {
+              "description": "An array of rules within the ruleset.",
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/repository-rule"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "super cool ruleset",
+              "target": "branch",
+              "enforcement": "active",
+              "bypass_actors": [
+                {
+                  "actor_id": 234,
+                  "actor_type": "Team",
+                  "bypass_mode": "always"
+                }
+              ],
+              "conditions": {
+                "ref_name": {
+                  "include": [
+                    "refs/heads/main",
+                    "refs/heads/master"
+                  ],
+                  "exclude": [
+                    "refs/heads/dev*"
+                  ]
+                }
+              },
+              "rules": [
+                {
+                  "type": "commit_author_email_pattern",
+                  "parameters": {
+                    "operator": "contains",
+                    "pattern": "github"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-ruleset"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-ruleset"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  }
+}

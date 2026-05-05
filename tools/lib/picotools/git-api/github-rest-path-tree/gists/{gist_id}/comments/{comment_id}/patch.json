@@ -1,0 +1,75 @@
+{
+  "summary": "Update a gist comment",
+  "description": "Updates a comment on a gist.\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github.raw+json`**: Returns the raw markdown. This is the default if you do not pass any specific media type.",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/update-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/comments#update-a-gist-comment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gist-id"
+    },
+    {
+      "$ref": "#/components/parameters/comment-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "body": {
+              "description": "The comment text.",
+              "type": "string",
+              "maxLength": 65535,
+              "example": "Body of the attachment"
+            }
+          },
+          "type": "object",
+          "required": [
+            "body"
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Updating a comment in a gist",
+            "value": {
+              "body": "This is an update to a comment in a gist"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/gist-comment"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/gist-comment"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "comments"
+  }
+}

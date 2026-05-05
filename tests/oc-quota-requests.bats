@@ -130,10 +130,12 @@ assert_not_contains() {
 }
 
 @test "renders quota report tables with utilization and slack columns" {
-  local output
+  local output debug_output
 
   output=$("$TOOL")
+  debug_output=$("$TOOL" --debug 2>&1)
 
+  assert_contains "$debug_output" "[oc-quota-requests] Analyzing quota 'compute-long-running-quota' in namespace 'b0c13b-dev'" 'debug mode should identify the quota target'
   assert_contains "$output" '| Namespace | b0c13b-dev' 'overview table should split the namespace field and value into separate columns'
   assert_contains "$output" '| Quota     | compute-long-running-quota |' 'overview table should render the quota name in the value column'
   assert_contains "$output" 'Usage %' 'quota table should include a separate usage percent column'
@@ -165,4 +167,11 @@ assert_not_contains() {
   assert_contains "$output" 'Rule of thumb: size CPU requests near steady-state p90, and memory requests nearer p95 unless restarts are cheap.' 'report should include a request-sizing rule of thumb'
   assert_contains "$output" 'treat utilization as the severity signal, and use slack to judge the size of the opportunity or risk' 'report should explain the utilization-versus-slack relationship'
   assert_not_contains "$output" '\t' 'rendered tables should not contain literal tab escape sequences'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'oc-quota-requests --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

@@ -1,0 +1,170 @@
+{
+  "summary": "Set a collaborator role for an organization Copilot Space",
+  "description": "Updates the role of a collaborator for a specific Copilot Space owned by an organization. The authenticated user must have appropriate permissions to manage collaborators.\n\nOAuth app tokens and personal access tokens (classic) need the `write:org` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/update-collaborator-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/collaborators#set-a-collaborator-role-for-an-organization-copilot-space"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "name": "actor_type",
+      "description": "The type of actor (user or team).",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "User",
+          "Team"
+        ]
+      }
+    },
+    {
+      "name": "actor_identifier",
+      "description": "The username (for users) or team slug (for teams). The numeric ID of a user or team is also accepted.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "role"
+          ],
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "reader",
+                "writer",
+                "admin",
+                "no_access"
+              ],
+              "description": "The new role to grant to the collaborator. Use `no_access` to remove the collaborator."
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "role": "admin"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/copilot-space-collaborator"
+          },
+          "examples": {
+            "user": {
+              "value": {
+                "actor_type": "User",
+                "role": "admin",
+                "login": "octocat",
+                "id": 12345,
+                "node_id": "MDQ6VXNlcjEyMzQ1",
+                "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/octocat",
+                "html_url": "https://github.com/octocat",
+                "followers_url": "https://api.github.com/users/octocat/followers",
+                "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+                "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+                "organizations_url": "https://api.github.com/users/octocat/orgs",
+                "repos_url": "https://api.github.com/users/octocat/repos",
+                "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/octocat/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false,
+                "name": "The Octocat",
+                "company": "GitHub",
+                "blog": "https://github.com/blog",
+                "location": "San Francisco",
+                "email": "octocat@github.com",
+                "hireable": false,
+                "bio": "There once was...",
+                "twitter_username": "octocat",
+                "public_repos": 2,
+                "public_gists": 1,
+                "followers": 20,
+                "following": 0,
+                "created_at": "2008-01-14T04:33:35Z",
+                "updated_at": "2008-01-14T04:33:35Z"
+              }
+            },
+            "team": {
+              "value": {
+                "actor_type": "Team",
+                "role": "admin",
+                "id": 67890,
+                "node_id": "MDQ6VGVhbTY3ODkw",
+                "url": "https://api.github.com/teams/67890",
+                "html_url": "https://github.com/orgs/octo-org/teams/developers",
+                "name": "Developers",
+                "slug": "developers",
+                "type": "Team",
+                "description": "Team of developers",
+                "privacy": "closed",
+                "notification_setting": "notifications_enabled",
+                "members_url": "https://api.github.com/teams/67890/members{/member}",
+                "repositories_url": "https://api.github.com/teams/67890/repos",
+                "parent": null,
+                "organization_id": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "204": {
+      "description": "Response when `role` is `no_access` and the collaborator was removed."
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "collaborators"
+  }
+}

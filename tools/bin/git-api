@@ -1,0 +1,391 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands prompt table version
+
+# shellcheck source=git-api.d/common.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/git-api.d/common.sh"
+# shellcheck source=git-api.d/spec.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/git-api.d/spec.sh"
+# shellcheck source=git-api.d/http.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/git-api.d/http.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: git-api [global-flags] <command>
+
+Commands:
+  configure                              Store a PAT token for authenticated requests
+  list [prefix]                          List common operationIds or filter by prefix
+  show <operationId>                     Show operation docs and parameter info
+  <operationId> [path-args...] [flags]   Call a GitHub REST operation by operationId
+
+Options:
+  --token TOKEN              Override the auth token for this invocation
+  Query flags come from the operation spec and use --<param-name>
+  --field KEY=VALUE          JSON body field
+  --header KEY=VALUE         Extra request header
+  --body-file PATH           Raw request body file
+  --api-root URL             Override the GitHub API root
+  --api-version DATE         Override the GitHub API version header
+  --debug                    Print request details to stderr
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
+
+Examples:
+  git-api configure
+  git-api --token ghp_xxx repos/get octocat hello-world
+  git-api list
+  git-api list repos/
+  git-api show repos/get
+  git-api repos/get octocat hello-world
+  git-api repos/list-for-org octocat --type all --per-page 10
+  git-api actions/list-artifacts-for-repo octocat hello-world --per-page 10
+  git-api pulls/create octocat hello-world --field title='My PR' --field head='feature-1' --field base='main'
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+prompt_secret_value() {
+  picotools_prompt_secret_value "$@"
+}
+
+debug_mode=false
+
+git_api_debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+git_api_debug_log() {
+  if git_api_debug_enabled; then
+    printf '[git-api] %s\n' "$1" >&2
+  fi
+}
+
+render_operations() {
+  local prefix="${1:-}"
+  local prefix_suffix=''
+  local line
+  local -a rows=()
+
+  picotools_require_command jq
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    rows+=("$line")
+  done < <(git_api_list_operations "$SCRIPT_DIR" "$prefix")
+
+  if [ -n "$prefix" ]; then
+    prefix_suffix=" for prefix '$prefix'"
+  fi
+
+  git_api_debug_log "Rendering ${#rows[@]} operation(s)$prefix_suffix"
+  picotools_print_table $'OperationId\tMethod\tPath\tSummary' "${rows[@]}"
+}
+
+configure_tool() {
+  local token
+
+  token=$(prompt_secret_value 'PAT_TOKEN' '' true)
+  git_api_write_token "$token"
+  echo 'Configured git-api PAT_TOKEN.'
+}
+
+show_operation() {
+  local operation_id="$1"
+  local file relative_path method rest_path docs_url summary description
+  local line
+
+  picotools_require_command jq
+  relative_path=$(git_api_operation_relative_path "$SCRIPT_DIR" "$operation_id")
+  file=$(git_api_operation_file "$SCRIPT_DIR" "$operation_id")
+  method=$(git_api_operation_method "$relative_path")
+  rest_path=$(git_api_operation_rest_path "$relative_path")
+  docs_url=$(git_api_operation_docs_url "$file")
+  summary=$(git_api_operation_summary "$file")
+  description=$(git_api_operation_description "$file")
+
+  git_api_debug_log "Showing operation metadata for '$operation_id' from '$file'"
+
+  printf 'Operation: %s\n' "$operation_id"
+  printf 'Method: %s\n' "${method^^}"
+  printf 'Path: %s\n' "$rest_path"
+  if [ -n "$summary" ]; then
+    printf 'Summary: %s\n' "$summary"
+  fi
+  if [ -n "$docs_url" ]; then
+    printf 'Docs: %s\n' "$docs_url"
+  fi
+
+  if [ -n "$description" ]; then
+    printf 'Description: %s\n' "$description"
+  fi
+
+  if line=$(git_api_extract_path_parameters "$rest_path" | paste -sd ' ' -); then
+    if [ -n "$line" ]; then
+      printf 'Path Args: %s\n' "$line"
+    fi
+  fi
+
+  while IFS=$'\t' read -r name required _; do
+    [ -n "$name" ] || continue
+    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$name")" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+  done < <(git_api_operation_query_parameters "$SCRIPT_DIR" "$file")
+
+  while IFS=$'\t' read -r name required _; do
+    [ -n "$name" ] || continue
+    printf 'Body Field: %s%s\n' "$name" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+  done < <(git_api_operation_body_fields "$file")
+}
+
+show_operation_usage() {
+  local operation_id="$1"
+  local file="$2"
+  local rest_path="$3"
+  local docs_url="$4"
+  local usage_line="git-api ${operation_id}"
+  local path_param line
+
+  while IFS= read -r path_param; do
+    [ -n "$path_param" ] || continue
+    usage_line+=" <${path_param}>"
+  done < <(git_api_extract_path_parameters "$rest_path")
+
+  printf '%s\n' "$usage_line [flags]"
+  if [ -n "$docs_url" ]; then
+    printf 'Docs: %s\n' "$docs_url"
+  fi
+
+  while IFS=$'\t' read -r query_name required description; do
+    [ -n "$query_name" ] || continue
+    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$query_name")" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+    if [ -n "$description" ]; then
+      printf '  %s\n' "$description"
+    fi
+  done < <(git_api_operation_query_parameters "$SCRIPT_DIR" "$file")
+}
+
+call_operation() {
+  local operation_id="$1"
+  shift
+  local file relative_path method path summary docs_url
+  local api_root
+  local api_version
+  local body_file=''
+  local arg flag_name matched_name description
+  local -a queries=()
+  local -a fields=()
+  local -a headers=()
+  local -a query_names=()
+  local -a path_params=()
+
+  picotools_require_commands curl jq
+  relative_path=$(git_api_operation_relative_path "$SCRIPT_DIR" "$operation_id")
+  file=$(git_api_operation_file "$SCRIPT_DIR" "$operation_id")
+  method=$(git_api_operation_method "$relative_path")
+  path=$(git_api_operation_rest_path "$relative_path")
+  summary=$(git_api_operation_summary "$file")
+  docs_url=$(git_api_operation_docs_url "$file")
+
+  api_root=$(git_api_default_api_root)
+  api_version=$(git_api_default_api_version)
+
+  case "${1:-}" in
+  -h | --help | help)
+    show_operation_usage "$operation_id" "$file" "$path" "$docs_url"
+    exit 0
+    ;;
+  esac
+
+  while IFS= read -r arg; do
+    [ -n "$arg" ] || continue
+    path_params+=("$arg")
+  done < <(git_api_extract_path_parameters "$path")
+
+  for arg in "${path_params[@]}"; do
+    if [ "$#" -eq 0 ] || [[ "$1" == --* ]]; then
+      echo "Error: missing required path argument <$arg> for $operation_id" >&2
+      if [ -n "$docs_url" ]; then
+        echo "Docs: $docs_url" >&2
+      fi
+      exit 1
+    fi
+    path=$(git_api_fill_path_placeholder "$path" "$arg" "$1")
+    shift
+  done
+
+  while IFS=$'\t' read -r arg _ description; do
+    [ -n "$arg" ] || continue
+    query_names+=("$arg")
+  done < <(git_api_operation_query_parameters "$SCRIPT_DIR" "$file")
+
+  while [ "$#" -gt 0 ]; do
+    arg="$1"
+    case "$arg" in
+    --field)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --field requires KEY=VALUE' >&2
+        exit 1
+      }
+      git_api_validate_key_value "$2" '--field'
+      fields+=("$2")
+      shift 2
+      ;;
+    --header)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --header requires KEY=VALUE' >&2
+        exit 1
+      }
+      git_api_validate_key_value "$2" '--header'
+      headers+=("$2")
+      shift 2
+      ;;
+    --body-file)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --body-file requires a path' >&2
+        exit 1
+      }
+      body_file="$2"
+      shift 2
+      ;;
+    --api-root)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --api-root requires a value' >&2
+        exit 1
+      }
+      api_root="$2"
+      shift 2
+      ;;
+    --api-version)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --api-version requires a value' >&2
+        exit 1
+      }
+      api_version="$2"
+      shift 2
+      ;;
+    -h | --help | help)
+      show_operation_usage "$operation_id" "$file" "$path" "$docs_url"
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --*)
+      flag_name=${arg#--}
+      matched_name=''
+      for description in "${query_names[@]}"; do
+        if git_api_flag_matches_parameter "$flag_name" "$description"; then
+          matched_name="$description"
+          break
+        fi
+      done
+      if [ -z "$matched_name" ]; then
+        echo "Error: unknown flag '$arg' for $operation_id" >&2
+        if [ -n "$docs_url" ]; then
+          echo "Docs: $docs_url" >&2
+        fi
+        exit 1
+      fi
+      [ "$#" -ge 2 ] || {
+        echo "Error: $arg requires a value" >&2
+        exit 1
+      }
+      queries+=("${matched_name}=$2")
+      shift 2
+      ;;
+    *)
+      echo "Error: unexpected argument: $arg" >&2
+      if [ -n "$docs_url" ]; then
+        echo "Docs: $docs_url" >&2
+      fi
+      exit 1
+      ;;
+    esac
+  done
+
+  git_api_assert_no_placeholders "$path"
+  git_api_debug_log "Calling '$operation_id' with method '${method^^}' path '$path'"
+  git_api_request "$method" "$api_root" "$api_version" "$path" "$body_file" \
+    "${queries[@]}" --headers "${headers[@]}" --fields "${fields[@]}"
+}
+
+main() {
+  local command="${1:-}"
+
+  while [ "$#" -gt 0 ]; do
+    case "${1:-}" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    --token)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --token requires a value' >&2
+        exit 1
+      }
+      export GIT_API_TOKEN_OVERRIDE="$2"
+      shift 2
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  command="${1:-}"
+
+  case "$command" in
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -v | --version | version)
+    print_version
+    exit 0
+    ;;
+  '')
+    usage >&2
+    exit 1
+    ;;
+  esac
+
+  shift
+
+  case "$command" in
+  configure)
+    configure_tool
+    ;;
+  list)
+    render_operations "${1:-}"
+    ;;
+  show)
+    [ "$#" -ge 1 ] || {
+      echo 'Error: show requires an operationId' >&2
+      usage >&2
+      exit 1
+    }
+    show_operation "$1"
+    ;;
+  *)
+    call_operation "$command" "$@"
+    ;;
+  esac
+}
+
+main "$@"

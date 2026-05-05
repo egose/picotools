@@ -1,0 +1,80 @@
+{
+  "summary": "List repositories accessible to the app installation",
+  "description": "List repositories that an app installation can access.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/list-repos-accessible-to-installation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/installations#list-repositories-accessible-to-the-app-installation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "repositories"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "repositories": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/repository"
+                    }
+                  ]
+                }
+              },
+              "repository_selection": {
+                "type": "string",
+                "example": "selected"
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-paginated-2"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "apps",
+    "subcategory": "installations"
+  }
+}

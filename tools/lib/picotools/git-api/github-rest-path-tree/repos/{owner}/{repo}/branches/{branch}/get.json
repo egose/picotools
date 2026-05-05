@@ -1,0 +1,52 @@
+{
+  "summary": "Get a branch",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-branch",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branches#get-a-branch"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/branch-with-protection"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/branch-get"
+            }
+          }
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "branches",
+    "subcategory": "branches"
+  }
+}

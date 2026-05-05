@@ -1,0 +1,52 @@
+{
+  "summary": "Get all custom property values for a repository",
+  "description": "Gets all custom property values that are set for a repository.\nUsers with read access to the repository can use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/custom-properties-for-repos-get-repository-values",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/custom-properties#get-all-custom-property-values-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/custom-property-value"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/custom-property-values"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "custom-properties"
+  }
+}

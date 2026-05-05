@@ -1,0 +1,49 @@
+{
+  "summary": "Get a deploy key",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-deploy-key",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deploy-keys/deploy-keys#get-a-deploy-key"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/key-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deploy-key"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deploy-key"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deploy-keys",
+    "subcategory": "deploy-keys"
+  }
+}

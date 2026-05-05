@@ -1,0 +1,46 @@
+{
+  "summary": "Get a private registry for an organization",
+  "description": "\nGet the configuration of a single private registry defined for an organization, omitting its encrypted value.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "private-registries"
+  ],
+  "operationId": "private-registries/get-org-private-registry",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/private-registries/organization-configurations#get-a-private-registry-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/secret-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "The specified private registry configuration for the organization",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-private-registry-configuration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-private-registry-configuration"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "private-registries",
+    "subcategory": "organization-configurations"
+  }
+}

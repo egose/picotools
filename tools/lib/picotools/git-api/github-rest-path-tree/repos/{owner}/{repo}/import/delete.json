@@ -1,0 +1,37 @@
+{
+  "summary": "Cancel an import",
+  "description": "Stop an import for a repository.\n\n> [!WARNING]\n> **Endpoint closing down notice:** Due to very low levels of usage and available alternatives, this endpoint is closing down and will no longer be available from 00:00 UTC on April 12, 2024. For more details and alternatives, see the [changelog](https://gh.io/source-imports-api-deprecation).",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/cancel-import",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/source-imports#cancel-an-import"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "503": {
+      "$ref": "#/components/responses/porter_maintenance"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "migrations",
+    "subcategory": "source-imports",
+    "deprecationDate": "2023-10-12",
+    "removalDate": "2024-04-12"
+  },
+  "deprecated": true
+}

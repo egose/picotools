@@ -1,0 +1,64 @@
+{
+  "summary": "List deliveries for a repository webhook",
+  "description": "Returns a list of webhook deliveries for a webhook configured in a repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-webhook-deliveries",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#list-deliveries-for-a-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/cursor"
+    },
+    {
+      "$ref": "#/components/parameters/webhook-delivery-status"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/hook-delivery-item"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/hook-delivery-items"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

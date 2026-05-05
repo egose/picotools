@@ -19,6 +19,7 @@ Adds missing asdf plugins, updates plugins, installs versions from a
 .tool-versions file, and runs asdf reshim.
 
 Options:
+  --debug                   Print progress details to stderr
   -h, --help, help        Show this help message
   -v, --version, version  Show the tool version
 
@@ -31,31 +32,59 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[asdf-install] %s\n' "$1" >&2
+  fi
+}
+
 main() {
   local tool_versions_file=".tool-versions"
   local line tool version
 
-  case "${1:-}" in
-  -h | --help | help)
-    usage
-    exit 0
-    ;;
-  -v | --version | version)
-    print_version
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    tool_versions_file="$1"
-    ;;
-  esac
+  while [ $# -gt 0 ]; do
+    case "${1:-}" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    "")
+      break
+      ;;
+    *)
+      tool_versions_file="$1"
+      shift
+      break
+      ;;
+    esac
+  done
+
+  if [ $# -gt 0 ]; then
+    echo "Error: unexpected argument: $1" >&2
+    usage >&2
+    exit 1
+  fi
 
   if [ ! -f "$tool_versions_file" ]; then
     echo "Error: file not found: $tool_versions_file" >&2
     exit 1
   fi
 
+  debug_log "Using tool versions file '$tool_versions_file'"
   picotools_require_command asdf
 
   while IFS= read -r line || [ -n "$line" ]; do
@@ -63,9 +92,11 @@ main() {
     read -r tool _ <<<"$line"
     [ -n "${tool:-}" ] || continue
 
+    debug_log "Ensuring asdf plugin '$tool' is installed"
     asdf plugin add "$tool" || true
   done <"$tool_versions_file"
 
+  debug_log 'Updating all asdf plugins'
   asdf plugin update --all
 
   while IFS= read -r line || [ -n "$line" ]; do
@@ -76,10 +107,12 @@ main() {
       continue
     fi
 
+    debug_log "Installing $tool $version"
     echo "Installing $tool $version..."
     asdf install "$tool" "$version"
   done <"$tool_versions_file"
 
+  debug_log 'Running asdf reshim'
   asdf reshim
 }
 

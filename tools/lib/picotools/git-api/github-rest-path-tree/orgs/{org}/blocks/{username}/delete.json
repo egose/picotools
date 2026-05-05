@@ -1,0 +1,31 @@
+{
+  "summary": "Unblock a user from an organization",
+  "description": "Unblocks the given user on behalf of the specified organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/unblock-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/blocking#unblock-a-user-from-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "blocking"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "summary": "Delete a code security configuration for an enterprise",
+  "description": "Deletes a code security configuration from an enterprise.\nRepositories attached to the configuration will retain their settings but will no longer be associated with\nthe configuration.\n\nThe authenticated user must be an administrator for the enterprise to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:enterprise` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/delete-configuration-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#delete-a-code-security-configuration-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/configuration-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "summary": "Get billing premium request usage report for an organization",
+  "description": "Gets a report of premium request usage for an organization. To use this endpoint, you must be an administrator of an organization within an enterprise or an organization account.\n\n**Note:** Only data from the past 24 months is accessible via this endpoint.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/get-github-billing-premium-request-usage-report-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/usage#get-billing-premium-request-usage-report-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-year"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-month-default"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-day"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-user"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-model"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-product"
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/billing_premium_request_usage_report_org"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "billing",
+    "subcategory": "usage"
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "summary": "Create a push protection bypass",
+  "description": "Creates a bypass for a previously push protected secret.\n\nThe authenticated user must be the original author of the committed secret.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "operationId": "secret-scanning/create-push-protection-bypass",
+  "tags": [
+    "secret-scanning"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/secret-scanning#create-a-push-protection-bypass"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reason": {
+              "$ref": "#/components/schemas/secret-scanning-push-protection-bypass-reason"
+            },
+            "placeholder_id": {
+              "$ref": "#/components/schemas/secret-scanning-push-protection-bypass-placeholder-id"
+            }
+          },
+          "required": [
+            "reason",
+            "placeholder_id"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "reason": "will_fix_later",
+              "placeholder_id": "2k4dM4tseyC5lPIsjl5emX9sPNk"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/secret-scanning-push-protection-bypass"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/secret-scanning-push-protection-bypass"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "description": "User does not have enough permissions to perform this action."
+    },
+    "404": {
+      "description": "Placeholder ID not found, or push protection is disabled on this repository."
+    },
+    "422": {
+      "description": "Bad request, input data missing or incorrect."
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "secret-scanning",
+    "subcategory": "secret-scanning"
+  }
+}

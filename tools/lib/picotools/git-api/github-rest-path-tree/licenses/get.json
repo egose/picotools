@@ -1,0 +1,57 @@
+{
+  "summary": "Get all commonly used licenses",
+  "description": "Lists the most commonly used licenses on GitHub. For more information, see \"[Licensing a repository ](https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).\"",
+  "tags": [
+    "licenses"
+  ],
+  "operationId": "licenses/get-all-commonly-used",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/licenses/licenses#get-all-commonly-used-licenses"
+  },
+  "parameters": [
+    {
+      "name": "featured",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "boolean"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/license-simple"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/license-simple-items"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "licenses",
+    "subcategory": "licenses"
+  }
+}

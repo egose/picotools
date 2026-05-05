@@ -1,0 +1,94 @@
+{
+  "summary": "Add organizations to the enterprise coding agent policy",
+  "description": "Enables Copilot cloud agent for the specified organizations within the enterprise.\n\nThe enterprise's coding agent policy must be set to `enabled_for_selected_orgs` before\nusing this endpoint. Organizations can be specified by login or matched via custom properties.\n\nOnly organizations that have Copilot enabled and belong to the enterprise will be affected.\n\nOnly enterprise owners can add organizations to the coding agent policy.\n\nOAuth app tokens and personal access tokens (classic) need either the `manage_billing:copilot` or `admin:enterprise` scopes to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/add-organizations-to-enterprise-coding-agent-policy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-coding-agent-management#add-organizations-to-the-enterprise-coding-agent-policy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "description": "The organizations to enable Copilot cloud agent for",
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "organizations": {
+              "type": "array",
+              "description": "List of organization logins within the enterprise to enable Copilot cloud agent for.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "custom_properties": {
+              "type": "array",
+              "description": "List of custom property filters to match organizations. Organizations matching any of the specified property name/value pairs will be included. This is a one-time operation, setting the property on an organization in the future will not automatically update its coding agent policy.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "property_name": {
+                    "type": "string",
+                    "description": "The name of the custom property to filter by."
+                  },
+                  "values": {
+                    "type": "array",
+                    "description": "The values of the custom property to match.",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "property_name",
+                  "values"
+                ]
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Add organizations that match a login or have a custom property",
+            "value": {
+              "organizations": [
+                "my-org-1",
+                "my-org-2"
+              ],
+              "custom_properties": [
+                {
+                  "property_name": "department",
+                  "values": [
+                    "engineering",
+                    "security"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": false,
+    "category": "copilot",
+    "subcategory": "copilot-coding-agent-management"
+  }
+}

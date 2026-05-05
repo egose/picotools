@@ -1,0 +1,37 @@
+{
+  "summary": "Disable a custom protection rule for an environment",
+  "description": "Disables a custom deployment protection rule for an environment.\n\nThe authenticated user must have admin or owner permissions to the repository to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/disable-deployment-protection-rule",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/protection-rules#disable-a-custom-protection-rule-for-an-environment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/protection-rule-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "protection-rules"
+  }
+}

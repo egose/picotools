@@ -1,0 +1,49 @@
+{
+  "summary": "Get a repository subscription",
+  "description": "Gets information about whether the authenticated user is subscribed to the repository.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/get-repo-subscription",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/watching#get-a-repository-subscription"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "if you subscribe to the repository",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-subscription"
+          },
+          "examples": {
+            "response-if-you-subscribe-to-the-repository": {
+              "$ref": "#/components/examples/repository-subscription-response-if-you-subscribe-to-the-repository"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "description": "Not Found if you don't subscribe to the repository"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "watching"
+  }
+}

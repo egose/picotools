@@ -1,0 +1,37 @@
+{
+  "summary": "Remove a custom property for an organization",
+  "description": "Removes a custom property that is defined for an organization.\n\nTo use this endpoint, the authenticated user must be one of:\n  - An administrator for the organization.\n  - A user, or a user on a team, with the fine-grained permission of `custom_properties_org_definitions_manager` in the organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/custom-properties-for-repos-delete-organization-definition",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/custom-properties#remove-a-custom-property-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/custom-property-name"
+    }
+  ],
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "custom-properties"
+  }
+}

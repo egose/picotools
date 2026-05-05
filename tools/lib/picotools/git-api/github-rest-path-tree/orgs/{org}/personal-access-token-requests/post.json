@@ -1,0 +1,91 @@
+{
+  "summary": "Review requests to access organization resources with fine-grained personal access tokens",
+  "description": "Approves or denies multiple pending requests to access organization resources via a fine-grained personal access token.\n\nOnly GitHub Apps can use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/review-pat-grant-requests-in-bulk",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/personal-access-tokens#review-requests-to-access-organization-resources-with-fine-grained-personal-access-tokens"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "pat_request_ids": {
+              "type": "array",
+              "description": "Unique identifiers of the requests for access via fine-grained personal access token. Must be formed of between 1 and 100 `pat_request_id` values.",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 1,
+              "maxItems": 100
+            },
+            "action": {
+              "type": "string",
+              "description": "Action to apply to the requests.",
+              "enum": [
+                "approve",
+                "deny"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for approving or denying the requests. Max 1024 characters.",
+              "maxLength": 1024,
+              "nullable": true
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        "examples": {
+          "204": {
+            "summary": "Example of denying a request",
+            "value": {
+              "pat_request_ids": [
+                42,
+                73
+              ],
+              "action": "deny",
+              "reason": "Access is too broad."
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "202": {
+      "$ref": "#/components/responses/accepted"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "personal-access-tokens"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "summary": "Privately report a security vulnerability",
+  "description": "Report a security vulnerability to the maintainers of the repository.\nSee \"[Privately reporting a security vulnerability](https://docs.github.com/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)\" for more information about private vulnerability reporting.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/create-private-vulnerability-report",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#privately-report-a-security-vulnerability"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/private-vulnerability-report-create"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "summary": "A newly discovered vulnerability",
+              "description": "A more in-depth description of what the problem is.",
+              "severity": "high",
+              "vulnerabilities": [
+                {
+                  "package": {
+                    "name": "a-package",
+                    "ecosystem": "npm"
+                  },
+                  "vulnerable_version_range": "< 1.0.0",
+                  "patched_versions": "1.0.0",
+                  "vulnerable_functions": [
+                    "important_function"
+                  ]
+                }
+              ],
+              "cwe_ids": [
+                "CWE-123"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-advisory"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-advisory-pvr"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

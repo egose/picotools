@@ -1,0 +1,102 @@
+{
+  "summary": "Create or update custom properties for an organization",
+  "description": "Creates new or updates existing custom properties defined for an organization in a batch.\n\nIf the property already exists, the existing property will be replaced with the new values.\nMissing optional values will fall back to default values, previous values will be overwritten.\nE.g. if a property exists with `values_editable_by: org_and_repo_actors` and it's updated without specifying `values_editable_by`, it will be updated to default value `org_actors`.\n\nTo use this endpoint, the authenticated user must be one of:\n  - An administrator for the organization.\n  - A user, or a user on a team, with the fine-grained permission of `custom_properties_org_definitions_manager` in the organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/custom-properties-for-repos-create-or-update-organization-definitions",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/custom-properties#create-or-update-custom-properties-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "properties": {
+              "type": "array",
+              "description": "The array of custom properties to create or update.",
+              "items": {
+                "$ref": "#/components/schemas/custom-property"
+              },
+              "minItems": 1,
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "properties"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "properties": [
+                {
+                  "property_name": "environment",
+                  "value_type": "single_select",
+                  "required": true,
+                  "default_value": "production",
+                  "description": "Prod or dev environment",
+                  "allowed_values": [
+                    "production",
+                    "development"
+                  ],
+                  "values_editable_by": "org_actors"
+                },
+                {
+                  "property_name": "service",
+                  "value_type": "string"
+                },
+                {
+                  "property_name": "team",
+                  "value_type": "string",
+                  "description": "Team owning the repository"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/custom-property"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/custom-properties"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "custom-properties"
+  }
+}

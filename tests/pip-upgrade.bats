@@ -78,9 +78,10 @@ assert_eq() {
     'editable @ git+https://example.com/repo.git' \
     >"$requirements_file"
 
-  run "$TOOL" --yes --scope minor "$requirements_file"
+  run "$TOOL" --debug --yes --scope minor "$requirements_file"
 
   [ "$status" -eq 0 ] || fail 'pip-upgrade should succeed for a valid requirements file'
+  assert_contains "$output" '[pip-upgrade] Fetching PyPI metadata for' 'should log package lookups in debug mode'
   assert_contains "$output" 'requirements.txt updated.' 'should report that the requirements file changed'
   assert_eq "$(<"$requirements_file")" $'# app requirements\nrequests==2.32.0\nurllib3===1.26.20 ; python_version >= "3.9"\neditable @ git+https://example.com/repo.git' 'should update only eligible exact pins and preserve other lines'
 }
@@ -95,4 +96,11 @@ assert_eq() {
 
   [ "$status" -eq 1 ] || fail 'pip-upgrade should fail for an unsupported scope'
   assert_contains "$output" "Error: invalid scope 'invalid'" 'should explain the invalid scope value'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'pip-upgrade --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

@@ -1,0 +1,37 @@
+{
+  "summary": "Delete a milestone",
+  "description": "Deletes a milestone using the given milestone number.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/delete-milestone",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/milestones#delete-a-milestone"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/milestone-number"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "milestones"
+  }
+}

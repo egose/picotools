@@ -1,0 +1,133 @@
+{
+  "summary": "Delete a file",
+  "description": "Deletes a file in a repository.\n\nYou can provide an additional `committer` parameter, which is an object containing information about the committer. Or, you can provide an `author` parameter, which is an object containing information about the author.\n\nThe `author` section is optional and is filled in with the `committer` information if omitted. If the `committer` information is omitted, the authenticated user's information is used.\n\nYou must provide values for both `name` and `email`, whether you choose to use `author` or `committer`. Otherwise, you'll receive a `422` status code.\n\n> [!NOTE]\n> If you use this endpoint and the \"[Create or update file contents](https://docs.github.com/rest/repos/contents/#create-or-update-file-contents)\" endpoint in parallel, the concurrent requests will conflict and you will receive errors. You must use these endpoints serially instead.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-file",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/contents#delete-a-file"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "path",
+      "description": "path parameter",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string",
+              "description": "The commit message."
+            },
+            "sha": {
+              "type": "string",
+              "description": "The blob SHA of the file being deleted."
+            },
+            "branch": {
+              "type": "string",
+              "description": "The branch name. Default: the repository’s default branch"
+            },
+            "committer": {
+              "type": "object",
+              "description": "object containing information about the committer.",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the author (or committer) of the commit"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "The email of the author (or committer) of the commit"
+                }
+              }
+            },
+            "author": {
+              "type": "object",
+              "description": "object containing information about the author.",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the author (or committer) of the commit"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "The email of the author (or committer) of the commit"
+                }
+              }
+            }
+          },
+          "required": [
+            "message",
+            "sha"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "message": "my commit message",
+              "committer": {
+                "name": "Monalisa Octocat",
+                "email": "octocat@github.com"
+              },
+              "sha": "329688480d39049927147c162b9d2deaf885005f"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/file-commit"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/file-commit"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "contents"
+  }
+}

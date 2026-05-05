@@ -1,0 +1,58 @@
+{
+  "summary": "List image versions of a custom image for an organization",
+  "description": "List image versions of a custom image for an organization.\n\nOAuth tokens and personal access tokens (classic) need the `manage_runners:org` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/list-custom-image-versions-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#list-image-versions-of-a-custom-image-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/actions-custom-image-definition-id"
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "image_versions"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "image_versions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/actions-hosted-runner-custom-image-version"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner-custom-image-versions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

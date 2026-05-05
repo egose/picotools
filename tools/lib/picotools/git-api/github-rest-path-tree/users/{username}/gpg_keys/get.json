@@ -1,0 +1,54 @@
+{
+  "summary": "List GPG keys for a user",
+  "description": "Lists the GPG keys for a user. This information is accessible by anyone.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/list-gpg-keys-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/gpg-keys#list-gpg-keys-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/gpg-key"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/gpg-key-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "gpg-keys"
+  }
+}

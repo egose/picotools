@@ -1,0 +1,75 @@
+{
+  "summary": "Sync a fork branch with the upstream repository",
+  "description": "Sync a branch of a forked repository to keep it up-to-date with the upstream repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/merge-upstream",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branches#sync-a-fork-branch-with-the-upstream-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "branch": {
+              "type": "string",
+              "description": "The name of the branch which should be updated to match upstream."
+            }
+          },
+          "required": [
+            "branch"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "branch": "main"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "The branch has been successfully synced with the upstream repository",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/merged-upstream"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/merged-upstream"
+            }
+          }
+        }
+      }
+    },
+    "409": {
+      "description": "The branch could not be synced because of a merge conflict"
+    },
+    "422": {
+      "description": "The branch could not be synced for some other reason"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "branches",
+    "subcategory": "branches"
+  }
+}

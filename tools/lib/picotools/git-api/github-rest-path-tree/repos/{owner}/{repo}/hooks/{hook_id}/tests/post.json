@@ -1,0 +1,37 @@
+{
+  "summary": "Test the push repository webhook",
+  "description": "This will trigger the hook with the latest push to the current repository if the hook is subscribed to `push` events. If the hook is not subscribed to `push` events, the server will respond with 204 but no test POST will be generated.\n\n> [!NOTE]\n> Previously `/repos/:owner/:repo/hooks/:hook_id/test`",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/test-push-webhook",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#test-the-push-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

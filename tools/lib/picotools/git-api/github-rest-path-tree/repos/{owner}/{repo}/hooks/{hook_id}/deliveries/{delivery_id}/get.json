@@ -1,0 +1,55 @@
+{
+  "summary": "Get a delivery for a repository webhook",
+  "description": "Returns a delivery for a webhook configured in a repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-webhook-delivery",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#get-a-delivery-for-a-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    },
+    {
+      "$ref": "#/components/parameters/delivery-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/hook-delivery"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/hook-delivery"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

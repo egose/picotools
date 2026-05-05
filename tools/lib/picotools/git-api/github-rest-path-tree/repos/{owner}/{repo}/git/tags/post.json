@@ -1,0 +1,134 @@
+{
+  "summary": "Create a tag object",
+  "description": "Note that creating a tag object does not create the reference that makes a tag in Git. If you want to create an annotated tag in Git, you have to do this call to create the tag object, and then [create](https://docs.github.com/rest/git/refs#create-a-reference) the `refs/tags/[tag]` reference. If you want to create a lightweight tag, you only have to [create](https://docs.github.com/rest/git/refs#create-a-reference) the tag reference - this call would be unnecessary.\n\n**Signature verification object**\n\nThe response will include a `verification` object that describes the result of verifying the commit's signature. The following fields are included in the `verification` object:\n\n| Name | Type | Description |\n| ---- | ---- | ----------- |\n| `verified` | `boolean` | Indicates whether GitHub considers the signature in this commit to be verified. |\n| `reason` | `string` | The reason for verified value. Possible values and their meanings are enumerated in table below. |\n| `signature` | `string` | The signature that was extracted from the commit. |\n| `payload` | `string` | The value that was signed. |\n| `verified_at` | `string` | The date the signature was verified by GitHub. |\n\nThese are the possible values for `reason` in the `verification` object:\n\n| Value | Description |\n| ----- | ----------- |\n| `expired_key` | The key that made the signature is expired. |\n| `not_signing_key` | The \"signing\" flag is not among the usage flags in the GPG key that made the signature. |\n| `gpgverify_error` | There was an error communicating with the signature verification service. |\n| `gpgverify_unavailable` | The signature verification service is currently unavailable. |\n| `unsigned` | The object does not include a signature. |\n| `unknown_signature_type` | A non-PGP signature was found in the commit. |\n| `no_user` | No user was associated with the `committer` email address in the commit. |\n| `unverified_email` | The `committer` email address in the commit was associated with a user, but the email address is not verified on their account. |\n| `bad_email` | The `committer` email address in the commit is not included in the identities of the PGP key that made the signature. |\n| `unknown_key` | The key that made the signature has not been registered with any user's account. |\n| `malformed_signature` | There was an error parsing the signature. |\n| `invalid` | The signature could not be cryptographically verified using the key whose key-id was found in the signature. |\n| `valid` | None of the above errors applied, so the signature is considered to be verified. |",
+  "tags": [
+    "git"
+  ],
+  "operationId": "git/create-tag",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/git/tags#create-a-tag-object"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "tag": {
+              "type": "string",
+              "description": "The tag's name. This is typically a version (e.g., \"v0.0.1\")."
+            },
+            "message": {
+              "type": "string",
+              "description": "The tag message."
+            },
+            "object": {
+              "type": "string",
+              "description": "The SHA of the git object this is tagging."
+            },
+            "type": {
+              "type": "string",
+              "description": "The type of the object we're tagging. Normally this is a `commit` but it can also be a `tree` or a `blob`.",
+              "enum": [
+                "commit",
+                "tree",
+                "blob"
+              ]
+            },
+            "tagger": {
+              "type": "object",
+              "description": "An object with information about the individual creating the tag.",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "The name of the author of the tag"
+                },
+                "email": {
+                  "type": "string",
+                  "description": "The email of the author of the tag"
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When this object was tagged. This is a timestamp in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format: `YYYY-MM-DDTHH:MM:SSZ`."
+                }
+              },
+              "required": [
+                "name",
+                "email"
+              ]
+            }
+          },
+          "required": [
+            "tag",
+            "message",
+            "object",
+            "type"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "tag": "v0.0.1",
+              "message": "initial version",
+              "object": "c3d0be41ecbe669545ee3e94d31ed9a4bc91ee3c",
+              "type": "commit",
+              "tagger": {
+                "name": "Monalisa Octocat",
+                "email": "octocat@github.com",
+                "date": "2011-06-17T14:53:35-07:00"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/git-tag"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/git-tag"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/git/tags/940bd336248efae0f9ee5bc7b2d5c985887b16ac",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "git",
+    "subcategory": "tags"
+  }
+}

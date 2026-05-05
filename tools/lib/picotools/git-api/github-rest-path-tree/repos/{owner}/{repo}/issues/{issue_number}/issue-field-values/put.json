@@ -1,0 +1,144 @@
+{
+  "summary": "Set issue field values for an issue",
+  "description": "Set custom field values for an issue, replacing any existing values. You can set values for organization-level issue fields that have been defined for the repository's organization.\n\nThis endpoint supports the following field data types:\n- **`text`**: String values for text fields\n- **`single_select`**: Option names for single-select fields (must match an existing option name)\n- **`number`**: Numeric values for number fields\n- **`date`**: ISO 8601 date strings for date fields\n\nThis operation will replace all existing field values with the provided ones. If you want to add field values without replacing existing ones, use the `POST` endpoint instead.\n\nOnly users with push access to the repository can set issue field values. If you don't have the proper permissions, you'll receive a `403 Forbidden` response.\n\nThis endpoint triggers [notifications](https://docs.github.com/github/managing-subscriptions-and-notifications-on-github/about-notifications). Creating content too quickly using this endpoint may result in secondary rate limiting. For more information, see \"[Rate limits for the API](https://docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits)\"\nand \"[Best practices for using the REST API](https://docs.github.com/rest/guides/best-practices-for-using-the-rest-api).\"",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/set-issue-field-values",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/issue-field-values#set-issue-field-values-for-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "issue_field_values": {
+              "type": "array",
+              "description": "An array of issue field values to set for this issue. Each field value must include the field ID and the value to set. All existing field values will be replaced.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field_id": {
+                    "type": "integer",
+                    "description": "The ID of the issue field to set",
+                    "example": 123
+                  },
+                  "value": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "The value to set for text, single_select, or date fields"
+                      },
+                      {
+                        "type": "number",
+                        "description": "The value to set for number fields"
+                      }
+                    ],
+                    "description": "The value to set for the field. The type depends on the field's data type:\n- For text fields: provide a string value\n- For single_select fields: provide the option name as a string (must match an existing option)\n- For number fields: provide a numeric value\n- For date fields: provide an ISO 8601 date string",
+                    "example": "Critical"
+                  }
+                },
+                "required": [
+                  "field_id",
+                  "value"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 25
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Set multiple field values",
+            "value": {
+              "issue_field_values": [
+                {
+                  "field_id": 123,
+                  "value": "Critical"
+                },
+                {
+                  "field_id": 456,
+                  "value": 5
+                },
+                {
+                  "field_id": 789,
+                  "value": "2024-12-31"
+                }
+              ]
+            }
+          },
+          "single-field": {
+            "summary": "Set a single field value",
+            "value": {
+              "issue_field_values": [
+                {
+                  "field_id": 123,
+                  "value": "High Priority"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "description": "The current issue field values for this issue after setting the new values",
+            "items": {
+              "$ref": "#/components/schemas/issue-field-value"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-field-value-items"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "issue-field-values"
+  }
+}

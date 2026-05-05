@@ -1,0 +1,49 @@
+{
+  "summary": "Check if immutable releases are enabled for a repository",
+  "description": "Shows whether immutable releases are enabled or disabled. Also identifies whether immutability is being\nenforced by the repository owner.  The authenticated user must have admin read access to the repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/check-immutable-releases",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#check-if-immutable-releases-are-enabled-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response if immutable releases are enabled",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/check-immutable-releases"
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "enabled": true,
+                "enforced_by_owner": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "description": "Not Found if immutable releases are not enabled for the repository"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

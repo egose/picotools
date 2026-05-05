@@ -1,0 +1,43 @@
+{
+  "summary": "Delete a GPG key for the authenticated user",
+  "description": "Removes a GPG key from the authenticated user's GitHub account.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:gpg_key` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/delete-gpg-key-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/gpg-keys#delete-a-gpg-key-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gpg-key-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "gpg-keys"
+  }
+}

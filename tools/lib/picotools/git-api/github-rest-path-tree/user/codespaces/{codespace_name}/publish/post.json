@@ -1,0 +1,80 @@
+{
+  "summary": "Create a repository from an unpublished codespace",
+  "description": "Publishes an unpublished codespace, creating a new repository and assigning it to the codespace.\n\nThe codespace's token is granted write permissions to the repository, allowing the user to push their changes.\n\nThis will fail for a codespace that is already published, meaning it has an associated repository.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/publish-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/codespaces#create-a-repository-from-an-unpublished-codespace"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "A name for the new repository.",
+              "type": "string"
+            },
+            "private": {
+              "description": "Whether the new repository should be private.",
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "repository": "monalisa-octocat-hello-world-g4wpq6h95q",
+              "private": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/codespace-with-full-repository"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespace-with-full-repository"
+            }
+          }
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "category": "codespaces",
+    "subcategory": "codespaces"
+  }
+}

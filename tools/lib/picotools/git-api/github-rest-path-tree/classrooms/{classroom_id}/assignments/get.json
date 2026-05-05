@@ -1,0 +1,48 @@
+{
+  "summary": "List assignments for a classroom",
+  "description": "Lists GitHub Classroom assignments for a classroom. Assignments will only be returned if the current user is an administrator of the GitHub Classroom.",
+  "tags": [
+    "classroom"
+  ],
+  "operationId": "classroom/list-assignments-for-a-classroom",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/classroom/classroom#list-assignments-for-a-classroom"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/classroom-id"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/simple-classroom-assignment"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/simple-classroom-assignment"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "classroom",
+    "subcategory": "classroom"
+  }
+}

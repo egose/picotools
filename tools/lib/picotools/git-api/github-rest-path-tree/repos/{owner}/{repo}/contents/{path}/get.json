@@ -1,0 +1,145 @@
+{
+  "summary": "Get repository content",
+  "description": "Gets the contents of a file or directory in a repository. Specify the file path or directory with the `path` parameter. If you omit the `path` parameter, you will receive the contents of the repository's root directory.\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github.raw+json`**: Returns the raw file contents for files and symlinks.\n- **`application/vnd.github.html+json`**: Returns the file contents in HTML. Markup languages are rendered to HTML using GitHub's open-source [Markup library](https://github.com/github/markup).\n- **`application/vnd.github.object+json`**: Returns the contents in a consistent object format regardless of the content type. For example, instead of an array of objects for a directory, the response will be an object with an `entries` attribute containing the array of objects.\n\nIf the content is a directory: The response will be an array of objects, one object for each item in the directory.\n\nIf the content is a symlink and the symlink's target is a normal file in the repository, then the API responds with the content of the file. Otherwise, the API responds with an object describing the symlink itself.\n\nIf the content is a submodule, the `submodule_git_url` field identifies the location of the submodule repository, and the `sha` identifies a specific commit within the submodule repository. Git uses the given URL when cloning the submodule repository, and checks out the submodule at that specific commit. If the submodule repository is not hosted on github.com, the Git URLs (`git_url` and `_links[\"git\"]`) and the github.com URLs (`html_url` and `_links[\"html\"]`) will have null values.\n\n**Notes**:\n\n- To get a repository's contents recursively, you can [recursively get the tree](https://docs.github.com/rest/git/trees#get-a-tree).\n- This API has an upper limit of 1,000 files for a directory. If you need to retrieve\nmore files, use the [Git Trees API](https://docs.github.com/rest/git/trees#get-a-tree).\n- Download URLs expire and are meant to be used just once. To ensure the download URL does not expire, please use the contents API to obtain a fresh download URL for each download.\n- If the requested file's size is:\n  - 1 MB or smaller: All features of this endpoint are supported.\n  - Between 1-100 MB: Only the `raw` or `object` custom media types are supported. Both will work as normal, except that when using the `object` media type, the `content` field will be an empty\nstring and the `encoding` field will be `\"none\"`. To get the contents of these larger files, use the `raw` media type.\n  - Greater than 100 MB: This endpoint is not supported.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-content",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/contents#get-repository-content"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "path",
+      "description": "path parameter",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    },
+    {
+      "name": "ref",
+      "description": "The name of the commit/branch/tag. Default: the repository’s default branch.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "examples": {
+          "response-if-content-is-a-file-github-object": {
+            "summary": "Content is a file using the object media type"
+          },
+          "response-if-content-is-a-directory-github-object": {
+            "summary": "Content is a directory using the object media type"
+          },
+          "response-if-content-is-a-file": {
+            "summary": "Content is a file"
+          },
+          "response-if-content-is-a-directory": {
+            "summary": "Content is a directory"
+          },
+          "response-if-content-is-a-symlink": {
+            "summary": "Content is a symlink"
+          },
+          "response-if-content-is-a-submodule": {
+            "summary": "Content is a submodule"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/vnd.github.object": {
+          "schema": {
+            "$ref": "#/components/schemas/content-tree"
+          },
+          "examples": {
+            "response-if-content-is-a-file-github-object": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-file"
+            },
+            "response-if-content-is-a-directory-github-object": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-directory-object"
+            }
+          }
+        },
+        "application/json": {
+          "schema": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/content-directory"
+              },
+              {
+                "$ref": "#/components/schemas/content-file"
+              },
+              {
+                "$ref": "#/components/schemas/content-symlink"
+              },
+              {
+                "$ref": "#/components/schemas/content-submodule"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "array": "#/components/schemas/content-directory",
+                "file": "#/components/schemas/content-file",
+                "symlink": "#/components/schemas/content-symlink",
+                "submodule": "#/components/schemas/content-submodule"
+              }
+            }
+          },
+          "examples": {
+            "response-if-content-is-a-file": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-file"
+            },
+            "response-if-content-is-a-directory": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-directory"
+            },
+            "response-if-content-is-a-symlink": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-symlink"
+            },
+            "response-if-content-is-a-submodule": {
+              "$ref": "#/components/examples/content-file-response-if-content-is-a-submodule"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "302": {
+      "$ref": "#/components/responses/found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "contents"
+  }
+}

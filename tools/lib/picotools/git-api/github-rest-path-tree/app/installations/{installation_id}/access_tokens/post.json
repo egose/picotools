@@ -1,0 +1,98 @@
+{
+  "summary": "Create an installation access token for an app",
+  "description": "Creates an installation access token that enables a GitHub App to make authenticated API requests for the app's installation on an organization or individual account. Installation tokens expire one hour from the time you create them. Using an expired token produces a status code of `401 - Unauthorized`, and requires creating a new installation token. By default the installation token has access to all repositories that the installation can access.\n\nOptionally, you can use the `repositories` or `repository_ids` body parameters to specify individual repositories that the installation access token can access. If you don't use `repositories` or `repository_ids` to grant access to specific repositories, the installation access token will have access to all repositories that the installation was granted access to. The installation access token cannot be granted access to repositories that the installation was not granted access to. Up to 500 repositories can be listed in this manner.\n\nOptionally, use the `permissions` body parameter to specify the permissions that the installation access token should have. If `permissions` is not specified, the installation access token will have all of the permissions that were granted to the app. The installation access token cannot be granted permissions that the app was not granted.\n\nYou must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/create-installation-access-token",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/apps#create-an-installation-access-token-for-an-app"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/installation-id"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repositories": {
+              "description": "List of repository names that the token should have access to",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "rails"
+              }
+            },
+            "repository_ids": {
+              "description": "List of repository IDs that the token should have access to",
+              "example": [
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "permissions": {
+              "$ref": "#/components/schemas/app-permissions"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "repositories": [
+                "Hello-World"
+              ],
+              "permissions": {
+                "issues": "write",
+                "contents": "read"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/installation-token"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/installation-token"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "apps",
+    "subcategory": "apps"
+  }
+}

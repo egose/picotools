@@ -1,0 +1,55 @@
+{
+  "summary": "Set GitHub Actions cache storage limit for a repository",
+  "description": "Sets GitHub Actions cache storage limit for a repository. This determines the maximum size of caches that can be\nstored before eviction occurs.\n\nOAuth tokens and personal access tokens (classic) need the `admin:repository` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/set-actions-cache-storage-limit-for-repository",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/cache#set-github-actions-cache-storage-limit-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/actions-cache-storage-limit-for-repository"
+        },
+        "examples": {
+          "selected_actions": {
+            "$ref": "#/components/examples/actions-cache-storage-limit"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "cache"
+  }
+}

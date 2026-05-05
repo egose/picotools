@@ -1,0 +1,46 @@
+{
+  "summary": "Get a package version for the authenticated user",
+  "description": "Gets a specific package version for a package owned by the authenticated user.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` scope to use this endpoint. For more information, see \"[About permissions for GitHub Packages](https://docs.github.com/packages/learn-github-packages/about-permissions-for-github-packages#permissions-for-repository-scoped-packages).\"",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/get-package-version-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#get-a-package-version-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/package-type"
+    },
+    {
+      "$ref": "#/components/parameters/package-name"
+    },
+    {
+      "$ref": "#/components/parameters/package-version-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/package-version"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/package-version-authenticated-user"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "summary": "Add an email address for the authenticated user",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `user` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/add-email-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/emails#add-an-email-address-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "emails": {
+                  "description": "Adds one or more email addresses to your GitHub account. Must contain at least one email address. **Note:** Alternatively, you can pass a single email address or an `array` of emails addresses directly, but we recommend that you pass an object using the `emails` key.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "example": "username@example.com"
+                  },
+                  "minItems": 1,
+                  "example": []
+                }
+              },
+              "required": [
+                "emails"
+              ],
+              "example": {
+                "emails": [
+                  "octocat@github.com",
+                  "mona@github.com"
+                ]
+              }
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "username@example.com"
+              },
+              "minItems": 1
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example adding multiple email addresses",
+            "value": {
+              "emails": [
+                "octocat@github.com",
+                "mona@github.com",
+                "octocat@octocat.org"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/email"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/email-items"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "emails"
+  }
+}

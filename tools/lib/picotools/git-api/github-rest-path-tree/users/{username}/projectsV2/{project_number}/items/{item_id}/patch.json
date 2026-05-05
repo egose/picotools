@@ -1,0 +1,172 @@
+{
+  "summary": "Update project item for user",
+  "description": "Update a specific item in a user-owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/update-item-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/items#update-project-item-for-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/project-number"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/item-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "description": "Field updates to apply to the project item. Only text, number, date, single select, and iteration fields are supported.",
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "fields": {
+              "type": "array",
+              "description": "A list of field updates to apply.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "integer",
+                    "description": "The ID of the project field to update."
+                  },
+                  "value": {
+                    "description": "The new value for the field:\n- For text, number, and date fields, provide the new value directly.\n- For single select and iteration fields, provide the ID of the option or iteration.\n- To clear the field, set this to null.",
+                    "nullable": true,
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "fields"
+          ]
+        },
+        "examples": {
+          "text_field": {
+            "summary": "Update a text field",
+            "value": {
+              "fields": [
+                {
+                  "id": 123,
+                  "value": "Updated text value"
+                }
+              ]
+            }
+          },
+          "number_field": {
+            "summary": "Update a number field",
+            "value": {
+              "fields": [
+                {
+                  "id": 456,
+                  "value": 42.5
+                }
+              ]
+            }
+          },
+          "date_field": {
+            "summary": "Update a date field",
+            "value": {
+              "fields": [
+                {
+                  "id": 789,
+                  "value": "2023-10-05"
+                }
+              ]
+            }
+          },
+          "single_select_field": {
+            "summary": "Update a single select field",
+            "value": {
+              "fields": [
+                {
+                  "id": 789,
+                  "value": "47fc9ee4"
+                }
+              ]
+            }
+          },
+          "iteration_field": {
+            "summary": "Update an iteration field",
+            "value": {
+              "fields": [
+                {
+                  "id": 1011,
+                  "value": "866ee5b8"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-item-with-content"
+          },
+          "examples": {
+            "text_field": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            },
+            "number_field": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            },
+            "date_field": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            },
+            "single_select_field": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            },
+            "iteration_field": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            }
+          }
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "items"
+  }
+}

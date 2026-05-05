@@ -1,0 +1,45 @@
+{
+  "summary": "Get summary stats",
+  "description": "Get overall statistics of API requests made within an organization by all users and apps within a specified time frame.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "api-insights/get-summary-stats",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/api-insights#get-summary-stats"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-min-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-max-timestamp"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/api-insights-summary-stats"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/api-insights-summary-stats"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "api-insights"
+  }
+}

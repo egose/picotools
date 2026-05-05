@@ -1,0 +1,164 @@
+{
+  "summary": "Update pull request review protection",
+  "description": "Protected branches are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, GitHub Enterprise Cloud, and GitHub Enterprise Server. For more information, see [GitHub's products](https://docs.github.com/github/getting-started-with-github/githubs-products) in the GitHub Help documentation.\n\nUpdating pull request review enforcement requires admin or owner permissions to the repository and branch protection to be enabled.\n\n> [!NOTE]\n> Passing new arrays of `users` and `teams` replaces their previous values.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-pull-request-review-protection",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branch-protection#update-pull-request-review-protection"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "dismissal_restrictions": {
+              "type": "object",
+              "description": "Specify which users, teams, and apps can dismiss pull request reviews. Pass an empty `dismissal_restrictions` object to disable. User and team `dismissal_restrictions` are only available for organization-owned repositories. Omit this parameter for personal repositories.",
+              "properties": {
+                "users": {
+                  "type": "array",
+                  "description": "The list of user `login`s with dismissal access",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "teams": {
+                  "type": "array",
+                  "description": "The list of team `slug`s with dismissal access",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "apps": {
+                  "type": "array",
+                  "description": "The list of app `slug`s with dismissal access",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "dismiss_stale_reviews": {
+              "type": "boolean",
+              "description": "Set to `true` if you want to automatically dismiss approving reviews when someone pushes a new commit."
+            },
+            "require_code_owner_reviews": {
+              "type": "boolean",
+              "description": "Blocks merging pull requests until [code owners](https://docs.github.com/articles/about-code-owners/) have reviewed."
+            },
+            "required_approving_review_count": {
+              "type": "integer",
+              "description": "Specifies the number of reviewers required to approve pull requests. Use a number between 1 and 6 or 0 to not require reviewers."
+            },
+            "require_last_push_approval": {
+              "type": "boolean",
+              "description": "Whether the most recent push must be approved by someone other than the person who pushed it. Default: `false`",
+              "default": false
+            },
+            "bypass_pull_request_allowances": {
+              "type": "object",
+              "description": "Allow specific users, teams, or apps to bypass pull request requirements.",
+              "properties": {
+                "users": {
+                  "type": "array",
+                  "description": "The list of user `login`s allowed to bypass pull request requirements.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "teams": {
+                  "type": "array",
+                  "description": "The list of team `slug`s allowed to bypass pull request requirements.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "apps": {
+                  "type": "array",
+                  "description": "The list of app `slug`s allowed to bypass pull request requirements.",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "dismissal_restrictions": {
+                "users": [
+                  "octocat"
+                ],
+                "teams": [
+                  "justice-league"
+                ],
+                "apps": [
+                  "octoapp"
+                ]
+              },
+              "bypass_pull_request_allowances": {
+                "users": [
+                  "octocat"
+                ],
+                "teams": [
+                  "justice-league"
+                ],
+                "apps": [
+                  "octoapp"
+                ]
+              },
+              "dismiss_stale_reviews": true,
+              "require_code_owner_reviews": true,
+              "required_approving_review_count": 2,
+              "require_last_push_approval": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/protected-branch-pull-request-review"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/protected-branch-pull-request-review"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "branches",
+    "subcategory": "branch-protection"
+  }
+}

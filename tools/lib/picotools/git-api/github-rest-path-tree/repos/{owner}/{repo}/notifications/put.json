@@ -1,0 +1,80 @@
+{
+  "summary": "Mark repository notifications as read",
+  "description": "Marks all notifications in a repository as \"read\" for the current user. If the number of notifications is too large to complete in one request, you will receive a `202 Accepted` status and GitHub will run an asynchronous process to mark notifications as \"read.\" To check whether any \"unread\" notifications remain, you can use the [List repository notifications for the authenticated user](https://docs.github.com/rest/activity/notifications#list-repository-notifications-for-the-authenticated-user) endpoint and pass the query parameter `all=false`.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/mark-repo-notifications-as-read",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/notifications#mark-repository-notifications-as-read"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "last_read_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Describes the last point that notifications were checked. Anything updated since this time will not be marked as read. If you omit this parameter, all notifications are marked as read. This is a timestamp in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format: `YYYY-MM-DDTHH:MM:SSZ`. Default: The current timestamp."
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "last_read_at": "2019-01-01T00:00:00Z"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "message": "Unread notifications couldn't be marked in a single request. Notifications are being marked as read in the background."
+              }
+            }
+          }
+        }
+      }
+    },
+    "205": {
+      "description": "Reset Content"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "notifications"
+  }
+}

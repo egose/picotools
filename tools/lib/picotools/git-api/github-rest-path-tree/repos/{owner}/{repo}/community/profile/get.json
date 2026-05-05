@@ -1,0 +1,43 @@
+{
+  "summary": "Get community profile metrics",
+  "description": "Returns all community profile metrics for a repository. The repository cannot be a fork.\n\nThe returned metrics include an overall health score, the repository description, the presence of documentation, the\ndetected code of conduct, the detected license, and the presence of ISSUE\\_TEMPLATE, PULL\\_REQUEST\\_TEMPLATE,\nREADME, and CONTRIBUTING files.\n\nThe `health_percentage` score is defined as a percentage of how many of\nthe recommended community health files are present. For more information, see\n\"[About community profiles for public repositories](https://docs.github.com/communities/setting-up-your-project-for-healthy-contributions/about-community-profiles-for-public-repositories).\"\n\n`content_reports_enabled` is only returned for organization-owned repositories.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-community-profile-metrics",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/metrics/community#get-community-profile-metrics"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/community-profile"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/community-profile"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "metrics",
+    "subcategory": "community"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "summary": "List milestones",
+  "description": "Lists milestones for a repository.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/list-milestones",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/milestones#list-milestones"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "state",
+      "description": "The state of the milestone. Either `open`, `closed`, or `all`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "open",
+          "closed",
+          "all"
+        ],
+        "default": "open"
+      }
+    },
+    {
+      "name": "sort",
+      "description": "What to sort results by. Either `due_on` or `completeness`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "due_on",
+          "completeness"
+        ],
+        "default": "due_on"
+      }
+    },
+    {
+      "name": "direction",
+      "description": "The direction of the sort. Either `asc` or `desc`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "default": "asc"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/milestone"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/milestone-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "milestones"
+  }
+}

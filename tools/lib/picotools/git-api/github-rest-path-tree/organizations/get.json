@@ -1,0 +1,57 @@
+{
+  "summary": "List organizations",
+  "description": "Lists all organizations, in the order that they were created.\n\n> [!NOTE]\n> Pagination is powered exclusively by the `since` parameter. Use the [Link header](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api#using-link-headers) to get the URL for the next page of organizations.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#list-organizations"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/since-org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/organization-simple"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-simple-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "example": "<https://api.github.com/organizations?since=135>; rel=\"next\"",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "orgs"
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "summary": "Create an autofix for a code scanning alert",
+  "description": "Creates an autofix for a code scanning alert.\n\nIf a new autofix is to be created as a result of this request or is currently being generated, then this endpoint will return a 202 Accepted response.\n\nIf an autofix already exists for a given alert, then this endpoint will return a 200 OK response.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint with private or public repositories, or the `public_repo` scope to use this endpoint with only public repositories.",
+  "tags": [
+    "code-scanning"
+  ],
+  "operationId": "code-scanning/create-autofix",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#create-an-autofix-for-a-code-scanning-alert"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/alert-number"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "OK",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-scanning-autofix"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-autofix"
+            }
+          }
+        }
+      }
+    },
+    "202": {
+      "description": "Accepted",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-scanning-autofix"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-autofix-pending"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/code_scanning_bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/code_scanning_autofix_create_forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Unprocessable Entity"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

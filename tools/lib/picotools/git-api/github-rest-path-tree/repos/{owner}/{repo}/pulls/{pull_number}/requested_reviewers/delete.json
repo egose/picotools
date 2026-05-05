@@ -1,0 +1,92 @@
+{
+  "summary": "Remove requested reviewers from a pull request",
+  "description": "Removes review requests from a pull request for a given set of users and/or teams.",
+  "tags": [
+    "pulls"
+  ],
+  "operationId": "pulls/remove-requested-reviewers",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pulls/review-requests#remove-requested-reviewers-from-a-pull-request"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/pull-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "reviewers": {
+              "type": "array",
+              "description": "An array of user `login`s that will be removed.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "team_reviewers": {
+              "type": "array",
+              "description": "An array of team `slug`s that will be removed.",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "reviewers"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "reviewers": [
+                "octocat",
+                "hubot",
+                "other_user"
+              ],
+              "team_reviewers": [
+                "justice-league"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/pull-request-simple"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/pull-request-simple"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pulls",
+    "subcategory": "review-requests"
+  }
+}

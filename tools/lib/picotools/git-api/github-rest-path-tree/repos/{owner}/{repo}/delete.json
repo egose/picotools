@@ -1,0 +1,66 @@
+{
+  "summary": "Delete a repository",
+  "description": "Deleting a repository requires admin access.\n\nIf an organization owner has configured the organization to prevent members from deleting organization-owned\nrepositories, you will get a `403 Forbidden` response.\n\nOAuth app tokens and personal access tokens (classic) need the `delete_repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#delete-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "description": "If an organization owner has configured the organization to prevent members from deleting organization-owned repositories, a member will get this response:",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "documentation_url": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "message": "Organization members cannot delete repositories.",
+                "documentation_url": "https://docs.github.com/rest/repos/repos#delete-a-repository"
+              }
+            }
+          }
+        }
+      }
+    },
+    "307": {
+      "$ref": "#/components/responses/temporary_redirect"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

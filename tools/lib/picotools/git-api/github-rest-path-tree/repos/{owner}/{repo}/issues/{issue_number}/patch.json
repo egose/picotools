@@ -1,0 +1,213 @@
+{
+  "summary": "Update an issue",
+  "description": "Issue owners and users with push access or Triage role can edit an issue.\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github.raw+json`**: Returns the raw markdown body. Response will include `body`. This is the default if you do not pass any specific media type.\n- **`application/vnd.github.text+json`**: Returns a text only representation of the markdown body. Response will include `body_text`.\n- **`application/vnd.github.html+json`**: Returns HTML rendered from the body's markdown. Response will include `body_html`.\n- **`application/vnd.github.full+json`**: Returns raw, text, and HTML representations. Response will include `body`, `body_text`, and `body_html`.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/update",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/issues#update-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "description": "The title of the issue.",
+              "nullable": true
+            },
+            "body": {
+              "type": "string",
+              "description": "The contents of the issue.",
+              "nullable": true
+            },
+            "state": {
+              "type": "string",
+              "description": "The open or closed state of the issue.",
+              "enum": [
+                "open",
+                "closed"
+              ]
+            },
+            "state_reason": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "not_planned",
+                "duplicate",
+                "reopened"
+              ],
+              "nullable": true,
+              "description": "The reason for the state change. Ignored unless `state` is changed.",
+              "example": "not_planned"
+            },
+            "milestone": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer",
+                  "description": "The `number` of the milestone to associate this issue with or use `null` to remove the current milestone. Only users with push access can set the milestone for issues. Without push access to the repository, milestone changes are silently dropped."
+                }
+              ],
+              "nullable": true
+            },
+            "labels": {
+              "type": "array",
+              "description": "Labels to associate with this issue. Pass one or more labels to _replace_ the set of labels on this issue. Send an empty array (`[]`) to clear all labels from the issue. Only users with push access can set labels for issues. Without push access to the repository, label changes are silently dropped.",
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "description": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "color": {
+                        "type": "string",
+                        "nullable": true
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "assignees": {
+              "type": "array",
+              "description": "Usernames to assign to this issue. Pass one or more user logins to _replace_ the set of assignees on this issue. Send an empty array (`[]`) to clear all assignees from the issue. Only users with push access can set assignees for new issues. Without push access to the repository, assignee changes are silently dropped.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "issue_field_values": {
+              "type": "array",
+              "description": "An array of issue field values to set on this issue. Each field value must include the field ID and the value to set. Only users with push access can set field values for issues",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field_id": {
+                    "type": "integer",
+                    "description": "The ID of the issue field to set"
+                  },
+                  "value": {
+                    "oneOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      }
+                    ],
+                    "description": "The value to set for the field"
+                  }
+                },
+                "required": [
+                  "field_id",
+                  "value"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "type": {
+              "type": "string",
+              "description": "The name of the issue type to associate with this issue or use `null` to remove the current issue type. Only users with push access can set the type for issues. Without push access to the repository, type changes are silently dropped.",
+              "nullable": true,
+              "example": "Epic"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "title": "Found a bug",
+              "body": "I'm having a problem with this.",
+              "assignees": [
+                "octocat"
+              ],
+              "milestone": 1,
+              "state": "open",
+              "labels": [
+                "bug"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "issues"
+  }
+}

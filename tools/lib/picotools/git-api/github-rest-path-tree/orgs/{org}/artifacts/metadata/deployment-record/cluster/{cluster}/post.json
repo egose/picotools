@@ -1,0 +1,244 @@
+{
+  "summary": "Set cluster deployment records",
+  "description": "Set deployment records for a given cluster.\nIf proposed records in the 'deployments' field have identical 'cluster', 'logical_environment',\n'physical_environment', and 'deployment_name' values as existing records, the existing records will be updated.\nIf no existing records match, new records will be created.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/set-cluster-deployment-records",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/artifact-metadata#set-cluster-deployment-records"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "cluster",
+      "in": "path",
+      "description": "The cluster name.",
+      "required": true,
+      "schema": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[a-zA-Z0-9._-]+$"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "logical_environment": {
+              "type": "string",
+              "description": "The stage of the deployment.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "physical_environment": {
+              "type": "string",
+              "description": "The physical region of the deployment.",
+              "maxLength": 128
+            },
+            "deployments": {
+              "type": "array",
+              "description": "The list of deployments to record.",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the artifact. Note that if multiple deployments have identical 'digest' parameter values,\nthe name parameter must also be identical across all entries.\n",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "digest": {
+                    "type": "string",
+                    "description": "The hex encoded digest of the artifact. Note that if multiple deployments have identical 'digest' parameter values,\nthe name and version parameters must also be identical across all entries.\n",
+                    "minLength": 71,
+                    "maxLength": 71,
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "version": {
+                    "type": "string",
+                    "description": "The artifact version. Note that if multiple deployments have identical 'digest' parameter values,\nthe version parameter must also be identical across all entries.\n",
+                    "maxLength": 100,
+                    "x-multi-segment": true,
+                    "example": "1.2.3"
+                  },
+                  "status": {
+                    "type": "string",
+                    "description": "The deployment status of the artifact.",
+                    "default": "deployed",
+                    "enum": [
+                      "deployed",
+                      "decommissioned"
+                    ]
+                  },
+                  "deployment_name": {
+                    "type": "string",
+                    "description": "The unique identifier for the deployment represented by the new record. To accommodate differing\ncontainers and namespaces within a record set, the following format is recommended:\n{namespaceName}-{deploymentName}-{containerName}.\nThe deployment_name must be unique across all entries in the deployments array.\n",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "github_repository": {
+                    "type": "string",
+                    "description": "The name of the GitHub repository associated with the artifact. This should be used\nwhen there are no provenance attestations available for the artifact. The repository\nmust belong to the organization specified in the path parameter.\n\nIf a provenance attestation is available for the artifact, the API will use\nthe repository information from the attestation instead of this parameter.",
+                    "maxLength": 100,
+                    "pattern": "^[A-Za-z0-9.\\-_]+$",
+                    "example": "my-github-repo"
+                  },
+                  "tags": {
+                    "type": "object",
+                    "description": "Key-value pairs to tag the deployment record.",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  },
+                  "runtime_risks": {
+                    "type": "array",
+                    "description": "A list of runtime risks associated with the deployment.",
+                    "maxItems": 4,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "critical-resource",
+                        "internet-exposed",
+                        "lateral-movement",
+                        "sensitive-data"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "name",
+                  "deployment_name",
+                  "digest"
+                ]
+              }
+            },
+            "return_records": {
+              "type": "boolean",
+              "default": true,
+              "description": "If true, the endpoint will return the set records in the response body\n"
+            }
+          },
+          "required": [
+            "logical_environment",
+            "deployments"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "logical_environment": "prod",
+              "physical_environment": "pacific-east",
+              "deployments": [
+                {
+                  "name": "awesome-image",
+                  "digest": "sha256:1bb1e949e55dcefc6353e7b36c8897d2a107d8e8dca49d4e3c0ea8493fc0bc72",
+                  "version": "2.1.0",
+                  "status": "deployed",
+                  "deployment_name": "deployment-pod",
+                  "tags": {
+                    "runtime-risk": "sensitive-data"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Deployment records created or updated successfully.\n",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "description": "The number of deployment records created",
+                "type": "integer"
+              },
+              "deployment_records": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/artifact-deployment-record"
+                }
+              }
+            },
+            "required": [
+              "total_count"
+            ]
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/artifact-deployment-record-list"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "description": "Forbidden",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          },
+          "examples": {
+            "insufficient_repo_permissions": {
+              "value": {
+                "message": {
+                  "cause": "artifact metadata write permission required on one or more repositories",
+                  "repositories": [
+                    123,
+                    345
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "description": "Resource not found",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          },
+          "examples": {
+            "not_found": {
+              "value": {
+                "message": {
+                  "cause": "One or more repositories do not exist",
+                  "repositories": [
+                    "repoA",
+                    "repoB"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "artifact-metadata"
+  }
+}

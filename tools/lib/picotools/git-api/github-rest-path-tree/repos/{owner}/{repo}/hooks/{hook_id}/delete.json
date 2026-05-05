@@ -1,0 +1,37 @@
+{
+  "summary": "Delete a repository webhook",
+  "description": "Delete a webhook for an organization.\n\nThe authenticated user must be a repository owner, or have admin access in the repository, to delete the webhook.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-webhook",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#delete-a-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

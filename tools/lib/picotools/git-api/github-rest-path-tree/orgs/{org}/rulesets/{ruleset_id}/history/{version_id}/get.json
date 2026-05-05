@@ -1,0 +1,64 @@
+{
+  "summary": "Get organization ruleset version",
+  "description": "Get a version of an organization ruleset.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/get-org-ruleset-version",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rules#get-organization-ruleset-version"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "ruleset_id",
+      "description": "The ID of the ruleset.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "name": "version_id",
+      "description": "The ID of the version",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ruleset-version-with-state"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-ruleset-version-with-state"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rules"
+  }
+}

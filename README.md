@@ -17,14 +17,17 @@ The following scripts are included in `tools/bin`:
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
 | `model-provider` | Stores named model provider profiles with config and token data kept separately |
 | `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
+| `git-api` | Calls GitHub REST operations by `operationId` using split OpenAPI method files |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
-`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, `gemini`, and `custom` profiles with `create`, `update`, `list`, `read`, `ask`, and `delete`. Azure providers store a resource name, while `custom` stores an explicit OpenAI-compatible endpoint URL. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--message-file PATH` for larger prompts, `--model MODEL` to override the default first configured model, and `--system-message TEXT` or `--system-message-file PATH` to override the default system prompt. `--user-message` is accepted as an alias for `--message`.
+`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, `gemini`, and `custom` profiles with `create`, `update`, `list`, `read`, `profiles`, `models`, `ask`, and `delete`. Azure providers store a resource name, while `custom` stores an explicit OpenAI-compatible endpoint URL. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--message-file PATH` for larger prompts, `--model MODEL` to override the default first configured model, and `--system-message TEXT` or `--system-message-file PATH` to override the default system prompt. `--user-message` is accepted as an alias for `--message`. Use `--debug` to print request-phase steps to stderr. `MODEL_PROVIDER_DEBUG=true` still works as a deprecated fallback, and `MODEL_PROVIDER_CURL_MAX_TIME=<seconds>` bounds request duration.
 
-`git-commit` stores its selected model profile and model under `~/.config/git-commit/config`. Run `git-commit configure` first, then run `git-commit` inside a Git repository to ask the configured model for a conventional-commit plan and print the `git add` and `git commit -m ...` commands for one or more commits from the current workspace changes. If staged changes already exist, it can optionally unstage them with `git restore --staged :/` before generating the preview. In monorepos, derived scopes prefer the leaf package name instead of repeating the npm org prefix. Use `--apply` to create the planned commits, and add `--push` to push them afterward.
+`git-commit` stores its selected model profile and model under `~/.config/git-commit/config`. Run `git-commit configure` first, then run `git-commit` inside a Git repository to ask the configured model for a conventional-commit plan and print the `git add` and `git commit -m ...` commands for one or more commits from the current workspace changes. If staged changes already exist, it can optionally unstage them with `git restore --staged :/` before generating the preview. In monorepos, derived scopes prefer the leaf package name instead of repeating the npm org prefix. Use `--debug` to print progress steps to stderr, `--apply` to create the planned commits, `--push` to push them afterward, and `--pr` with `--apply --push` to open a pull request to `main` through `git-api`.
+
+`git-api` now uses GitHub `operationId` strings directly. Run `git-api configure` to store a PAT token for authenticated requests, `git-api list` to show all indexed operations, `git-api list repos/` to filter by prefix, and `git-api show <operationId>` to inspect the docs URL and parameter requirements derived from the OpenAPI method file. Call an operation with `git-api <operationId> <required-path-args...> [query flags]`. Path parameters are passed in order from the URL template, while query parameters are passed as flags such as `--per-page 10` or `--q picotools`. Use `--field KEY=VALUE` for JSON body fields, `--body-file PATH` for a raw request body, and `--token TOKEN` to override auth for a single invocation. Authentication is optional via `--token`, `PAT_TOKEN`, `GH_TOKEN`, `GITHUB_PAT`, or the token stored by `git-api configure`. The default GitHub API version header is `2026-03-10`, and `--api-root` or `--api-version` can override it.
 
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
@@ -40,7 +43,7 @@ The following scripts are included in `tools/bin`:
 
 `git-clean-task-pr` first tries `git remote set-head <remote> --auto`, then falls back to cached local Git refs, and finally uses `main` when `refs/remotes/<remote>/main` exists. It also prompts for a new branch name and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
 
-All tools support `--help` and `--version`. The version is read from the repository `VERSION` file.
+All tools support `--help`, `--version`, and `--debug`. The version is read from the repository `VERSION` file.
 
 Single-choice interactive menus use arrow-key navigation when both stdin and stderr are attached to a terminal, and fall back to numbered prompts in non-interactive flows.
 
@@ -84,6 +87,7 @@ oc-quota-requests
 gh-repo-sync
 model-provider
 git-commit
+git-api
 git-clean-branches
 git-clean-task-pr
 ```

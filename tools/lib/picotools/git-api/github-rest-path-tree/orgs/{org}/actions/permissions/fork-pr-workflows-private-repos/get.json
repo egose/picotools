@@ -1,0 +1,45 @@
+{
+  "summary": "Get private repo fork PR workflow settings for an organization",
+  "description": "Gets the settings for whether workflows from fork pull requests can run on private repositories in an organization.",
+  "operationId": "actions/get-private-repo-fork-pr-workflows-settings-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-private-repo-fork-pr-workflow-settings-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-fork-pr-workflows-private-repos"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-fork-pr-workflows-private-repos"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

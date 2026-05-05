@@ -1,0 +1,147 @@
+{
+  "summary": "Create a repository security advisory",
+  "description": "Creates a new repository security advisory.\n\nIn order to create a draft repository security advisory, the authenticated user must be a security manager or administrator of that repository.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `repository_advisories:write` scope to use this endpoint.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/create-repository-advisory",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#create-a-repository-security-advisory"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/repository-advisory-create"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "summary": "A new important advisory",
+              "description": "A more in-depth description of what the problem is.",
+              "severity": "high",
+              "cve_id": null,
+              "vulnerabilities": [
+                {
+                  "package": {
+                    "name": "a-package",
+                    "ecosystem": "npm"
+                  },
+                  "vulnerable_version_range": "< 1.0.0",
+                  "patched_versions": "1.0.0",
+                  "vulnerable_functions": [
+                    "important_function"
+                  ]
+                }
+              ],
+              "cwe_ids": [
+                "CWE-1101",
+                "CWE-20"
+              ],
+              "credits": [
+                {
+                  "login": "monalisa",
+                  "type": "reporter"
+                },
+                {
+                  "login": "octocat",
+                  "type": "analyst"
+                }
+              ]
+            }
+          },
+          "withVectorString": {
+            "value": {
+              "summary": "A new important advisory",
+              "description": "A more in-depth description of what the problem is.",
+              "cvss_vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
+              "cve_id": null,
+              "vulnerabilities": [
+                {
+                  "package": {
+                    "name": "a-package",
+                    "ecosystem": "npm"
+                  },
+                  "vulnerable_version_range": "< 1.0.0",
+                  "patched_versions": "1.0.0",
+                  "vulnerable_functions": [
+                    "important_function"
+                  ]
+                }
+              ],
+              "cwe_ids": [
+                "CWE-1101",
+                "CWE-20"
+              ],
+              "credits": [
+                {
+                  "login": "monalisa",
+                  "type": "reporter"
+                },
+                {
+                  "login": "octocat",
+                  "type": "analyst"
+                }
+              ]
+            }
+          },
+          "minimal": {
+            "value": {
+              "summary": "A new important advisory",
+              "description": "A more in-depth description of what the problem is.",
+              "vulnerabilities": [
+                {
+                  "package": {
+                    "ecosystem": "npm"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-advisory"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-advisory"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

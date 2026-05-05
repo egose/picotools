@@ -1,0 +1,70 @@
+{
+  "summary": "List machine types for a codespace",
+  "description": "List the machine types a codespace can transition to use.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/codespace-machines-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/machines#list-machine-types-for-a-codespace"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "machines"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "machines": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/codespace-machine"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespace-machines-list"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "machines"
+  }
+}

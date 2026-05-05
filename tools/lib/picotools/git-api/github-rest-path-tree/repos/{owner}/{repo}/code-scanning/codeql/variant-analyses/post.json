@@ -1,0 +1,172 @@
+{
+  "summary": "Create a CodeQL variant analysis",
+  "description": "Creates a new CodeQL variant analysis, which will run a CodeQL query against one or more repositories.\n\nGet started by learning more about [running CodeQL queries at scale with Multi-Repository Variant Analysis](https://docs.github.com/code-security/codeql-for-vs-code/getting-started-with-codeql-for-vs-code/running-codeql-queries-at-scale-with-multi-repository-variant-analysis).\n\nUse the `owner` and `repo` parameters in the URL to specify the controller repository that\nwill be used for running GitHub Actions workflows and storing the results of the CodeQL variant analysis.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "code-scanning"
+  ],
+  "operationId": "code-scanning/create-variant-analysis",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#create-a-codeql-variant-analysis"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "language": {
+              "$ref": "#/components/schemas/code-scanning-variant-analysis-language"
+            },
+            "query_pack": {
+              "description": "A Base64-encoded tarball containing a CodeQL query and all its dependencies",
+              "type": "string"
+            },
+            "repositories": {
+              "type": "array",
+              "description": "List of repository names (in the form `owner/repo-name`) to run the query against. Precisely one property from `repositories`, `repository_lists` and `repository_owners` is required.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "repository_lists": {
+              "description": "List of repository lists to run the query against. Precisely one property from `repositories`, `repository_lists` and `repository_owners` is required.",
+              "type": "array",
+              "maxItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            "repository_owners": {
+              "description": "List of organization or user names whose repositories the query should be run against. Precisely one property from `repositories`, `repository_lists` and `repository_owners` is required.",
+              "type": "array",
+              "maxItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "language",
+            "query_pack"
+          ],
+          "oneOf": [
+            {
+              "required": [
+                "repositories"
+              ]
+            },
+            {
+              "required": [
+                "repository_lists"
+              ]
+            },
+            {
+              "required": [
+                "repository_owners"
+              ]
+            }
+          ]
+        },
+        "examples": {
+          "repositories_parameter": {
+            "summary": "Using the \"repositories\" field. \"query_pack\" is abridged for brevity.",
+            "value": {
+              "language": "csharp",
+              "query_pack": "aGVsbG8=",
+              "repositories": [
+                "octocat/Hello-World",
+                "octocat/example"
+              ]
+            }
+          },
+          "repository_owners": {
+            "summary": "Using the \"repository_owners\" field. \"query_pack\" is abridged.",
+            "value": {
+              "language": "csharp",
+              "query_pack": "aGVsbG8=",
+              "repository_owners": [
+                "octocat"
+              ]
+            }
+          },
+          "repository_lists": {
+            "summary": "Using the \"repository_lists\" field. \"query_pack\" is abridged.",
+            "value": {
+              "language": "csharp",
+              "query_pack": "aGVsbG8=",
+              "repository_lists": [
+                "top-100-csharp"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Variant analysis submitted for processing",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-scanning-variant-analysis"
+          },
+          "examples": {
+            "repositories_parameter": {
+              "summary": "Response for a successful variant analysis submission",
+              "value": {
+                "$ref": "#/components/examples/code-scanning-variant-analysis"
+              }
+            },
+            "repository_owners": {
+              "summary": "Response for a successful variant analysis submission",
+              "value": {
+                "$ref": "#/components/examples/code-scanning-variant-analysis"
+              }
+            },
+            "repository_lists": {
+              "summary": "Response for a successful variant analysis submission",
+              "value": {
+                "$ref": "#/components/examples/code-scanning-variant-analysis"
+              }
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Unable to process variant analysis submission",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

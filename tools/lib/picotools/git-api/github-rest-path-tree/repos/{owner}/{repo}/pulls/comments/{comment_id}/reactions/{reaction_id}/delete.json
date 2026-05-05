@@ -1,0 +1,37 @@
+{
+  "summary": "Delete a pull request comment reaction",
+  "description": "> [!NOTE]\n> You can also specify a repository by `repository_id` using the route `DELETE /repositories/:repository_id/pulls/comments/:comment_id/reactions/:reaction_id.`\n\nDelete a reaction to a [pull request review comment](https://docs.github.com/rest/pulls/comments#get-a-review-comment-for-a-pull-request).",
+  "tags": [
+    "reactions"
+  ],
+  "operationId": "reactions/delete-for-pull-request-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/reactions/reactions#delete-a-pull-request-comment-reaction"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/comment-id"
+    },
+    {
+      "$ref": "#/components/parameters/reaction-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "reactions",
+    "subcategory": "reactions"
+  }
+}

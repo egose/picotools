@@ -1,0 +1,49 @@
+{
+  "summary": "Get list of conflicting packages during Docker migration for user",
+  "description": "Lists all packages that are in a specific user's namespace, that the requesting user has access to, and that encountered a conflict during Docker migration.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` scope to use this endpoint.",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/list-docker-migration-conflicting-packages-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#get-list-of-conflicting-packages-during-docker-migration-for-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/package"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/packages-for-user"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "summary": "Get the customization template for an OIDC subject claim for a repository",
+  "description": "Gets the customization template for an OpenID Connect (OIDC) subject claim.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-custom-oidc-sub-claim-for-repo",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#get-the-customization-template-for-an-oidc-subject-claim-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Status response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/oidc-custom-sub-repo"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/oidc-custom-sub-repo"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

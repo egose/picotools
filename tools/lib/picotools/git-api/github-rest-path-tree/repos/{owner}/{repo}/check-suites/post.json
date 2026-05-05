@@ -1,0 +1,84 @@
+{
+  "summary": "Create a check suite",
+  "description": "Creates a check suite manually. By default, check suites are automatically created when you create a [check run](https://docs.github.com/rest/checks/runs). You only need to use this endpoint for manually creating check suites when you've disabled automatic creation using \"[Update repository preferences for check suites](https://docs.github.com/rest/checks/suites#update-repository-preferences-for-check-suites)\".\n\n> [!NOTE]\n> The Checks API only looks for pushes in the repository where the check suite or check run were created. Pushes to a branch in a forked repository are not detected and return an empty `pull_requests` array and a `null` value for `head_branch`.\n\nOAuth apps and personal access tokens (classic) cannot use this endpoint.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/create-suite",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/suites#create-a-check-suite"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "head_sha": {
+              "type": "string",
+              "description": "The sha of the head commit."
+            }
+          },
+          "required": [
+            "head_sha"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "head_sha": "d6fde92930d4715a2b49857d24b940956b26d2d3"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response when the suite already exists",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/check-suite"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-suite"
+            }
+          }
+        }
+      }
+    },
+    "201": {
+      "description": "Response when the suite was created",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/check-suite"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-suite"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "suites"
+  }
+}

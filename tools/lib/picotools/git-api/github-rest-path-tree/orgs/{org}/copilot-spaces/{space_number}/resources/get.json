@@ -1,0 +1,90 @@
+{
+  "summary": "List resources for an organization Copilot Space",
+  "description": "Lists all resources attached to a specific Copilot Space owned by an organization.\nThe authenticated user must have appropriate permissions to view the space.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/list-resources-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/resources#list-resources-for-an-organization-copilot-space"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "resources"
+            ],
+            "properties": {
+              "resources": {
+                "type": "array",
+                "description": "The list of resources attached to this Copilot Space.",
+                "items": {
+                  "$ref": "#/components/schemas/copilot-space-resource"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "resources": [
+                  {
+                    "id": 1,
+                    "resource_type": "repository",
+                    "copilot_chat_attachment_id": null,
+                    "metadata": {
+                      "repository_id": 42
+                    },
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "updated_at": "2025-01-01T00:00:00Z"
+                  },
+                  {
+                    "id": 2,
+                    "resource_type": "free_text",
+                    "copilot_chat_attachment_id": null,
+                    "metadata": {
+                      "name": "notes.txt",
+                      "text": "Some helpful notes"
+                    },
+                    "created_at": "2025-01-01T00:00:00Z",
+                    "updated_at": "2025-01-01T00:00:00Z"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "resources"
+  }
+}

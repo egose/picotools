@@ -66,9 +66,10 @@ assert_contains() {
 @test "reads a route from the requested namespace" {
   local log_contents
 
-  run "$TOOL" --namespace demo read my-route
+  run "$TOOL" --debug --namespace demo read my-route
 
   [ "$status" -eq 0 ] || fail 'oc-route read should succeed for an existing route'
+  assert_contains "$output" "[oc-route] Reading route 'my-route'" 'debug mode should describe the route being read'
   assert_contains "$output" 'name: my-route' 'should print the route yaml'
 
   log_contents="$(<"$OC_LOG")"
@@ -113,4 +114,11 @@ assert_contains() {
   assert_contains "$manifest" '  CERTDATA' 'should include certificate file content in the manifest'
   assert_contains "$manifest" '  KEYDATA' 'should include key file content in the manifest'
   assert_contains "$manifest" '  CADATA' 'should include CA file content in the manifest'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'oc-route --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

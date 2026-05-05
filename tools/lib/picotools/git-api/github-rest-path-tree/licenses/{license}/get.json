@@ -1,0 +1,54 @@
+{
+  "summary": "Get a license",
+  "description": "Gets information about a specific license. For more information, see \"[Licensing a repository ](https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).\"",
+  "tags": [
+    "licenses"
+  ],
+  "operationId": "licenses/get",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/licenses/licenses#get-a-license"
+  },
+  "parameters": [
+    {
+      "name": "license",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/license"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/license"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "licenses",
+    "subcategory": "licenses"
+  }
+}

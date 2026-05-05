@@ -1,0 +1,103 @@
+{
+  "summary": "Review pending deployments for a workflow run",
+  "description": "Approve or reject pending deployments that are waiting on approval by a required reviewer.\n\nRequired reviewers with read access to the repository contents and deployments can use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/review-pending-deployments-for-run",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/workflow-runs#review-pending-deployments-for-a-workflow-run"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/run-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "environment_ids": {
+              "type": "array",
+              "description": "The list of environment ids to approve or reject",
+              "example": [
+                161171787,
+                161171795
+              ],
+              "items": {
+                "type": "integer",
+                "example": 161171787
+              }
+            },
+            "state": {
+              "type": "string",
+              "description": "Whether to approve or reject deployment to the specified environments.",
+              "enum": [
+                "approved",
+                "rejected"
+              ],
+              "example": "approved"
+            },
+            "comment": {
+              "type": "string",
+              "description": "A comment to accompany the deployment review",
+              "example": "Ship it!"
+            }
+          },
+          "required": [
+            "environment_ids",
+            "state",
+            "comment"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "environment_ids": [
+                161171787
+              ],
+              "state": "approved",
+              "comment": "Ship it!"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/deployment"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "actions",
+    "subcategory": "workflow-runs"
+  }
+}

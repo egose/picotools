@@ -1,0 +1,56 @@
+{
+  "summary": "Get a release by tag name",
+  "description": "Get a published release with the specified tag.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-release-by-tag",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/releases#get-a-release-by-tag-name"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "tag",
+      "description": "tag parameter",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/release"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "releases"
+  }
+}

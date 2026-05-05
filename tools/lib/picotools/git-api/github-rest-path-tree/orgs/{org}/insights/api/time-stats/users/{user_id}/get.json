@@ -1,0 +1,51 @@
+{
+  "summary": "Get time stats by user",
+  "description": "Get the number of API requests and rate-limited requests made within an organization by a specific user over a specified time period.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "api-insights/get-time-stats-by-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/api-insights#get-time-stats-by-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-user-id"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-min-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-max-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-timestamp-increment"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/api-insights-time-stats"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/api-insights-time-stats"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "api-insights"
+  }
+}

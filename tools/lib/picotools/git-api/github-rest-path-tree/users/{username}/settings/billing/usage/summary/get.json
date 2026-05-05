@@ -1,0 +1,61 @@
+{
+  "summary": "Get billing usage summary for a user",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nGets a summary report of usage for a user.\n\n**Note:** Only data from the past 24 months is accessible via this endpoint.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/get-github-billing-usage-summary-report-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/usage#get-billing-usage-summary-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-year"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-month-default"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-day"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-repository"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-product"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-sku"
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/billing_usage_summary_report_user"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "billing",
+    "subcategory": "usage"
+  }
+}

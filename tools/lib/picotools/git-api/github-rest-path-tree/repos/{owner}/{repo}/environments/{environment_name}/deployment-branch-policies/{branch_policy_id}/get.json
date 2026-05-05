@@ -1,0 +1,49 @@
+{
+  "summary": "Get a deployment branch policy",
+  "description": "Gets a deployment branch or tag policy for an environment.\n\nAnyone with read access to the repository can use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with a private repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-deployment-branch-policy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/branch-policies#get-a-deployment-branch-policy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/branch-policy-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment-branch-policy"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-branch-policy-wildcard"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "branch-policies"
+  }
+}

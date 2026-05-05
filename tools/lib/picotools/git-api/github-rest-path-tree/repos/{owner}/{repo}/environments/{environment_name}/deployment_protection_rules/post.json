@@ -1,0 +1,69 @@
+{
+  "summary": "Create a custom deployment protection rule on an environment",
+  "description": "Enable a custom deployment protection rule for an environment.\n\nThe authenticated user must have admin or owner permissions to the repository to use this endpoint.\n\nFor more information about the app that is providing this custom deployment rule, see the [documentation for the `GET /apps/{app_slug}` endpoint](https://docs.github.com/rest/apps/apps#get-an-app), as well as the [guide to creating custom deployment protection rules](https://docs.github.com/actions/managing-workflow-runs-and-deployments/managing-deployments/creating-custom-deployment-protection-rules).\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-deployment-protection-rule",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/protection-rules#create-a-custom-deployment-protection-rule-on-an-environment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    }
+  ],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "integration_id": {
+              "type": "integer",
+              "description": "The ID of the custom app that will be enabled on the environment."
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "integration_id": 5
+            }
+          }
+        }
+      }
+    },
+    "required": true
+  },
+  "responses": {
+    "201": {
+      "description": "The enabled custom deployment protection rule",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment-protection-rule"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-protection-rule"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "protection-rules"
+  }
+}

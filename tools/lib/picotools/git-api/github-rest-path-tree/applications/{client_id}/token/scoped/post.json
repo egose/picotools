@@ -1,0 +1,116 @@
+{
+  "summary": "Create a scoped access token",
+  "description": "Use a non-scoped user access token to create a repository-scoped and/or permission-scoped user access token. You can specify\nwhich repositories the token can access and which permissions are granted to the\ntoken.\n\nInvalid tokens will return `404 NOT FOUND`.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/scope-token",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/apps#create-a-scoped-access-token"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/client-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "access_token": {
+              "type": "string",
+              "description": "The access token used to authenticate to the GitHub API.",
+              "example": "e72e16c7e42f292c6912e7710c838347ae178b4a"
+            },
+            "target": {
+              "description": "The name of the user or organization to scope the user access token to. **Required** unless `target_id` is specified.",
+              "type": "string",
+              "example": "octocat"
+            },
+            "target_id": {
+              "description": "The ID of the user or organization to scope the user access token to. **Required** unless `target` is specified.",
+              "example": 1,
+              "type": "integer"
+            },
+            "repositories": {
+              "description": "The list of repository names to scope the user access token to. `repositories` may not be specified if `repository_ids` is specified.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "rails"
+              }
+            },
+            "repository_ids": {
+              "description": "The list of repository IDs to scope the user access token to. `repository_ids` may not be specified if `repositories` is specified.",
+              "example": [
+                1
+              ],
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "permissions": {
+              "$ref": "#/components/schemas/app-permissions"
+            }
+          },
+          "required": [
+            "access_token"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "access_token": "e72e16c7e42f292c6912e7710c838347ae178b4a",
+              "target": "octocat",
+              "permissions": {
+                "metadata": "read",
+                "issues": "write",
+                "contents": "read"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/authorization"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/scope-token"
+            }
+          }
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "apps"
+  }
+}

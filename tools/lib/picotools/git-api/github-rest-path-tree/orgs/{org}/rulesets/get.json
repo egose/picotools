@@ -1,0 +1,58 @@
+{
+  "summary": "Get all organization repository rulesets",
+  "description": "Get all the repository rulesets for an organization.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-org-rulesets",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rules#get-all-organization-repository-rulesets"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rules"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/ruleset-targets"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/repository-ruleset"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-ruleset-items"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  }
+}

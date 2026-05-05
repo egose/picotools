@@ -1,0 +1,73 @@
+{
+  "summary": "Update the access a fine-grained personal access token has to organization resources",
+  "description": "Updates the access an organization member has to organization resources via a fine-grained personal access token. Limited to revoking the token's existing access. Limited to revoking a token's existing access.\n\nOnly GitHub Apps can use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/update-pat-access",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/personal-access-tokens#update-the-access-a-fine-grained-personal-access-token-has-to-organization-resources"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/fine-grained-personal-access-token-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "Action to apply to the fine-grained personal access token.",
+              "enum": [
+                "revoke"
+              ]
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        "examples": {
+          "204": {
+            "summary": "Example of revoking a fine-grained personal access token.",
+            "value": {
+              "action": "revoke"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "personal-access-tokens"
+  }
+}

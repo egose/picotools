@@ -1,0 +1,97 @@
+{
+  "summary": "Create an enterprise team",
+  "description": "To create an enterprise team, the authenticated user must be an owner of the enterprise.",
+  "tags": [
+    "enterprise-teams"
+  ],
+  "operationId": "enterprise-teams/create",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-teams#create-an-enterprise-team"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the team."
+            },
+            "description": {
+              "nullable": true,
+              "type": "string",
+              "description": "A description of the team."
+            },
+            "sync_to_organizations": {
+              "type": "string",
+              "description": "Retired: this field is no longer supported.\nWhether the enterprise team should be reflected in each organization.\nThis value cannot be set.\n",
+              "enum": [
+                "all",
+                "disabled"
+              ],
+              "default": "disabled"
+            },
+            "organization_selection_type": {
+              "type": "string",
+              "description": "Specifies which organizations in the enterprise should have access to this team. Can be one of `disabled`, `selected`, or `all`.\n`disabled`: The team is not assigned to any organizations. This is the default when you create a new team.\n`selected`: The team is assigned to specific organizations. You can then use the [add organization assignments API](https://docs.github.com/rest/enterprise-teams/enterprise-team-organizations#add-organization-assignments) endpoint.\n`all`: The team is assigned to all current and future organizations in the enterprise.\n",
+              "enum": [
+                "disabled",
+                "selected",
+                "all"
+              ],
+              "default": "disabled"
+            },
+            "group_id": {
+              "nullable": true,
+              "type": "string",
+              "description": "The ID of the IdP group to assign team membership with. You can get this value from the [REST API endpoints for SCIM](https://docs.github.com/rest/scim#list-provisioned-scim-groups-for-an-enterprise)."
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "Justice League",
+              "description": "A great team.",
+              "group_id": "62ab9291-fae2-468e-974b-7e45096d5021"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/enterprise-team"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/enterprise-teams-item"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-teams"
+  }
+}

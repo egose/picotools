@@ -1,0 +1,42 @@
+{
+  "summary": "Get a classroom",
+  "description": "Gets a GitHub Classroom classroom for the current user. Classroom will only be returned if the current user is an administrator of the GitHub Classroom.",
+  "tags": [
+    "classroom"
+  ],
+  "operationId": "classroom/get-a-classroom",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/classroom/classroom#get-a-classroom"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/classroom-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/classroom"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/classroom"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "classroom",
+    "subcategory": "classroom"
+  }
+}

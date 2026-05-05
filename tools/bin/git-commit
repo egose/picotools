@@ -12,6 +12,10 @@ fi
 picotools_source_modules "$SCRIPT_DIR" prompt version
 
 ALLOWED_TYPES='feat fix docs refactor chore perf test ci'
+MAX_COMMIT_PLAN_CHANGED_FILES_CHARS=250000
+MAX_COMMIT_PLAN_DIFF_CHARS=50000
+MAX_COMMIT_PLAN_FILE_DIFF_CHARS=16384
+MAX_COMMIT_PLAN_ADDED_FILE_BYTES=65536
 
 usage() {
   cat <<'EOF'
@@ -27,8 +31,10 @@ commits.
 Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
+  --debug                   Print progress steps to stderr
   --apply                   Stage files and create the generated commit plan
   --push                    With --apply, push the created commits
+  --pr                      With --apply --push, create a pull request to main
   --pre-commit-retries <n>  Retry failed pre-commit checks this many times
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
@@ -37,6 +43,20 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "${GIT_COMMIT_DEBUG:-false}" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[git-commit] %s\n' "$1" >&2
+  fi
+}
+
+enable_debug_logging() {
+  GIT_COMMIT_DEBUG=true
 }
 
 config_dir() {
@@ -96,10 +116,50 @@ model_provider_command() {
   exit 1
 }
 
+git_api_command() {
+  local candidate
+
+  if [ -n "${GIT_API_BIN:-}" ]; then
+    printf '%s\n' "$GIT_API_BIN"
+    return 0
+  fi
+
+  candidate="${SCRIPT_DIR}/git-api"
+  if [ -x "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if command -v git-api >/dev/null 2>&1; then
+    command -v git-api
+    return 0
+  fi
+
+  echo 'Error: unable to locate git-api' >&2
+  exit 1
+}
+
+run_git_api() {
+  local tool
+
+  tool=$(git_api_command)
+  if debug_enabled; then
+    "$tool" --debug "$@"
+    return $?
+  fi
+
+  "$tool" "$@"
+}
+
 run_model_provider() {
   local tool
 
   tool=$(model_provider_command)
+  if debug_enabled; then
+    "$tool" --debug "$@"
+    return $?
+  fi
+
   "$tool" "$@"
 }
 
@@ -228,6 +288,49 @@ current_branch_name() {
   fi
 
   printf '%s\n' "$branch"
+}
+
+github_repo_from_remote_url() {
+  local remote_url="$1"
+  local repo=''
+
+  case "$remote_url" in
+  git@github.com:*.git)
+    repo=${remote_url#git@github.com:}
+    repo=${repo%.git}
+    ;;
+  ssh://git@github.com/*)
+    repo=${remote_url#ssh://git@github.com/}
+    repo=${repo%.git}
+    ;;
+  https://github.com/*.git)
+    repo=${remote_url#https://github.com/}
+    repo=${repo%.git}
+    ;;
+  https://github.com/*)
+    repo=${remote_url#https://github.com/}
+    ;;
+  esac
+
+  if [ -z "$repo" ]; then
+    echo "Error: unsupported GitHub remote URL: ${remote_url:-<missing>}" >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$repo"
+}
+
+github_repo_from_remote() {
+  local remote="$1"
+  local remote_url
+
+  remote_url=$(git remote get-url "$remote" 2>/dev/null || true)
+  if [ -z "$remote_url" ]; then
+    echo "Error: unable to determine URL for remote '$remote'" >&2
+    exit 1
+  fi
+
+  github_repo_from_remote_url "$remote_url"
 }
 
 git_repo_root() {
@@ -431,6 +534,7 @@ run_pre_commit_checks() {
 
   hook_path=$(pre_commit_hook_path)
   if [ ! -x "$hook_path" ]; then
+    debug_log 'Skipping pre-commit checks because no executable hook was found'
     return 0
   fi
 
@@ -441,12 +545,14 @@ run_pre_commit_checks() {
   done <<<"$changed_files"
 
   if [ "${#files[@]}" -eq 0 ]; then
+    debug_log 'Skipping pre-commit checks because no changed files were collected'
     return 0
   fi
 
   index_snapshot=$(mktemp)
   cp "$(git_index_path)" "$index_snapshot"
 
+  debug_log "Running pre-commit hook for ${#files[@]} changed file(s)"
   echo 'Pre-commit checks:'
   while true; do
     if [ "$max_attempts" -gt 1 ]; then
@@ -514,8 +620,80 @@ collect_changed_files() {
   printf '%s\n' "${files[@]}"
 }
 
+count_nonempty_lines() {
+  local text="$1"
+  local count=0 line
+
+  while IFS= read -r line; do
+    if [ -n "$line" ]; then
+      count=$((count + 1))
+    fi
+  done <<<"$text"
+
+  printf '%s\n' "$count"
+}
+
+file_size_bytes() {
+  local file_path="$1"
+
+  wc -c <"$file_path" | tr -d '[:space:]'
+}
+
+added_file_diff_for_prompt() {
+  local repo_root="$1"
+  local file="$2"
+  local file_path file_size
+
+  file_path="$repo_root/$file"
+  file_size=$(file_size_bytes "$file_path")
+  if [ "$file_size" -gt "$MAX_COMMIT_PLAN_ADDED_FILE_BYTES" ]; then
+    debug_log "Omitting added file diff for '$file' because ${file_size} bytes exceeds ${MAX_COMMIT_PLAN_ADDED_FILE_BYTES}"
+    printf '[Omitted added file diff for %s because its size (%s bytes) exceeds the prompt limit for added files (%s bytes).]\n' \
+      "$file" "$file_size" "$MAX_COMMIT_PLAN_ADDED_FILE_BYTES"
+    return 0
+  fi
+
+  git -C "$repo_root" diff --no-ext-diff --no-index /dev/null "$file" || true
+}
+
+tracked_file_diff_for_prompt() {
+  local repo_root="$1"
+  local file="$2"
+  local has_head="$3"
+  local file_diff
+
+  if [ "$has_head" = true ]; then
+    file_diff=$(git -C "$repo_root" diff --no-ext-diff HEAD -- "$file")
+  else
+    file_diff=$(git -C "$repo_root" diff --no-ext-diff --cached -- "$file")
+  fi
+
+  if [ "${#file_diff}" -gt "$MAX_COMMIT_PLAN_FILE_DIFF_CHARS" ]; then
+    debug_log "Omitting diff for '$file' because ${#file_diff} chars exceeds ${MAX_COMMIT_PLAN_FILE_DIFF_CHARS}"
+    printf '[Omitted diff for %s because its diff size (%s chars) exceeds the prompt limit per file (%s chars).]\n' \
+      "$file" "${#file_diff}" "$MAX_COMMIT_PLAN_FILE_DIFF_CHARS"
+    return 0
+  fi
+
+  printf '%s\n' "$file_diff"
+}
+
+file_diff_for_prompt() {
+  local repo_root="$1"
+  local file="$2"
+  local has_head="$3"
+
+  if git -C "$repo_root" ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+    tracked_file_diff_for_prompt "$repo_root" "$file" "$has_head"
+    return 0
+  fi
+
+  added_file_diff_for_prompt "$repo_root" "$file"
+}
+
 collect_changes_diff() {
-  local repo_root file
+  local changed_files="$1"
+  local repo_root file file_diff
   local has_head=false
   local diff_output=''
 
@@ -525,20 +703,49 @@ collect_changes_diff() {
     has_head=true
   fi
 
-  if [ "$has_head" = true ]; then
-    diff_output=$(git -C "$repo_root" diff --no-ext-diff --binary HEAD --)
-  else
-    diff_output=$(git -C "$repo_root" diff --no-ext-diff --binary --cached --)
-  fi
-
   while IFS= read -r file; do
-    if [ -n "$file" ]; then
-      diff_output+=$'\n'
-      diff_output+=$(git -C "$repo_root" diff --no-ext-diff --binary --no-index /dev/null "$file" || true)
+    [ -n "$file" ] || continue
+    file_diff=$(file_diff_for_prompt "$repo_root" "$file" "$has_head")
+    if [ -z "$file_diff" ]; then
+      continue
     fi
-  done < <(git -C "$repo_root" ls-files --others --exclude-standard)
+
+    if [ -n "$diff_output" ]; then
+      diff_output+=$'\n'
+    fi
+    diff_output+="$file_diff"
+
+    if [ "${#diff_output}" -gt "$MAX_COMMIT_PLAN_DIFF_CHARS" ]; then
+      debug_log "Stopping diff collection after reaching ${MAX_COMMIT_PLAN_DIFF_CHARS} chars"
+      diff_output+=$'\n[Stopped collecting additional diffs after reaching the prompt diff budget.]'
+      break
+    fi
+  done <<<"$changed_files"
 
   printf '%s\n' "$diff_output"
+}
+
+truncate_commit_plan_section() {
+  local section_name="$1"
+  local text="$2"
+  local max_chars="$3"
+  local notice keep_chars
+
+  if [ "${#text}" -le "$max_chars" ]; then
+    printf '%s\n' "$text"
+    return 0
+  fi
+
+  debug_log "Truncating ${section_name} from ${#text} chars to ${max_chars}"
+
+  notice=$'\n'
+  notice+="[Truncated ${section_name} to fit provider message limits.]"
+  keep_chars=$((max_chars - ${#notice}))
+  if [ "$keep_chars" -lt 0 ]; then
+    keep_chars=0
+  fi
+
+  printf '%s%s\n' "${text:0:$keep_chars}" "$notice"
 }
 
 commit_planning_system_message() {
@@ -566,17 +773,21 @@ build_commit_planning_message() {
   local scope="$2"
   local changed_files="$3"
   local diff_output="$4"
+  local changed_files_section diff_section
 
   if [ -z "$scope" ]; then
     scope='(none)'
   fi
 
+  changed_files_section=$(truncate_commit_plan_section 'changed file list' "$changed_files" "$MAX_COMMIT_PLAN_CHANGED_FILES_CHARS")
+  diff_section=$(truncate_commit_plan_section 'diff' "$diff_output" "$MAX_COMMIT_PLAN_DIFF_CHARS")
+
   printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n' \
     'Analyze these current git workspace changes and propose conventional commit plan JSON.' \
     'Current branch:' "$branch" \
     'Derived scope:' "$scope" \
-    'Changed files:' "$changed_files" \
-    'Unified diff:' "$diff_output"
+    'Changed files:' "$changed_files_section" \
+    'Unified diff:' "$diff_section"
 }
 
 request_commit_plan() {
@@ -585,6 +796,9 @@ request_commit_plan() {
   local system_message="$3"
   local user_message="$4"
   local system_message_file user_message_file output status=0
+
+  debug_log "Requesting commit plan from model-provider profile '$profile' model '$model'"
+  debug_log "Prompt sizes: system=${#system_message} chars, user=${#user_message} chars"
 
   system_message_file=$(mktemp)
   user_message_file=$(mktemp)
@@ -602,6 +816,8 @@ request_commit_plan() {
   if [ "$status" -ne 0 ]; then
     return "$status"
   fi
+
+  debug_log "Received commit plan response (${#output} chars)"
 
   printf '%s\n' "$output"
 }
@@ -784,12 +1000,78 @@ push_current_branch() {
   local remote
 
   if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
+    debug_log "Pushing branch '$branch' to its configured upstream"
     git push
     return 0
   fi
 
   remote=$(resolve_push_remote "$branch")
+  debug_log "Pushing branch '$branch' to '$remote' and setting upstream"
   git push -u "$remote" "$branch"
+}
+
+planned_commit_titles() {
+  local plan_json="$1"
+  local scope="$2"
+  local count commit_index type message title
+
+  count=$(plan_commit_count "$plan_json")
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
+    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
+    title=$(format_commit_title "$type" "$scope" "$message")
+    printf '%s\n' "$title"
+    commit_index=$((commit_index + 1))
+  done
+}
+
+pull_request_body() {
+  local plan_json="$1"
+  local scope="$2"
+  local title body='Automated PR created by git-commit.'
+
+  while IFS= read -r title; do
+    [ -n "$title" ] || continue
+    body+=$'\n- '
+    body+="$title"
+  done < <(planned_commit_titles "$plan_json" "$scope")
+
+  printf '%s\n' "$body"
+}
+
+create_pull_request() {
+  local branch="$1"
+  local plan_json="$2"
+  local scope="$3"
+  local remote repo owner name title body response pr_url
+
+  if [ "$branch" = 'main' ]; then
+    echo 'Error: --pr requires a non-main branch' >&2
+    exit 1
+  fi
+
+  remote=$(resolve_push_remote "$branch")
+  repo=$(github_repo_from_remote "$remote")
+  owner=${repo%%/*}
+  name=${repo#*/}
+  title=$(planned_commit_titles "$plan_json" "$scope" | sed -n '1p')
+  body=$(pull_request_body "$plan_json" "$scope")
+
+  debug_log "Creating pull request for '$branch' into 'main' on '$repo'"
+  response=$(run_git_api pulls/create "$owner" "$name" \
+    --field "title=$title" \
+    --field "head=$branch" \
+    --field 'base=main' \
+    --field "body=$body")
+  pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty')
+  if [ -n "$pr_url" ]; then
+    printf 'Pull request: %s\n' "$pr_url"
+    return 0
+  fi
+
+  echo 'Error: git-api did not return a pull request URL' >&2
+  exit 1
 }
 
 parse_run_options() {
@@ -797,7 +1079,9 @@ parse_run_options() {
   local no_scope=false
   local apply_commits=false
   local push_commits=false
+  local create_pr=false
   local pre_commit_retries=2
+  local debug_mode=false
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -805,8 +1089,16 @@ parse_run_options() {
       apply_commits=true
       shift
       ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
     --push)
       push_commits=true
+      shift
+      ;;
+    --pr)
+      create_pr=true
       shift
       ;;
     --pre-commit-retries)
@@ -869,7 +1161,12 @@ parse_run_options() {
     exit 1
   fi
 
-  printf '%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$pre_commit_retries"
+  if [ "$create_pr" = 'true' ] && { [ "$apply_commits" != 'true' ] || [ "$push_commits" != 'true' ]; }; then
+    echo 'Error: --pr requires --apply --push' >&2
+    exit 1
+  fi
+
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pre_commit_retries" "$debug_mode"
 }
 
 resolve_scope() {
@@ -974,6 +1271,7 @@ execute_commit_plan() {
   local -a commit_files=()
 
   count=$(plan_commit_count "$plan_json")
+  debug_log "Applying commit plan with $count commit(s)"
   if [ "$count" -gt 1 ]; then
     validate_multi_commit_plan "$plan_json" "$changed_files"
   fi
@@ -994,6 +1292,7 @@ execute_commit_plan() {
     fi
 
     title=$(format_commit_title "$type" "$scope" "$message")
+    debug_log "Creating commit $((commit_index + 1))/$count: $title"
 
     if [ "$count" -eq 1 ]; then
       git add -A :/
@@ -1008,7 +1307,7 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits pre_commit_retries
+  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pre_commit_retries debug_mode changed_file_count
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1016,22 +1315,47 @@ run_commit_tool() {
   no_scope="${option_values[1]:-false}"
   apply_commits="${option_values[2]:-false}"
   push_commits="${option_values[3]:-false}"
-  pre_commit_retries="${option_values[4]:-2}"
+  create_pr="${option_values[4]:-false}"
+  pre_commit_retries="${option_values[5]:-2}"
+  debug_mode="${option_values[6]:-false}"
 
+  if [ "$debug_mode" = 'true' ]; then
+    enable_debug_logging
+  fi
+
+  debug_log 'Checking repository state'
   require_git_repository
   ensure_no_staged_changes
   ensure_changes_exist
+
+  debug_log 'Collecting changed files'
   changed_files=$(collect_changed_files)
+  changed_file_count=$(count_nonempty_lines "$changed_files")
+  debug_log "Collected $changed_file_count changed file(s)"
 
   run_pre_commit_checks "$changed_files" "$pre_commit_retries"
   ensure_changes_exist
+
+  debug_log 'Refreshing changed files after pre-commit checks'
   changed_files=$(collect_changed_files)
+  changed_file_count=$(count_nonempty_lines "$changed_files")
+  debug_log "Collected $changed_file_count changed file(s) after pre-commit"
+
+  debug_log 'Loading configured model provider'
   config_values=$(load_configuration)
   IFS=$'\t' read -r profile model <<<"$config_values"
   require_dependencies
+  if [ "$create_pr" = 'true' ]; then
+    git_api_command >/dev/null
+  fi
+
+  debug_log 'Resolving branch and commit scope'
   branch=$(current_branch_name)
   scope=$(resolve_scope "$branch" "$scope_override" "$no_scope" "$changed_files")
-  diff_output=$(collect_changes_diff)
+  debug_log "Resolved branch '$branch' and scope '${scope:-<none>}'"
+
+  debug_log 'Collecting workspace diff for commit planning'
+  diff_output=$(collect_changes_diff "$changed_files")
   system_message=$(commit_planning_system_message)
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
   plan_json=$(request_commit_plan "$profile" "$model" "$system_message" "$user_message")
@@ -1041,14 +1365,21 @@ run_commit_tool() {
     exit 1
   fi
 
+  debug_log 'Validated commit plan JSON'
+
   if [ "$apply_commits" = 'true' ]; then
     execute_commit_plan "$plan_json" "$scope" "$changed_files"
     if [ "$push_commits" = 'true' ]; then
+      debug_log 'Pushing committed branch'
       push_current_branch "$branch"
+      if [ "$create_pr" = 'true' ]; then
+        create_pull_request "$branch" "$plan_json" "$scope"
+      fi
     fi
     return 0
   fi
 
+  debug_log 'Printing commit plan preview'
   print_commit_plan "$plan_json" "$scope" "$changed_files"
 }
 
@@ -1066,7 +1397,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --apply | --push | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
+  '' | --debug | --apply | --push | --pr | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)

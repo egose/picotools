@@ -1,0 +1,83 @@
+{
+  "summary": "Update a codespace for the authenticated user",
+  "description": "Updates a codespace owned by the authenticated user. Currently only the codespace's machine type and recent folders can be modified using this endpoint.\n\nIf you specify a new machine type it will be applied the next time your codespace is started.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/update-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/codespaces#update-a-codespace-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "machine": {
+              "description": "A valid machine to transition this codespace to.",
+              "type": "string"
+            },
+            "display_name": {
+              "description": "Display name for this codespace",
+              "type": "string"
+            },
+            "recent_folders": {
+              "description": "Recently opened folders inside the codespace. It is currently used by the clients to determine the folder path to load the codespace in.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "machine": "standardLinux"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/codespace"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespace"
+            }
+          }
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "codespaces"
+  }
+}

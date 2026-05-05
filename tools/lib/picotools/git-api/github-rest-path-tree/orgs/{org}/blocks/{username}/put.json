@@ -1,0 +1,34 @@
+{
+  "summary": "Block a user from an organization",
+  "description": "Blocks the given user on behalf of the specified organization and returns a 204. If the organization cannot block the given user a 422 is returned.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/block-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/blocking#block-a-user-from-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "blocking"
+  }
+}

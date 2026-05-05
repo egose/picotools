@@ -1,0 +1,31 @@
+{
+  "summary": "Enable a selected repository for immutable releases in an organization",
+  "description": "Adds a repository to the list of selected repositories that are enforced for immutable releases in an organization. To use this endpoint, the organization immutable releases policy for `enforced_repositories` must be configured to `selected`.\n\nOAuth tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "orgs/enable-selected-repository-immutable-releases-organization",
+  "tags": [
+    "orgs"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#enable-a-selected-repository-for-immutable-releases-in-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/repository-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "orgs"
+  }
+}

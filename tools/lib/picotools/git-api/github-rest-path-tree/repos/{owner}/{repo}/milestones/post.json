@@ -1,0 +1,104 @@
+{
+  "summary": "Create a milestone",
+  "description": "Creates a milestone.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/create-milestone",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/milestones#create-a-milestone"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "The title of the milestone."
+            },
+            "state": {
+              "type": "string",
+              "description": "The state of the milestone. Either `open` or `closed`.",
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "default": "open"
+            },
+            "description": {
+              "type": "string",
+              "description": "A description of the milestone."
+            },
+            "due_on": {
+              "type": "string",
+              "format": "date-time",
+              "description": "The milestone due date. This is a timestamp in [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) format: `YYYY-MM-DDTHH:MM:SSZ`."
+            }
+          },
+          "required": [
+            "title"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "title": "v1.0",
+              "state": "open",
+              "description": "Tracking milestone for version 1.0",
+              "due_on": "2012-10-09T23:39:01Z"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/milestone"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/milestone"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/milestones/1",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "milestones"
+  }
+}
