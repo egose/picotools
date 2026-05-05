@@ -1,0 +1,43 @@
+{
+  "summary": "Get an organization variable",
+  "description": "Gets a specific variable in an organization.\n\nThe authenticated user must have collaborator access to a repository to create, update, or read variables.\n\nOAuth tokens and personal access tokens (classic) need the`admin:org` scope to use this endpoint. If the repository is private, OAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-org-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#get-an-organization-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/variable-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/organization-actions-variable"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-actions-variable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

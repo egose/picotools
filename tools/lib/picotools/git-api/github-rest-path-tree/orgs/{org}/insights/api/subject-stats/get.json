@@ -1,0 +1,60 @@
+{
+  "summary": "Get subject stats",
+  "description": "Get API request statistics for all subjects within an organization within a specified time frame. Subjects can be users or GitHub Apps.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "api-insights/get-subject-stats",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/api-insights#get-subject-stats"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-min-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-max-timestamp"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-sort"
+    },
+    {
+      "$ref": "#/components/parameters/api-insights-subject-name-substring"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/api-insights-subject-stats"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/api-insights-subject-stats"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "api-insights"
+  }
+}

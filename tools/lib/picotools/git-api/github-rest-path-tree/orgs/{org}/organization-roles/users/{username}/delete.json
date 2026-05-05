@@ -1,0 +1,31 @@
+{
+  "summary": "Remove all organization roles for a user",
+  "description": "Revokes all assigned organization roles from a user. For more information on organization roles, see \"[Using organization roles](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/using-organization-roles).\"\n\nThe authenticated user must be an administrator for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/revoke-all-org-roles-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/organization-roles#remove-all-organization-roles-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "organization-roles"
+  }
+}

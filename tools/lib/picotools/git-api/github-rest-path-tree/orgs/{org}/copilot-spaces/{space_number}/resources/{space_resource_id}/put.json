@@ -1,0 +1,103 @@
+{
+  "summary": "Set a resource for an organization Copilot Space",
+  "description": "Updates the metadata of a resource in a specific Copilot Space owned by an organization.\nThe authenticated user must have write permissions on the space.\n\nOAuth app tokens and personal access tokens (classic) need the `write:org` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/update-resource-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/resources#set-a-resource-for-an-organization-copilot-space"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    },
+    {
+      "name": "space_resource_id",
+      "description": "The unique identifier of the resource.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "metadata": {
+              "type": "object",
+              "description": "Updated resource-specific metadata.",
+              "additionalProperties": true
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "metadata": {
+                "name": "updated-notes.txt",
+                "text": "Updated content"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/copilot-space-resource"
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "id": 1,
+                "resource_type": "free_text",
+                "copilot_chat_attachment_id": null,
+                "metadata": {
+                  "name": "updated-notes.txt",
+                  "text": "Updated content"
+                },
+                "created_at": "2025-01-01T00:00:00Z",
+                "updated_at": "2025-01-01T12:00:00Z"
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "resources"
+  }
+}

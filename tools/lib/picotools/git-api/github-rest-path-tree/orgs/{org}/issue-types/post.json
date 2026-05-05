@@ -1,0 +1,66 @@
+{
+  "summary": "Create issue type for an organization",
+  "description": "Create a new issue type for an organization.\n\nYou can find out more about issue types in [Managing issue types in an organization](https://docs.github.com/issues/tracking-your-work-with-issues/configuring-issues/managing-issue-types-in-an-organization).\n\nTo use this endpoint, the authenticated user must be an administrator for the organization. OAuth app tokens and\npersonal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/create-issue-type",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/issue-types#create-issue-type-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/organization-create-issue-type"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "Epic",
+              "description": "An issue type for a multi-week tracking of work",
+              "is_enabled": true,
+              "color": "green"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue-type"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-type"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "issue-types"
+  }
+}

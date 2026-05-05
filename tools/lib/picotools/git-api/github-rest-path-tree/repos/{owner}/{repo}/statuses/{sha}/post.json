@@ -1,0 +1,110 @@
+{
+  "summary": "Create a commit status",
+  "description": "Users with push access in a repository can create commit statuses for a given SHA.\n\nNote: there is a limit of 1000 statuses per `sha` and `context` within a repository. Attempts to create more than 1000 statuses will result in a validation error.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-commit-status",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/commits/statuses#create-a-commit-status"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "sha",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "description": "The state of the status.",
+              "enum": [
+                "error",
+                "failure",
+                "pending",
+                "success"
+              ]
+            },
+            "target_url": {
+              "type": "string",
+              "nullable": true,
+              "description": "The target URL to associate with this status. This URL will be linked from the GitHub UI to allow users to easily see the source of the status.  \nFor example, if your continuous integration system is posting build status, you would want to provide the deep link for the build output for this specific SHA:  \n`http://ci.example.com/user/repo/build/sha`"
+            },
+            "description": {
+              "type": "string",
+              "nullable": true,
+              "description": "A short description of the status."
+            },
+            "context": {
+              "type": "string",
+              "description": "A string label to differentiate this status from the status of other systems. This field is case-insensitive.",
+              "default": "default"
+            }
+          },
+          "required": [
+            "state"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "state": "success",
+              "target_url": "https://example.com/build/status",
+              "description": "The build succeeded!",
+              "context": "continuous-integration/jenkins"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/status"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/status"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/statuses/6dcb09b5b57875f334f61aebed695e2e4193db5e",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "commits",
+    "subcategory": "statuses"
+  }
+}

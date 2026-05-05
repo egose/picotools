@@ -1,0 +1,46 @@
+{
+  "summary": "Get a team (Legacy)",
+  "description": "> [!WARNING]\n> **Endpoint closing down notice:** This endpoint route is closing down and will be removed from the Teams API. We recommend migrating your existing code to use the [Get a team by name](https://docs.github.com/rest/teams/teams#get-a-team-by-name) endpoint.",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/get-legacy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/teams#get-a-team-legacy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/team-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/team-full"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-full"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "removalDate": "2021-02-01",
+    "deprecationDate": "2020-01-21",
+    "category": "teams",
+    "subcategory": "teams"
+  },
+  "deprecated": true
+}

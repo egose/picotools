@@ -1,0 +1,49 @@
+{
+  "summary": "Get a custom property for an organization",
+  "description": "Gets a custom property that is defined for an organization.\nOrganization members can read these properties.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/custom-properties-for-repos-get-organization-definition",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/custom-properties#get-a-custom-property-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/custom-property-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/custom-property"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/custom-property"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "custom-properties"
+  }
+}

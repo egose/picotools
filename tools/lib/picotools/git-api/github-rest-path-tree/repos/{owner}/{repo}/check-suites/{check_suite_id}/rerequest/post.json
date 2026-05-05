@@ -1,0 +1,46 @@
+{
+  "summary": "Rerequest a check suite",
+  "description": "Triggers GitHub to rerequest an existing check suite, without pushing new code to a repository. This endpoint will trigger the [`check_suite` webhook](https://docs.github.com/webhooks/event-payloads/#check_suite) event with the action `rerequested`. When a check suite is `rerequested`, its `status` is reset to `queued` and the `conclusion` is cleared.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/rerequest-suite",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/suites#rerequest-a-check-suite"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/check-suite-id"
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/empty-object"
+          },
+          "examples": {
+            "default": {
+              "value": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "suites"
+  }
+}

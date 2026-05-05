@@ -1,0 +1,48 @@
+{
+  "summary": "Get a hosted compute network configuration for an organization",
+  "description": "Gets a hosted compute network configuration configured in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `read:network_configurations` scope to use this endpoint.",
+  "tags": [
+    "hosted-compute"
+  ],
+  "operationId": "hosted-compute/get-network-configuration-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/network-configurations#get-a-hosted-compute-network-configuration-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/network-configuration-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/network-configuration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/network-configuration"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "network-configurations"
+  }
+}

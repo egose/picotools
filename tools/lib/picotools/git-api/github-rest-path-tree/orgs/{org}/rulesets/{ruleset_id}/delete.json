@@ -1,0 +1,43 @@
+{
+  "summary": "Delete an organization repository ruleset",
+  "description": "Delete a ruleset for an organization.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-org-ruleset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rules#delete-an-organization-repository-ruleset"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rules"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "ruleset_id",
+      "description": "The ID of the ruleset.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  }
+}

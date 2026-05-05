@@ -1,0 +1,75 @@
+{
+  "summary": "Render a Markdown document in raw mode",
+  "description": "You must send Markdown as plain text (using a `Content-Type` header of `text/plain` or `text/x-markdown`) to this endpoint, rather than using JSON format. In raw mode, [GitHub Flavored Markdown](https://github.github.com/gfm/) is not supported and Markdown will be rendered in plain format like a README.md file. Markdown content must be 400 KB or less.",
+  "operationId": "markdown/render-raw",
+  "tags": [
+    "markdown"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/markdown/markdown#render-a-markdown-document-in-raw-mode"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "text/plain": {
+        "schema": {
+          "type": "string"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "text": "Hello **world**"
+            }
+          }
+        }
+      },
+      "text/x-markdown": {
+        "schema": {
+          "type": "string"
+        },
+        "examples": {
+          "default": {
+            "summary": "Rendering markdown",
+            "value": {
+              "text": "Hello **world**"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "headers": {
+        "X-CommonMarker-Version": {
+          "$ref": "#/components/headers/x-common-marker-version"
+        }
+      },
+      "content": {
+        "text/html": {
+          "schema": {
+            "type": "string"
+          },
+          "examples": {
+            "default": {
+              "summary": "Example response",
+              "value": "<p>Hello <strong>world</strong></p>"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "markdown",
+    "subcategory": "markdown"
+  }
+}

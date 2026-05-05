@@ -1,0 +1,90 @@
+{
+  "summary": "Create a deploy key",
+  "description": "You can create a read-only deploy key.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-deploy-key",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deploy-keys/deploy-keys#create-a-deploy-key"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "A name for the key."
+            },
+            "key": {
+              "type": "string",
+              "description": "The contents of the key."
+            },
+            "read_only": {
+              "type": "boolean",
+              "description": "If `true`, the key will only be able to read repository contents. Otherwise, the key will be able to read and write.  \n  \nDeploy keys with write access can perform the same actions as an organization member with admin access, or a collaborator on a personal repository. For more information, see \"[Repository permission levels for an organization](https://docs.github.com/articles/repository-permission-levels-for-an-organization/)\" and \"[Permission levels for a user account repository](https://docs.github.com/articles/permission-levels-for-a-user-account-repository/).\""
+            }
+          },
+          "required": [
+            "key"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "title": "octocat@octomac",
+              "key": "ssh-rsa AAA...",
+              "read_only": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deploy-key"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deploy-key"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/keys/1",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deploy-keys",
+    "subcategory": "deploy-keys"
+  }
+}

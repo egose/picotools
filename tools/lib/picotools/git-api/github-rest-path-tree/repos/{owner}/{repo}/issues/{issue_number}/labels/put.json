@@ -1,0 +1,140 @@
+{
+  "summary": "Set labels for an issue",
+  "description": "Removes any previous labels and sets the new labels for an issue.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/set-labels",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/labels#set-labels-for-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "labels": {
+                  "type": "array",
+                  "minItems": 1,
+                  "description": "The names of the labels to set for the issue. The labels you set replace any existing labels. You can pass an empty array to remove all labels. Alternatively, you can pass a single label as a `string` or an `array` of labels directly, but GitHub recommends passing an object with the `labels` key. You can also add labels to the existing labels for an issue. For more information, see \"[Add labels to an issue](https://docs.github.com/rest/issues/labels#add-labels-to-an-issue).\"",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "labels": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ]
+              }
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "labels": [
+                "bug",
+                "enhancement"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/label"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/label-items"
+            }
+          }
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "labels"
+  }
+}

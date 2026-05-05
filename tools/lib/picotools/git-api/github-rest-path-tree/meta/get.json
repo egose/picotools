@@ -1,0 +1,39 @@
+{
+  "summary": "Get GitHub meta information",
+  "description": "Returns meta information about GitHub, including a list of GitHub's IP addresses. For more information, see \"[About GitHub's IP addresses](https://docs.github.com/articles/about-github-s-ip-addresses/).\"\n\nThe API's response also includes a list of GitHub's domain names.\n\nThe values shown in the documentation's response are example values. You must always query the API directly to get the latest values.\n\n> [!NOTE]\n> This endpoint returns both IPv4 and IPv6 addresses. However, not all features support IPv6. You should refer to the specific documentation for each feature to determine if IPv6 is supported.",
+  "tags": [
+    "meta"
+  ],
+  "operationId": "meta/get",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/meta/meta#get-apiname-meta-information"
+  },
+  "parameters": [],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/api-overview"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/api-overview"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "meta",
+    "subcategory": "meta"
+  }
+}

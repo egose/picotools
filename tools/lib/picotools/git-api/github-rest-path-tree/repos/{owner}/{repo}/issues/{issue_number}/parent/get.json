@@ -1,0 +1,55 @@
+{
+  "summary": "Get parent issue",
+  "description": "You can use the REST API to get the parent issue of a sub-issue.\n\nThis endpoint supports the following custom media types. For more information, see [Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\n\n- **`application/vnd.github.raw+json`**: Returns the raw markdown body. Response will include `body`. This is the default if you do not pass any specific media type.\n- **`application/vnd.github.text+json`**: Returns a text only representation of the markdown body. Response will include `body_text`.\n- **`application/vnd.github.html+json`**: Returns HTML rendered from the body's markdown. Response will include `body_html`.\n- **`application/vnd.github.full+json`**: Returns raw, text, and HTML representations. Response will include `body`, `body_text`, and `body_html`.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/get-parent",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/sub-issues#get-parent-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue"
+            }
+          }
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "sub-issues"
+  }
+}

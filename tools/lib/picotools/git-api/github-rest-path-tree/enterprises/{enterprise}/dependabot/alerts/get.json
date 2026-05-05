@@ -1,0 +1,98 @@
+{
+  "summary": "List Dependabot alerts for an enterprise",
+  "description": "Lists Dependabot alerts for repositories that are owned by the specified enterprise.\n\nThe authenticated user must be a member of the enterprise to use this endpoint.\n\nAlerts are only returned for organizations in the enterprise for which you are an organization owner or a security manager. For more information about security managers, see \"[Managing security managers in your organization](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/managing-security-managers-in-your-organization).\"\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `security_events` scope to use this endpoint.",
+  "tags": [
+    "dependabot"
+  ],
+  "operationId": "dependabot/list-alerts-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependabot/alerts#list-dependabot-alerts-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-classifications"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-states"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-severities"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-ecosystems"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-packages"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-epss"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-has"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-assignees"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-scope"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-sort"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/dependabot-alert-with-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/dependabot-alerts-for-organization"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "previews": [],
+    "category": "dependabot",
+    "subcategory": "alerts"
+  }
+}

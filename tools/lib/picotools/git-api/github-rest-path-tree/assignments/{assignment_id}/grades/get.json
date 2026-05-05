@@ -1,0 +1,45 @@
+{
+  "summary": "Get assignment grades",
+  "description": "Gets grades for a GitHub Classroom assignment. Grades will only be returned if the current user is an administrator of the GitHub Classroom for the assignment.",
+  "tags": [
+    "classroom"
+  ],
+  "operationId": "classroom/get-assignment-grades",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/classroom/classroom#get-assignment-grades"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/assignment-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/classroom-assignment-grade"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/classroom-assignment-grades"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "classroom",
+    "subcategory": "classroom"
+  }
+}

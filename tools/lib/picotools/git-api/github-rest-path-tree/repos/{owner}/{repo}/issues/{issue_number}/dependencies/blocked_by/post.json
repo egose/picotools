@@ -1,0 +1,96 @@
+{
+  "summary": "Add a dependency an issue is blocked by",
+  "description": "You can use the REST API to add a 'blocked by' relationship to an issue.\n\nCreating content too quickly using this endpoint may result in secondary rate limiting.\nFor more information, see [Rate limits for the API](https://docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits)\nand [Best practices for using the REST API](https://docs.github.com/rest/guides/best-practices-for-using-the-rest-api).\n\nThis endpoint supports the following custom media types. For more information, see [Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\n\n- **`application/vnd.github.raw+json`**: Returns the raw Markdown body. Response will include `body`. This is the default if you do not pass any specific media type.\n- **`application/vnd.github.text+json`**: Returns a text only representation of the Markdown body. Response will include `body_text`.\n- **`application/vnd.github.html+json`**: Returns HTML rendered from the body's Markdown. Response will include `body_html`.\n- **`application/vnd.github.full+json`**: Returns raw, text, and HTML representations. Response will include `body`, `body_text`, and `body_html`.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/add-blocked-by-dependency",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/issue-dependencies#add-a-dependency-an-issue-is-blocked-by"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "issue_id": {
+              "type": "integer",
+              "description": "The id of the issue that blocks the current issue"
+            }
+          },
+          "required": [
+            "issue_id"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "issue_id": 1
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/issues/1/dependencies/blocked_by",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "issue-dependencies"
+  }
+}

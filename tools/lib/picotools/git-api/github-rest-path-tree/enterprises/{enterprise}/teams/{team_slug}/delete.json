@@ -1,0 +1,34 @@
+{
+  "summary": "Delete an enterprise team",
+  "description": "To delete an enterprise team, the authenticated user must be an enterprise owner.\n\nIf you are an enterprise owner, deleting an enterprise team will delete all of its IdP mappings as well.",
+  "tags": [
+    "enterprise-teams"
+  ],
+  "operationId": "enterprise-teams/delete",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-teams#delete-an-enterprise-team"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/team-slug"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-teams"
+  }
+}

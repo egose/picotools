@@ -1,0 +1,60 @@
+{
+  "summary": "List pending team invitations",
+  "description": "The return hash contains a `role` field which refers to the Organization Invitation role and will be one of the following values: `direct_member`, `admin`, `billing_manager`, `hiring_manager`, or `reinstate`. If the invitee is not a GitHub member, the `login` field in the return hash will be `null`.\n\n> [!NOTE]\n> You can also specify a team by `org_id` and `team_id` using the route `GET /organizations/{org_id}/team/{team_id}/invitations`.",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/list-pending-invitations-in-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/members#list-pending-team-invitations"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/team-slug"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/organization-invitation"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-invitation-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/enterprise_team_unsupported"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "teams",
+    "subcategory": "members"
+  }
+}

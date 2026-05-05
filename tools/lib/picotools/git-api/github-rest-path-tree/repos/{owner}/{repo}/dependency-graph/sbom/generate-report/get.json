@@ -1,0 +1,54 @@
+{
+  "summary": "Request generation of a software bill of materials (SBOM) for a repository.",
+  "description": "Triggers a job to generate a software bill of materials (SBOM) for a repository in SPDX JSON format.",
+  "tags": [
+    "dependency-graph"
+  ],
+  "operationId": "dependency-graph/generate-sbom-report",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependency-graph/sboms#request-generation-of-a-software-bill-of-materials-sbom-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "sbom_url": {
+                "type": "string",
+                "description": "URL to poll for the SBOM export result."
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/dependency-graph-generate-sbom-report-response"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "category": "dependency-graph",
+    "subcategory": "sboms"
+  }
+}

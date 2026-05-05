@@ -1,0 +1,100 @@
+{
+  "summary": "Remove team access restrictions",
+  "description": "Protected branches are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, GitHub Enterprise Cloud, and GitHub Enterprise Server. For more information, see [GitHub's products](https://docs.github.com/github/getting-started-with-github/githubs-products) in the GitHub Help documentation.\n\nRemoves the ability of a team to push to this branch. You can also remove push access for child teams.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/remove-team-access-restrictions",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branch-protection#remove-team-access-restrictions"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "teams": {
+                  "type": "array",
+                  "description": "The slug values for teams",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "teams"
+              ],
+              "example": {
+                "teams": [
+                  "my-team"
+                ]
+              }
+            },
+            {
+              "type": "array",
+              "description": "The slug values for teams",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example removing a team in a branch protection rule",
+            "value": {
+              "teams": [
+                "octocats"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/team"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-items"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "requestBodyParameterName": "teams",
+    "category": "branches",
+    "subcategory": "branch-protection"
+  }
+}

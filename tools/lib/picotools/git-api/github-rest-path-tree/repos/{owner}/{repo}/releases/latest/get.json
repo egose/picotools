@@ -1,0 +1,46 @@
+{
+  "summary": "Get the latest release",
+  "description": "View the latest published full release for the repository.\n\nThe latest release is the most recent non-prerelease, non-draft release, sorted by the `created_at` attribute. The `created_at` attribute is the date of the commit used for the release, and not the date when the release was drafted or published.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-latest-release",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/releases#get-the-latest-release"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/release"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "releases"
+  }
+}

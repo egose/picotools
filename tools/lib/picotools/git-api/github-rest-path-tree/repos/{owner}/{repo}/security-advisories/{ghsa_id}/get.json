@@ -1,0 +1,52 @@
+{
+  "summary": "Get a repository security advisory",
+  "description": "Get a repository security advisory using its GitHub Security Advisory (GHSA) identifier.\n\nAnyone can access any published security advisory on a public repository.\n\nThe authenticated user can access an unpublished security advisory from a repository if they are a security manager or administrator of that repository, or if they are a\ncollaborator on the security advisory.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `repository_advisories:read` scope to to get a published security advisory in a private repository, or any unpublished security advisory that the authenticated user has access to.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/get-repository-advisory",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#get-a-repository-security-advisory"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/ghsa_id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-advisory"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-advisory"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

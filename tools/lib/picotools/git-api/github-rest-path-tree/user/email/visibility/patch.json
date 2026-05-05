@@ -1,0 +1,85 @@
+{
+  "summary": "Set primary email visibility for the authenticated user",
+  "description": "Sets the visibility for your primary email addresses.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/set-primary-email-visibility-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/emails#set-primary-email-visibility-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "visibility": {
+              "description": "Denotes whether an email is publicly visible.",
+              "type": "string",
+              "enum": [
+                "public",
+                "private"
+              ]
+            }
+          },
+          "required": [
+            "visibility"
+          ],
+          "type": "object"
+        },
+        "examples": {
+          "default": {
+            "summary": "Example setting the primary email address to private",
+            "value": {
+              "visibility": "private"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/email"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/email-items-3"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "emails"
+  }
+}

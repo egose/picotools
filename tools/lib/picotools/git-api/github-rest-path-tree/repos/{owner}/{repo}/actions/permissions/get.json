@@ -1,0 +1,43 @@
+{
+  "summary": "Get GitHub Actions permissions for a repository",
+  "description": "Gets the GitHub Actions permissions policy for a repository, including whether GitHub Actions is enabled and the actions and reusable workflows allowed to run in the repository.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "operationId": "actions/get-github-actions-permissions-repository",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-github-actions-permissions-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-repository-permissions"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-repository-permissions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "summary": "List organization rule suites",
+  "description": "Lists suites of rule evaluations at the organization level.\nFor more information, see \"[Managing rulesets for repositories in your organization](https://docs.github.com/organizations/managing-organization-settings/managing-rulesets-for-repositories-in-your-organization#viewing-insights-for-rulesets).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-org-rule-suites",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rule-suites#list-organization-rule-suites"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/ref-in-query"
+    },
+    {
+      "$ref": "#/components/parameters/repository-name-in-query"
+    },
+    {
+      "$ref": "#/components/parameters/time-period"
+    },
+    {
+      "$ref": "#/components/parameters/actor-name-in-query"
+    },
+    {
+      "$ref": "#/components/parameters/rule-suite-result"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/rule-suites"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/rule-suite-items"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rule-suites"
+  }
+}

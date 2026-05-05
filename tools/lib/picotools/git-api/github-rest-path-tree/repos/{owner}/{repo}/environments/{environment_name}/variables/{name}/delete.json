@@ -1,0 +1,37 @@
+{
+  "summary": "Delete an environment variable",
+  "description": "Deletes an environment variable using the variable name.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/delete-environment-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#delete-an-environment-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/variable-name"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

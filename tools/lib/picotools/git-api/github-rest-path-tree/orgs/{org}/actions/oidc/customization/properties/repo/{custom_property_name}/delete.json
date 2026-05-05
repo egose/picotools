@@ -1,0 +1,45 @@
+{
+  "summary": "Delete an OIDC custom property inclusion for an organization",
+  "description": "Removes a repository custom property from being included in the OIDC token for repository actions in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "oidc"
+  ],
+  "operationId": "oidc/delete-oidc-custom-property-inclusion-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#delete-an-oidc-custom-property-inclusion-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "custom_property_name",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "description": "The name of the custom property to remove from OIDC token inclusion"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "OIDC custom property inclusion deleted"
+    },
+    "400": {
+      "description": "Invalid input"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "description": "Property inclusion not found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

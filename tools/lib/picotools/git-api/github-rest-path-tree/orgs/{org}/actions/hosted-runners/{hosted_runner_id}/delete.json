@@ -1,0 +1,43 @@
+{
+  "summary": "Delete a GitHub-hosted runner for an organization",
+  "description": "Deletes a GitHub-hosted runner for an organization.",
+  "operationId": "actions/delete-hosted-runner-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#delete-a-github-hosted-runner-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/hosted-runner-id"
+    }
+  ],
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-hosted-runner"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "summary": "Get the customization template for an OIDC subject claim for an organization",
+  "description": "Gets the customization template for an OpenID Connect (OIDC) subject claim.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "oidc"
+  ],
+  "operationId": "oidc/get-oidc-custom-sub-template-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#get-the-customization-template-for-an-oidc-subject-claim-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "A JSON serialized template for OIDC subject claim customization",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/oidc-custom-sub"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/oidc-custom-sub"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "summary": "List deployment branch policies",
+  "description": "Lists the deployment branch policies for an environment.\n\nAnyone with read access to the repository can use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with a private repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-deployment-branch-policies",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/branch-policies#list-deployment-branch-policies"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "description": "The number of deployment branch policies for the environment.",
+                "type": "integer",
+                "example": 2
+              },
+              "branch_policies": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/deployment-branch-policy"
+                }
+              }
+            },
+            "required": [
+              "total_count",
+              "branch_policies"
+            ]
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-branch-policies-list"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "branch-policies"
+  }
+}

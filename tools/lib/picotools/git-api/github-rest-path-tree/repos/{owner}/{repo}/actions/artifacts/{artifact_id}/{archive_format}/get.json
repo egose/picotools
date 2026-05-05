@@ -1,0 +1,50 @@
+{
+  "summary": "Download an artifact",
+  "description": "Gets a redirect URL to download an archive for a repository. This URL expires after 1 minute. Look for `Location:` in\nthe response header to find the URL for the download. The `:archive_format` must be `zip`.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/download-artifact",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/artifacts#download-an-artifact"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/artifact-id"
+    },
+    {
+      "name": "archive_format",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "302": {
+      "description": "Response",
+      "headers": {
+        "Location": {
+          "$ref": "#/components/headers/location"
+        }
+      }
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "artifacts"
+  }
+}

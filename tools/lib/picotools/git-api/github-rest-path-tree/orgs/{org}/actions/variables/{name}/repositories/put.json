@@ -1,0 +1,65 @@
+{
+  "summary": "Set selected repositories for an organization variable",
+  "description": "Replaces all repositories for an organization variable that is available\nto selected repositories. Organization variables that are available to selected\nrepositories have their `visibility` field set to `selected`.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint. If the repository is private, the `repo` scope is also required.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/set-selected-repos-for-org-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#set-selected-repositories-for-an-organization-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/variable-name"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "selected_repository_ids": {
+              "type": "array",
+              "description": "The IDs of the repositories that can access the organization variable.",
+              "items": {
+                "type": "integer"
+              }
+            }
+          },
+          "required": [
+            "selected_repository_ids"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "selected_repository_ids": [
+                64780797
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "409": {
+      "description": "Response when the visibility of the variable is not set to `selected`"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

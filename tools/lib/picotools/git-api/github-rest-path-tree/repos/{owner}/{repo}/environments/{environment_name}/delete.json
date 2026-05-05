@@ -1,0 +1,34 @@
+{
+  "summary": "Delete an environment",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-an-environment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/environments#delete-an-environment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Default response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "environments"
+  }
+}

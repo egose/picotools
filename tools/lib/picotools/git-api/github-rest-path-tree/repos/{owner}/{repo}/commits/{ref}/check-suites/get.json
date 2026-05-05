@@ -1,0 +1,85 @@
+{
+  "summary": "List check suites for a Git reference",
+  "description": "Lists check suites for a commit `ref`. The `ref` can be a SHA, branch name, or a tag name.\n\n> [!NOTE]\n> The endpoints to manage checks only look for pushes in the repository where the check suite or check run were created. Pushes to a branch in a forked repository are not detected and return an empty `pull_requests` array and a `null` value for `head_branch`.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint on a private repository.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/list-suites-for-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/suites#list-check-suites-for-a-git-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/commit-ref"
+    },
+    {
+      "name": "app_id",
+      "description": "Filters check suites by GitHub App `id`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "integer"
+      },
+      "example": 1
+    },
+    {
+      "$ref": "#/components/parameters/check-name"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "check_suites"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "check_suites": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/check-suite"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-suite-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "suites"
+  }
+}

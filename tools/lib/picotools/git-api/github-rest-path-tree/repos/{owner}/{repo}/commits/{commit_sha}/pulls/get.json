@@ -1,0 +1,63 @@
+{
+  "summary": "List pull requests associated with a commit",
+  "description": "Lists the merged pull request that introduced the commit to the repository. If the commit is not present in the default branch, it will return merged and open pull requests associated with the commit.\n\nTo list the open or merged pull requests associated with a branch, you can set the `commit_sha` parameter to the branch name.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-pull-requests-associated-with-commit",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/commits/commits#list-pull-requests-associated-with-a-commit"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/commit-sha"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/pull-request-simple"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/pull-request-simple-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "commits",
+    "subcategory": "commits"
+  }
+}

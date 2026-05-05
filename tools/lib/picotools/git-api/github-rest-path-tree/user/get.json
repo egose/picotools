@@ -1,0 +1,62 @@
+{
+  "summary": "Get the authenticated user",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `user` scope in order for the response to include private profile information.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/get-authenticated",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/users#get-the-authenticated-user"
+  },
+  "parameters": [],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/private-user"
+              },
+              {
+                "$ref": "#/components/schemas/public-user"
+              }
+            ],
+            "discriminator": {
+              "propertyName": "user_view_type",
+              "mapping": {
+                "public": "#/components/schemas/public-user",
+                "private": "#/components/schemas/private-user"
+              }
+            }
+          },
+          "examples": {
+            "response-with-public-and-private-profile-information": {
+              "$ref": "#/components/examples/private-user-response-with-public-and-private-profile-information"
+            },
+            "response-with-public-profile-information": {
+              "$ref": "#/components/examples/private-user-response-with-public-profile-information"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "users"
+  }
+}

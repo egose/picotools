@@ -1,0 +1,9 @@
+{
+  "sourceApiUrl": "https://api.github.com/repos/github/rest-api-description/contents/descriptions/api.github.com?ref=main",
+  "sourceDownloadUrl": "https://raw.githubusercontent.com/github/rest-api-description/main/descriptions/api.github.com/api.github.com.2026-03-10.json",
+  "sourceFileName": "api.github.com.2026-03-10.json",
+  "specFile": "/home/jahn/projects/_picotools/tools/lib/picotools/git-api/api.github.com.json",
+  "indexFile": "/home/jahn/projects/_picotools/tools/lib/picotools/git-api/operation-id-index.json",
+  "pathTreeDir": "/home/jahn/projects/_picotools/tools/lib/picotools/git-api/github-rest-path-tree",
+  "generatedAt": "2026-05-04T23:52:35Z"
+}

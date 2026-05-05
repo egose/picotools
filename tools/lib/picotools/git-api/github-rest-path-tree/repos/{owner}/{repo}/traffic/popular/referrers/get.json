@@ -1,0 +1,49 @@
+{
+  "summary": "Get top referral sources",
+  "description": "Get the top 10 referrers over the last 14 days.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-top-referrers",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/metrics/traffic#get-top-referral-sources"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/referrer-traffic"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/referrer-traffic-items"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "metrics",
+    "subcategory": "traffic"
+  }
+}

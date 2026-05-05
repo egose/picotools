@@ -1,0 +1,34 @@
+{
+  "summary": "Delete a deploy key",
+  "description": "Deploy keys are immutable. If you need to update a key, remove the key and create a new one instead.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-deploy-key",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deploy-keys/deploy-keys#delete-a-deploy-key"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/key-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deploy-keys",
+    "subcategory": "deploy-keys"
+  }
+}

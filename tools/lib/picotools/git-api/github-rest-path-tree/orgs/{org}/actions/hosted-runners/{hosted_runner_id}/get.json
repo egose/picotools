@@ -1,0 +1,48 @@
+{
+  "summary": "Get a GitHub-hosted runner for an organization",
+  "description": "Gets a GitHub-hosted runner configured in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `manage_runners:org` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-hosted-runner-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#get-a-github-hosted-runner-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/hosted-runner-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-hosted-runner"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

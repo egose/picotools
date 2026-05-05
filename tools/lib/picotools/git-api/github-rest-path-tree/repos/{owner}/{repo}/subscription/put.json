@@ -1,0 +1,71 @@
+{
+  "summary": "Set a repository subscription",
+  "description": "If you would like to watch a repository, set `subscribed` to `true`. If you would like to ignore notifications made within a repository, set `ignored` to `true`. If you would like to stop watching a repository, [delete the repository's subscription](https://docs.github.com/rest/activity/watching#delete-a-repository-subscription) completely.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/set-repo-subscription",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/watching#set-a-repository-subscription"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "subscribed": {
+              "type": "boolean",
+              "description": "Determines if notifications should be received from this repository."
+            },
+            "ignored": {
+              "type": "boolean",
+              "description": "Determines if all notifications should be blocked from this repository."
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "subscribed": true,
+              "ignored": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-subscription"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-subscription"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "watching"
+  }
+}

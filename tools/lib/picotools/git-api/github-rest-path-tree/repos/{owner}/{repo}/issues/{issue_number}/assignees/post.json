@@ -1,0 +1,75 @@
+{
+  "summary": "Add assignees to an issue",
+  "description": "Adds up to 10 assignees to an issue. Users already assigned to an issue are not replaced.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/add-assignees",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/assignees#add-assignees-to-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "assignees": {
+              "type": "array",
+              "description": "Usernames of people to assign this issue to. _NOTE: Only users with push access can add assignees to an issue. Assignees are silently ignored otherwise._",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "assignees": [
+                "hubot",
+                "other_user"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "assignees"
+  }
+}

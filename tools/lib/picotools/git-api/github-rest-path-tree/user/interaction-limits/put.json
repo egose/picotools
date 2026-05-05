@@ -1,0 +1,56 @@
+{
+  "summary": "Set interaction restrictions for your public repositories",
+  "description": "Temporarily restricts which type of GitHub user can interact with your public repositories. Setting the interaction limit at the user level will overwrite any interaction limits that are set for individual repositories owned by the user.",
+  "tags": [
+    "interactions"
+  ],
+  "operationId": "interactions/set-restrictions-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/interactions/user#set-interaction-restrictions-for-your-public-repositories"
+  },
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/interaction-limit"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "limit": "collaborators_only",
+              "expiry": "one_month"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/interaction-limit-response"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/interaction-limit-user"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "interactions",
+    "subcategory": "user"
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "summary": "List collaborators for an organization Copilot Space",
+  "description": "Lists all collaborators for a specific Copilot Space owned by an organization. The authenticated user must have appropriate permissions to view collaborators.\n\nEach collaborator entry specifies which user or team has access to the space and at what level (reader, writer, or admin). The space owner (organization) is excluded from this list.\n\n**Note:** Team collaborators listed here are teams that are defined in the organization.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/list-collaborators-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/collaborators#list-collaborators-for-an-organization-copilot-space"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "collaborators"
+            ],
+            "properties": {
+              "collaborators": {
+                "type": "array",
+                "description": "The list of collaborators for this Copilot Space.",
+                "items": {
+                  "$ref": "#/components/schemas/copilot-space-collaborator"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "collaborators": [
+                  {
+                    "actor_type": "User",
+                    "role": "writer",
+                    "login": "octocat",
+                    "id": 12345,
+                    "node_id": "MDQ6VXNlcjEyMzQ1",
+                    "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+                    "gravatar_id": "",
+                    "url": "https://api.github.com/users/octocat",
+                    "html_url": "https://github.com/octocat",
+                    "followers_url": "https://api.github.com/users/octocat/followers",
+                    "following_url": "https://api.github.com/users/octocat/following{/other_user}",
+                    "gists_url": "https://api.github.com/users/octocat/gists{/gist_id}",
+                    "starred_url": "https://api.github.com/users/octocat/starred{/owner}{/repo}",
+                    "subscriptions_url": "https://api.github.com/users/octocat/subscriptions",
+                    "organizations_url": "https://api.github.com/users/octocat/orgs",
+                    "repos_url": "https://api.github.com/users/octocat/repos",
+                    "events_url": "https://api.github.com/users/octocat/events{/privacy}",
+                    "received_events_url": "https://api.github.com/users/octocat/received_events",
+                    "type": "User",
+                    "user_view_type": "public",
+                    "site_admin": false,
+                    "name": "The Octocat",
+                    "company": "GitHub",
+                    "blog": "https://github.com/blog",
+                    "location": "San Francisco",
+                    "email": "octocat@github.com",
+                    "hireable": false,
+                    "bio": "There once was...",
+                    "twitter_username": "octocat",
+                    "public_repos": 2,
+                    "public_gists": 1,
+                    "followers": 20,
+                    "following": 0,
+                    "created_at": "2008-01-14T04:33:35Z",
+                    "updated_at": "2008-01-14T04:33:35Z"
+                  },
+                  {
+                    "actor_type": "Team",
+                    "role": "reader",
+                    "id": 67890,
+                    "node_id": "MDQ6VGVhbTY3ODkw",
+                    "url": "https://api.github.com/teams/67890",
+                    "html_url": "https://github.com/orgs/octo-org/teams/developers",
+                    "name": "Developers",
+                    "slug": "developers",
+                    "description": "Team of developers",
+                    "privacy": "closed",
+                    "notification_setting": "notifications_enabled",
+                    "members_url": "https://api.github.com/teams/67890/members{/member}",
+                    "repositories_url": "https://api.github.com/teams/67890/repos",
+                    "parent": null,
+                    "created_at": "2017-07-14T16:53:42Z",
+                    "updated_at": "2017-08-17T12:37:15Z",
+                    "organization": {
+                      "login": "octo-org",
+                      "id": 1,
+                      "node_id": "MDEyOk9yZ2FuaXphdGlvbjE=",
+                      "url": "https://api.github.com/orgs/octo-org",
+                      "repos_url": "https://api.github.com/orgs/octo-org/repos",
+                      "events_url": "https://api.github.com/orgs/octo-org/events",
+                      "hooks_url": "https://api.github.com/orgs/octo-org/hooks",
+                      "issues_url": "https://api.github.com/orgs/octo-org/issues",
+                      "members_url": "https://api.github.com/orgs/octo-org/members{/member}",
+                      "public_members_url": "https://api.github.com/orgs/octo-org/public_members{/member}",
+                      "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+                      "description": "A great organization"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "collaborators"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "summary": "Remove a repository from a team (Legacy)",
+  "description": "> [!WARNING]\n> **Endpoint closing down notice:** This endpoint route is closing down and will be removed from the Teams API. We recommend migrating your existing code to use the new [Remove a repository from a team](https://docs.github.com/rest/teams/teams#remove-a-repository-from-a-team) endpoint.\n\nIf the authenticated user is an organization owner or a team maintainer, they can remove any repositories from the team. To remove a repository from a team as an organization member, the authenticated user must have admin access to the repository and must be able to see the team. NOTE: This does not delete the repository, it just removes it from the team.",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/remove-repo-legacy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/teams#remove-a-repository-from-a-team-legacy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/team-id"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "removalDate": "2021-02-01",
+    "deprecationDate": "2020-01-21",
+    "category": "teams",
+    "subcategory": "teams"
+  },
+  "deprecated": true
+}

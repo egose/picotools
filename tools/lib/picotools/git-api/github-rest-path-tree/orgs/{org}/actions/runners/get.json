@@ -1,0 +1,74 @@
+{
+  "summary": "List self-hosted runners for an organization",
+  "description": "Lists all self-hosted runners configured in an organization.\n\nAuthenticated users must have admin access to the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint. If the repository is private, the `repo` scope is also required.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/list-self-hosted-runners-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runners#list-self-hosted-runners-for-an-organization"
+  },
+  "parameters": [
+    {
+      "name": "name",
+      "description": "The name of a self-hosted runner.",
+      "in": "query",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "runners"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "runners": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/runner"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/runner-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "self-hosted-runners"
+  }
+}

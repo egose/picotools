@@ -1,0 +1,75 @@
+{
+  "summary": "List package versions for a package owned by the authenticated user",
+  "description": "Lists package versions for a package owned by the authenticated user.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` scope to use this endpoint. For more information, see \"[About permissions for GitHub Packages](https://docs.github.com/packages/learn-github-packages/about-permissions-for-github-packages#permissions-for-repository-scoped-packages).\"",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/get-all-package-versions-for-package-owned-by-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#list-package-versions-for-a-package-owned-by-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/package-type"
+    },
+    {
+      "$ref": "#/components/parameters/package-name"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "name": "state",
+      "in": "query",
+      "required": false,
+      "description": "The state of the package, either active or deleted.",
+      "schema": {
+        "type": "string",
+        "enum": [
+          "active",
+          "deleted"
+        ],
+        "default": "active"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/package-version"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/package-versions-for-authenticated-user"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

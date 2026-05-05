@@ -1,0 +1,70 @@
+{
+  "summary": "Set self-hosted runners settings for an organization",
+  "description": "Sets the settings for self-hosted runners for an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope or the \"Actions policies\" fine-grained permission to use this endpoint.",
+  "operationId": "actions/set-self-hosted-runners-permissions-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#set-self-hosted-runners-settings-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "enabled_repositories"
+          ],
+          "properties": {
+            "enabled_repositories": {
+              "type": "string",
+              "description": "The policy that controls whether self-hosted runners can be used in the organization",
+              "enum": [
+                "all",
+                "selected",
+                "none"
+              ]
+            }
+          }
+        },
+        "examples": {
+          "application/json": {
+            "value": {
+              "enabled_repositories": "all"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "No content"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "summary": "Get project for organization",
+  "description": "Get a specific organization-owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/get-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/projects#get-project-for-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/project-number"
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/projects-v2"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "projects"
+  }
+}

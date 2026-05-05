@@ -1,0 +1,34 @@
+{
+  "summary": "Remove all custom labels from a self-hosted runner for an organization",
+  "description": "Remove all custom labels from a self-hosted runner configured in an\norganization. Returns the remaining read-only labels from the runner.\n\nAuthenticated users must have admin access to the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint. If the repository is private, the `repo` scope is also required.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/remove-all-custom-labels-from-self-hosted-runner-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runners#remove-all-custom-labels-from-a-self-hosted-runner-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/runner-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/actions_runner_labels_readonly"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "self-hosted-runners"
+  }
+}

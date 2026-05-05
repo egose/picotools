@@ -1,0 +1,87 @@
+{
+  "summary": "Review a request to access organization resources with a fine-grained personal access token",
+  "description": "Approves or denies a pending request to access organization resources via a fine-grained personal access token.\n\nOnly GitHub Apps can use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/review-pat-grant-request",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/personal-access-tokens#review-a-request-to-access-organization-resources-with-a-fine-grained-personal-access-token"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "pat_request_id",
+      "in": "path",
+      "description": "Unique identifier of the request for access via fine-grained personal access token.",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "Action to apply to the request.",
+              "enum": [
+                "approve",
+                "deny"
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "description": "Reason for approving or denying the request. Max 1024 characters.",
+              "maxLength": 1024,
+              "nullable": true
+            }
+          },
+          "required": [
+            "action"
+          ]
+        },
+        "examples": {
+          "204": {
+            "summary": "Example of denying a request",
+            "value": {
+              "action": "deny",
+              "reason": "This request is denied because the access is too broad."
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "personal-access-tokens"
+  }
+}

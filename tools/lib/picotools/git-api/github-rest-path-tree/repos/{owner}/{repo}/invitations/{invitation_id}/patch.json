@@ -1,0 +1,77 @@
+{
+  "summary": "Update a repository invitation",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-invitation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/invitations#update-a-repository-invitation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/invitation-id"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "permissions": {
+              "type": "string",
+              "description": "The permissions that the associated user will have on the repository. Valid values are `read`, `write`, `maintain`, `triage`, and `admin`.",
+              "enum": [
+                "read",
+                "write",
+                "maintain",
+                "triage",
+                "admin"
+              ]
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Example request body",
+            "value": {
+              "permissions": "write"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-invitation"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-invitation"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "collaborators",
+    "subcategory": "invitations"
+  }
+}

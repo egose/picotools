@@ -1,0 +1,77 @@
+{
+  "summary": "Remove users from Codespaces access for an organization",
+  "description": "Codespaces for the specified users will no longer be billed to the organization.\n\nTo use this endpoint, the access settings for the organization must be set to `selected_members`.\nFor information on how to change this setting, see \"[Manage access control for organization codespaces](https://docs.github.com/rest/codespaces/organizations#manage-access-control-for-organization-codespaces).\"\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/delete-codespaces-access-users",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/organizations#remove-users-from-codespaces-access-for-an-organization"
+  },
+  "deprecated": true,
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "selected_usernames": {
+              "type": "array",
+              "description": "The usernames of the organization members and outside collaborators whose codespaces should not be billed to the organization.",
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "selected_usernames"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "selected_usernames": [
+                "johnDoe",
+                "atomIO"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response when successfully modifying permissions."
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "400": {
+      "description": "Users are neither members nor collaborators of this organization."
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "organizations"
+  }
+}

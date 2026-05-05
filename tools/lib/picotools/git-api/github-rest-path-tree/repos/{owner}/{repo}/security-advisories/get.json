@@ -1,0 +1,103 @@
+{
+  "summary": "List repository security advisories",
+  "description": "Lists security advisories in a repository.\n\nThe authenticated user can access unpublished security advisories from a repository if they are a security manager or administrator of that repository, or if they are a collaborator on any security advisory.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `repository_advisories:read` scope to to get a published security advisory in a private repository, or any unpublished security advisory that the authenticated user has access to.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/list-repository-advisories",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#list-repository-security-advisories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "name": "sort",
+      "description": "The property to sort the results by.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated",
+          "published"
+        ],
+        "default": "created"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "name": "per_page",
+      "description": "The number of advisories to return per page. For more information, see \"[Using pagination in the REST API](https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api).\"",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 30
+      }
+    },
+    {
+      "name": "state",
+      "description": "Filter by state of the repository advisories. Only advisories of this state will be returned.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "triage",
+          "draft",
+          "published",
+          "closed"
+        ]
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/repository-advisory"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/list-repository-advisories"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

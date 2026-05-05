@@ -1,0 +1,50 @@
+{
+  "summary": "Delete an issue field value from an issue",
+  "description": "Remove a specific custom field value from an issue.\n\nOnly users with push access to the repository can delete issue field values. If you don't have the proper permissions, you'll receive a `403 Forbidden` response.\n\nIf the specified field does not have a value set on the issue, this operation will return a `404` error.\n\nThis endpoint triggers [notifications](https://docs.github.com/github/managing-subscriptions-and-notifications-on-github/about-notifications). Creating content too quickly using this endpoint may result in secondary rate limiting. For more information, see \"[Rate limits for the API](https://docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits)\"\nand \"[Best practices for using the REST API](https://docs.github.com/rest/guides/best-practices-for-using-the-rest-api).\"",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/delete-issue-field-value",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/issue-field-values#delete-an-issue-field-value-from-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    },
+    {
+      "$ref": "#/components/parameters/issue-field-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Issue field value deleted successfully"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "issue-field-values"
+  }
+}

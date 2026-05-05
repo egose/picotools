@@ -1,0 +1,49 @@
+{
+  "summary": "Get a milestone",
+  "description": "Gets a milestone using the given milestone number.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/get-milestone",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/milestones#get-a-milestone"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/milestone-number"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/milestone"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/milestone"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "milestones"
+  }
+}

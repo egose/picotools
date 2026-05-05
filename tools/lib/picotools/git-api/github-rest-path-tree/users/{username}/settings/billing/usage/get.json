@@ -1,0 +1,49 @@
+{
+  "summary": "Get billing usage report for a user",
+  "description": "Gets a report of the total usage for a user.\n\n**Note:** This endpoint is only available to users with access to the enhanced billing platform.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/get-github-billing-usage-report-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/usage#get-billing-usage-report-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-year"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-month"
+    },
+    {
+      "$ref": "#/components/parameters/billing-usage-report-day"
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/billing_usage_report_user"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "billing",
+    "subcategory": "usage"
+  }
+}

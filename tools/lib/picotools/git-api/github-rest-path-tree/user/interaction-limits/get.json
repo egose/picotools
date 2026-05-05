@@ -1,0 +1,47 @@
+{
+  "summary": "Get interaction restrictions for your public repositories",
+  "description": "Shows which type of GitHub user can interact with your public repositories and when the restriction expires.",
+  "tags": [
+    "interactions"
+  ],
+  "operationId": "interactions/get-restrictions-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/interactions/user#get-interaction-restrictions-for-your-public-repositories"
+  },
+  "responses": {
+    "200": {
+      "description": "Default response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/interaction-limit-response"
+              },
+              {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+              }
+            ]
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/interaction-limit-response"
+            }
+          }
+        }
+      }
+    },
+    "204": {
+      "description": "Response when there are no restrictions"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "interactions",
+    "subcategory": "user"
+  }
+}

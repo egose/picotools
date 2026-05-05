@@ -1,0 +1,90 @@
+{
+  "summary": "Create a deployment branch policy",
+  "description": "Creates a deployment branch or tag policy for an environment.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-deployment-branch-policy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/branch-policies#create-a-deployment-branch-policy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/deployment-branch-policy-name-pattern-with-type"
+        },
+        "examples": {
+          "example-wildcard": {
+            "summary": "Example of a wildcard name pattern",
+            "value": {
+              "name": "release/*"
+            }
+          },
+          "example-single-branch": {
+            "summary": "Example of a single branch name pattern",
+            "value": {
+              "name": "main",
+              "type": "branch"
+            }
+          },
+          "example-single-tag": {
+            "summary": "Example of a single tag name pattern",
+            "value": {
+              "name": "v1",
+              "type": "tag"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment-branch-policy"
+          },
+          "examples": {
+            "example-wildcard": {
+              "$ref": "#/components/examples/deployment-branch-policy-wildcard"
+            },
+            "example-single-branch": {
+              "$ref": "#/components/examples/deployment-branch-policy-single-branch"
+            },
+            "example-single-tag": {
+              "$ref": "#/components/examples/deployment-branch-policy-single-tag"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "description": "Not Found or `deployment_branch_policy.custom_branch_policies` property for the environment is set to false"
+    },
+    "303": {
+      "description": "Response if the same branch name pattern already exists"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "branch-policies"
+  }
+}

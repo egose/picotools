@@ -1,0 +1,90 @@
+{
+  "summary": "List fine-grained personal access tokens with access to organization resources",
+  "description": "Lists approved fine-grained personal access tokens owned by organization members that can access organization resources.\n\nOnly GitHub Apps can use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-pat-grants",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/personal-access-tokens#list-fine-grained-personal-access-tokens-with-access-to-organization-resources"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-sort"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-owner"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-repository"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-permission"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-before"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-after"
+    },
+    {
+      "$ref": "#/components/parameters/personal-access-token-token-id"
+    }
+  ],
+  "responses": {
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/organization-programmatic-access-grant"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-pat-grant-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "personal-access-tokens"
+  }
+}

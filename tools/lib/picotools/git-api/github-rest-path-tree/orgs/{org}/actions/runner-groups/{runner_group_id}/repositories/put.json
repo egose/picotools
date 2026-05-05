@@ -1,0 +1,64 @@
+{
+  "summary": "Set repository access for a self-hosted runner group in an organization",
+  "description": "Replaces the list of repositories that have access to a self-hosted runner group configured in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/set-repo-access-to-self-hosted-runner-group-in-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runner-groups#set-repository-access-for-a-self-hosted-runner-group-in-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/runner-group-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "selected_repository_ids": {
+              "description": "List of repository IDs that can access the runner group.",
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "description": "Unique identifier of the repository."
+              }
+            }
+          },
+          "required": [
+            "selected_repository_ids"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "selected_repository_ids": [
+                32,
+                91
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "self-hosted-runner-groups"
+  }
+}

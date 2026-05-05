@@ -1,0 +1,52 @@
+{
+  "summary": "Get a reference",
+  "description": "Returns a single reference from your Git database. The `:ref` in the URL must be formatted as `heads/<branch name>` for branches and `tags/<tag name>` for tags. If the `:ref` doesn't match an existing ref, a `404` is returned.\n\n> [!NOTE]\n> You need to explicitly [request a pull request](https://docs.github.com/rest/pulls/pulls#get-a-pull-request) to trigger a test merge commit, which checks the mergeability of pull requests. For more information, see \"[Checking mergeability of pull requests](https://docs.github.com/rest/guides/getting-started-with-the-git-database-api#checking-mergeability-of-pull-requests)\".",
+  "tags": [
+    "git"
+  ],
+  "operationId": "git/get-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/git/refs#get-a-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/git-ref-only"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/git-ref"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/git-ref"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "git",
+    "subcategory": "refs"
+  }
+}

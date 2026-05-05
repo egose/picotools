@@ -1,0 +1,88 @@
+{
+  "summary": "List campaigns for an organization",
+  "description": "Lists campaigns in an organization.\n\nThe authenticated user must be an owner or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint.",
+  "tags": [
+    "campaigns"
+  ],
+  "operationId": "campaigns/list-org-campaigns",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/campaigns/campaigns#list-campaigns-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "name": "state",
+      "description": "If specified, only campaigns with this state will be returned.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/campaign-state"
+      }
+    },
+    {
+      "name": "sort",
+      "description": "The property by which to sort the results.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated",
+          "ends_at",
+          "published"
+        ],
+        "default": "created"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/campaign-summary"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/campaign-org-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "campaigns",
+    "subcategory": "campaigns"
+  }
+}

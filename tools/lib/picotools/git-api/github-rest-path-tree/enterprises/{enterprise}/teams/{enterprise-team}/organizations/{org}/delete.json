@@ -1,0 +1,34 @@
+{
+  "summary": "Delete an organization assignment",
+  "description": "Unassign an enterprise team from an organization.",
+  "tags": [
+    "enterprise-team-organizations"
+  ],
+  "operationId": "enterprise-team-organizations/delete",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-organizations#delete-an-organization-assignment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Successfully unassigned the enterprise team from the organization."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-organizations"
+  }
+}

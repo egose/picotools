@@ -1,0 +1,81 @@
+{
+  "summary": "Set organization membership for a user",
+  "description": "Only authenticated organization owners can add a member to the organization or update the member's role.\n\n*   If the authenticated user is _adding_ a member to the organization, the invited user will receive an email inviting them to the organization. The user's [membership status](https://docs.github.com/rest/orgs/members#get-organization-membership-for-a-user) will be `pending` until they accept the invitation.\n    \n*   Authenticated users can _update_ a user's membership by passing the `role` parameter. If the authenticated user changes a member's role to `admin`, the affected user will receive an email notifying them that they've been made an organization owner. If the authenticated user changes an owner's role to `member`, no email will be sent.\n\n**Rate limits**\n\nTo prevent abuse, organization owners are limited to creating 50 organization invitations for an organization within a 24 hour period. If the organization is more than one month old or on a paid plan, the limit is 500 invitations per 24 hour period.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/set-membership-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/members#set-organization-membership-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "description": "The role to give the user in the organization. Can be one of:  \n * `admin` - The user will become an owner of the organization.  \n * `member` - The user will become a non-owner member of the organization.",
+              "enum": [
+                "admin",
+                "member"
+              ],
+              "default": "member"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Set an organization membership role for a user",
+            "value": {
+              "role": "member"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-membership"
+          },
+          "examples": {
+            "response-if-user-already-had-membership-with-organization": {
+              "$ref": "#/components/examples/org-membership-response-if-user-has-an-active-admin-membership-with-organization"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "451": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "members"
+  }
+}

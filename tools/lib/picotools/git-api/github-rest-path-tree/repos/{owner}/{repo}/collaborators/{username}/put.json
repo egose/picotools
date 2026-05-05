@@ -1,0 +1,88 @@
+{
+  "summary": "Add a repository collaborator",
+  "description": "Add a user to a repository with a specified level of access. If the repository is owned by an organization, this API does not add the user to the organization - a user that has repository access without being an organization member is called an \"outside collaborator\" (if they are not an Enterprise Managed User) or a \"repository collaborator\" if they are an Enterprise Managed User. These users are exempt from some organization policies - see \"[Adding outside collaborators to repositories](https://docs.github.com/organizations/managing-user-access-to-your-organizations-repositories/managing-outside-collaborators/adding-outside-collaborators-to-repositories-in-your-organization)\" to learn more about these collaborator types.\n\nThis endpoint triggers [notifications](https://docs.github.com/github/managing-subscriptions-and-notifications-on-github/about-notifications).\n\nAdding an outside collaborator may be restricted by enterprise and organization administrators. For more information, see \"[Enforcing repository management policies in your enterprise](https://docs.github.com/admin/policies/enforcing-policies-for-your-enterprise/enforcing-repository-management-policies-in-your-enterprise#enforcing-a-policy-for-inviting-outside-collaborators-to-repositories)\" and \"[Setting permissions for adding outside collaborators](https://docs.github.com/organizations/managing-organization-settings/setting-permissions-for-adding-outside-collaborators)\" for organization settings.\n\nFor more information on permission levels, see \"[Repository permission levels for an organization](https://docs.github.com/github/setting-up-and-managing-organizations-and-teams/repository-permission-levels-for-an-organization#permission-levels-for-repositories-owned-by-an-organization)\". There are restrictions on which permissions can be granted to organization members when an organization base role is in place. In this case, the role being given must be equal to or higher than the org base permission. Otherwise, the request will fail with:\n\n```\nCannot assign {member} permission of {role name}\n```\n\nNote that, if you choose not to pass any parameters, you'll need to set `Content-Length` to zero when calling out to this endpoint. For more information, see \"[HTTP method](https://docs.github.com/rest/guides/getting-started-with-the-rest-api#http-method).\"\n\nThe invitee will receive a notification that they have been invited to the repository, which they must accept or decline. They may do this via the notifications page, the email they receive, or by using the [API](https://docs.github.com/rest/collaborators/invitations).\n\nFor Enterprise Managed Users, this endpoint does not send invitations - these users are automatically added to organizations and repositories. Enterprise Managed Users can only be added to organizations and repositories within their enterprise.\n\n**Updating an existing collaborator's permission level**\n\nThe endpoint can also be used to change the permissions of an existing collaborator without first removing and re-adding the collaborator. To change the permissions, use the same endpoint and pass a different `permission` parameter. The response will be a `204`, with no other indication that the permission level changed.\n\n**Rate limits**\n\nYou are limited to sending 50 invitations to a repository per 24 hour period. Note there is no limit if you are inviting organization members to an organization repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/add-collaborator",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/collaborators#add-a-repository-collaborator"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "permission": {
+              "type": "string",
+              "description": "The permission to grant the collaborator. **Only valid on organization-owned repositories.** We accept the following permissions to be set: `pull`, `triage`, `push`, `maintain`, `admin` and you can also specify a custom repository role name, if the owning organization has defined any.",
+              "default": "push"
+            }
+          }
+        },
+        "examples": {
+          "new-invitation-is-created": {
+            "summary": "Add a collaborator with triage permissions",
+            "value": {
+              "permission": "triage"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response when a new invitation is created",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-invitation"
+          },
+          "examples": {
+            "new-invitation-is-created": {
+              "$ref": "#/components/examples/repository-invitation-response-when-a-new-invitation-is-created"
+            }
+          }
+        }
+      }
+    },
+    "204": {
+      "description": "Response when:\n- an existing collaborator is added as a collaborator\n- an organization member is added as an individual collaborator\n- an existing team member (whose team is also a repository collaborator) is added as an individual collaborator"
+    },
+    "422": {
+      "description": "Response when:\n- validation failed, or the endpoint has been spammed\n- an Enterprise Managed User (EMU) account was invited to a repository in an enterprise with personal user accounts",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/validation-error"
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "collaborators",
+    "subcategory": "collaborators"
+  }
+}

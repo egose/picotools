@@ -1,0 +1,40 @@
+{
+  "summary": "Get default code security configurations for an enterprise",
+  "description": "Lists the default code security configurations for an enterprise.\n\nThe authenticated user must be an administrator of the enterprise in order to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `read:enterprise` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/get-default-configurations-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#get-default-code-security-configurations-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-security-default-configurations"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-security-default-configurations"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

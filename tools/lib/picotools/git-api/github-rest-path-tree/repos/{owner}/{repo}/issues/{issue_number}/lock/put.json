@@ -1,0 +1,77 @@
+{
+  "summary": "Lock an issue",
+  "description": "Users with push access can lock an issue or pull request's conversation.\n\nNote that, if you choose not to pass any parameters, you'll need to set `Content-Length` to zero when calling out to this endpoint. For more information, see \"[HTTP method](https://docs.github.com/rest/guides/getting-started-with-the-rest-api#http-method).\"",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/lock",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/issues#lock-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "nullable": true,
+          "properties": {
+            "lock_reason": {
+              "type": "string",
+              "description": "The reason for locking the issue or pull request conversation. Lock will fail if you don't use one of these reasons:  \n * `off-topic`  \n * `too heated`  \n * `resolved`  \n * `spam`",
+              "enum": [
+                "off-topic",
+                "too heated",
+                "resolved",
+                "spam"
+              ]
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Example of locking an issue as off-topic",
+            "value": {
+              "lock_reason": "off-topic"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "issues"
+  }
+}

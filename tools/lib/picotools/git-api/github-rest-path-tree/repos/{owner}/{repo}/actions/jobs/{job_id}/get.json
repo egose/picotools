@@ -1,0 +1,46 @@
+{
+  "summary": "Get a job for a workflow run",
+  "description": "Gets a specific job in a workflow run.\n\nAnyone with read access to the repository can use this endpoint.\n\nIf the repository is private, OAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-job-for-workflow-run",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/workflow-jobs#get-a-job-for-a-workflow-run"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/job-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/job"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/job"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "workflow-jobs"
+  }
+}

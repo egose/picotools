@@ -1,0 +1,111 @@
+{
+  "summary": "Update an organization webhook",
+  "description": "Updates a webhook configured in an organization. When you update a webhook,\nthe `secret` will be overwritten. If you previously had a `secret` set, you must\nprovide the same `secret` or set a new `secret` or the secret will be removed. If\nyou are only updating individual webhook `config` properties, use \"[Update a webhook\nconfiguration for an organization](/rest/orgs/webhooks#update-a-webhook-configuration-for-an-organization)\".\n\nYou must be an organization owner to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need `admin:org_hook` scope. OAuth apps cannot list, view, or edit\nwebhooks that they did not create and users cannot list, view, or edit webhooks that were created by OAuth apps.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/update-webhook",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/webhooks#update-an-organization-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "config": {
+              "type": "object",
+              "description": "Key/value pairs to provide settings for this webhook.",
+              "properties": {
+                "url": {
+                  "$ref": "#/components/schemas/webhook-config-url"
+                },
+                "content_type": {
+                  "$ref": "#/components/schemas/webhook-config-content-type"
+                },
+                "secret": {
+                  "$ref": "#/components/schemas/webhook-config-secret"
+                },
+                "insecure_ssl": {
+                  "$ref": "#/components/schemas/webhook-config-insecure-ssl"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            },
+            "events": {
+              "type": "array",
+              "description": "Determines what [events](https://docs.github.com/webhooks/event-payloads) the hook is triggered for.",
+              "default": [
+                "push"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "active": {
+              "type": "boolean",
+              "description": "Determines if notifications are sent when the webhook is triggered. Set to `true` to send notifications.",
+              "default": true
+            },
+            "name": {
+              "type": "string",
+              "example": "\"web\""
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "active": true,
+              "events": [
+                "pull_request"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-hook"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-hook-2"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "webhooks"
+  }
+}

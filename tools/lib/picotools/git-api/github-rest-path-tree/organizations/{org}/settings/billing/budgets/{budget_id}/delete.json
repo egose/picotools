@@ -1,0 +1,46 @@
+{
+  "summary": "Delete a budget for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nDeletes a budget by ID for an organization. The authenticated user must be an organization admin or billing manager.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/delete-budget-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/budgets#delete-a-budget-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/budget"
+    }
+  ],
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/delete-budget"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "billing",
+    "subcategory": "budgets"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "summary": "Get partner images for GitHub-hosted runners in an organization",
+  "description": "Get the list of partner images available for GitHub-hosted runners for an organization.",
+  "operationId": "actions/get-hosted-runners-partner-images-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#get-partner-images-for-github-hosted-runners-in-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "images"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "images": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/actions-hosted-runner-curated-image"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner-curated-image"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "summary": "Unlock an organization repository",
+  "description": "Unlocks a repository that was locked for migration. You should unlock each migrated repository and [delete them](https://docs.github.com/rest/repos/repos#delete-a-repository) when the migration is complete and you no longer need the source data.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/unlock-repo-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/orgs#unlock-an-organization-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/migration-id"
+    },
+    {
+      "$ref": "#/components/parameters/repo-name"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "orgs"
+  }
+}

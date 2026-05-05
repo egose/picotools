@@ -1,0 +1,116 @@
+{
+  "summary": "List code scanning alerts for an organization",
+  "description": "Lists code scanning alerts for the default branch for all eligible repositories in an organization. Eligible repositories are repositories that are owned by organizations that you own or for which you are a security manager. For more information, see \"[Managing security managers in your organization](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/managing-security-managers-in-your-organization).\"\n\nThe authenticated user must be an owner or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` or `repo`s cope to use this endpoint with private or public repositories, or the `public_repo` scope to use this endpoint with only public repositories.",
+  "tags": [
+    "code-scanning"
+  ],
+  "operationId": "code-scanning/list-alerts-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#list-code-scanning-alerts-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/tool-name"
+    },
+    {
+      "$ref": "#/components/parameters/tool-guid"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "name": "state",
+      "description": "If specified, only code scanning alerts with this state will be returned.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/code-scanning-alert-state-query"
+      }
+    },
+    {
+      "name": "sort",
+      "description": "The property by which to sort the results.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated"
+        ],
+        "default": "created"
+      }
+    },
+    {
+      "name": "severity",
+      "description": "If specified, only code scanning alerts with this severity will be returned.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/code-scanning-alert-severity"
+      }
+    },
+    {
+      "name": "assignees",
+      "description": "Filter alerts by assignees. Provide a comma-separated list of user handles (e.g., `octocat` or `octocat,hubot`).\nUse `*` to list alerts with at least one assignee or `none` to list alerts with no assignees.\n",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/code-scanning-organization-alert-items"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-organization-alert-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

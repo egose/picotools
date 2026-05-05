@@ -1,0 +1,67 @@
+{
+  "summary": "Create or update custom property values for a repository",
+  "description": "Create new or update existing custom property values for a repository.\nUsing a value of `null` for a custom property will remove or 'unset' the property value from the repository.\n\nRepository admins and other users with the repository-level \"edit custom property values\" fine-grained permission can use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/custom-properties-for-repos-create-or-update-repository-values",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/custom-properties#create-or-update-custom-property-values-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "properties": {
+              "type": "array",
+              "description": "A list of custom property names and associated values to apply to the repositories.",
+              "items": {
+                "$ref": "#/components/schemas/custom-property-value"
+              }
+            }
+          },
+          "required": [
+            "properties"
+          ]
+        },
+        "examples": {
+          "default": {
+            "$ref": "#/components/examples/create-or-update-custom-properties-values"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "No Content when custom property values are successfully created or updated"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "custom-properties"
+  }
+}

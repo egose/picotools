@@ -1,0 +1,74 @@
+{
+  "summary": "Set custom labels for a self-hosted runner for a repository",
+  "description": "Remove all previous custom labels and set the new custom labels for a specific\nself-hosted runner configured in a repository.\n\nAuthenticated users must have admin access to the repository to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/set-custom-labels-for-self-hosted-runner-for-repo",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runners#set-custom-labels-for-a-self-hosted-runner-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/runner-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "labels"
+          ],
+          "properties": {
+            "labels": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 100,
+              "description": "The names of the custom labels to set for the runner. You can pass an empty array to remove all custom labels.",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "labels": [
+                "gpu",
+                "accelerated"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "$ref": "#/components/responses/actions_runner_labels"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "self-hosted-runners"
+  }
+}

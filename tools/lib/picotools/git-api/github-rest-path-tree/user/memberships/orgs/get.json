@@ -1,0 +1,76 @@
+{
+  "summary": "List organization memberships for the authenticated user",
+  "description": "Lists all of the authenticated user's organization memberships.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-memberships-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/members#list-organization-memberships-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "name": "state",
+      "description": "Indicates the state of the memberships to return. If not specified, the API returns both active and pending memberships.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "active",
+          "pending"
+        ]
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/org-membership"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-membership-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "members"
+  }
+}

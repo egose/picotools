@@ -1,0 +1,86 @@
+{
+  "summary": "Get Copilot cloud agent permissions for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nGets information about which repositories in an organization have been enabled\nor disabled for the Copilot cloud agent.\n\nOrganization owners can configure whether Copilot cloud agent is enabled for\nall repositories, selected repositories, or no repositories owned by organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/get-copilot-coding-agent-permissions-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-coding-agent-management#get-copilot-cloud-agent-permissions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "enabled_repositories": {
+                "type": "string",
+                "description": "The policy for which repositories can use Copilot cloud agent. Can be one of `all`, `selected`, or `none`.",
+                "enum": [
+                  "all",
+                  "selected",
+                  "none"
+                ]
+              },
+              "selected_repositories_url": {
+                "type": "string",
+                "description": "The URL for the selected repositories endpoint. Only present when `enabled_repositories` is `selected`."
+              }
+            },
+            "required": [
+              "enabled_repositories"
+            ]
+          },
+          "examples": {
+            "all_enabled": {
+              "summary": "All repositories enabled",
+              "value": {
+                "enabled_repositories": "all"
+              }
+            },
+            "selected_enabled": {
+              "summary": "Selected repositories enabled",
+              "value": {
+                "enabled_repositories": "selected",
+                "selected_repositories_url": "https://api.github.com/orgs/my-org/copilot/coding-agent/permissions/repositories"
+              }
+            },
+            "none_enabled": {
+              "summary": "No repositories enabled",
+              "value": {
+                "enabled_repositories": "none"
+              }
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-coding-agent-management"
+  }
+}

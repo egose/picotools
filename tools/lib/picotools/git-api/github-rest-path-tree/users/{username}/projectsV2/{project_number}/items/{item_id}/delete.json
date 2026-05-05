@@ -1,0 +1,40 @@
+{
+  "summary": "Delete project item for user",
+  "description": "Delete a specific item from a user-owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/delete-item-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/items#delete-project-item-for-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/project-number"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/item-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "items"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "summary": "Get latest Pages build",
+  "description": "Gets information about the single most recent build of a GitHub Pages site.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-latest-pages-build",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pages/pages#get-latest-pages-build"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/page-build"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/page-build"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pages",
+    "subcategory": "pages"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "summary": "Get an environment variable",
+  "description": "Gets a specific variable in an environment.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-environment-variable",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#get-an-environment-variable"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/variable-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-variable"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-variable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

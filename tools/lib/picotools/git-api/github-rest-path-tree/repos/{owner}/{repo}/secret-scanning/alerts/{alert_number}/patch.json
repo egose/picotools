@@ -1,0 +1,128 @@
+{
+  "summary": "Update a secret scanning alert",
+  "description": "Updates the status of a secret scanning alert in an eligible repository.\n\nYou can also use this endpoint to assign or unassign an alert to a user who has write access to the repository.\n\nThe authenticated user must be an administrator for the repository or for the organization that owns the repository to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "operationId": "secret-scanning/update-alert",
+  "tags": [
+    "secret-scanning"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/secret-scanning#update-a-secret-scanning-alert"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/alert-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "$ref": "#/components/schemas/secret-scanning-alert-state"
+            },
+            "resolution": {
+              "$ref": "#/components/schemas/secret-scanning-alert-resolution"
+            },
+            "resolution_comment": {
+              "$ref": "#/components/schemas/secret-scanning-alert-resolution-comment"
+            },
+            "assignee": {
+              "$ref": "#/components/schemas/secret-scanning-alert-assignee"
+            },
+            "validity": {
+              "type": "string",
+              "nullable": true,
+              "enum": [
+                "active",
+                "inactive"
+              ],
+              "description": "Sets the validity of the secret scanning alert. Can be `active`, `inactive`, or `null` to clear the override."
+            }
+          },
+          "anyOf": [
+            {
+              "required": [
+                "state"
+              ]
+            },
+            {
+              "required": [
+                "assignee"
+              ]
+            },
+            {
+              "required": [
+                "validity"
+              ]
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "state": "resolved",
+              "resolution": "false_positive"
+            }
+          },
+          "assign": {
+            "summary": "Assign alert to a user",
+            "value": {
+              "assignee": "octocat"
+            }
+          },
+          "unassign": {
+            "summary": "Unassign alert",
+            "value": {
+              "assignee": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/secret-scanning-alert"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/secret-scanning-alert-resolved"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "description": "Bad request, resolution comment is invalid or the resolution was not changed."
+    },
+    "404": {
+      "description": "Repository is public, or secret scanning is disabled for the repository, or the resource is not found"
+    },
+    "422": {
+      "description": "State does not match the resolution or resolution comment, assignee does not have write access to the repository, or the requested validity change could not be applied to this alert"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "secret-scanning",
+    "subcategory": "secret-scanning"
+  }
+}

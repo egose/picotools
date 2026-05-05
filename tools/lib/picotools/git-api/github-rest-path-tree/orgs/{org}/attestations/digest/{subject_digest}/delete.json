@@ -1,0 +1,44 @@
+{
+  "summary": "Delete attestations by subject digest",
+  "description": "Delete an artifact attestation by subject digest.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/delete-attestations-by-subject-digest",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/attestations#delete-attestations-by-subject-digest"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "subject_digest",
+      "description": "Subject Digest",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response"
+    },
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "attestations"
+  }
+}

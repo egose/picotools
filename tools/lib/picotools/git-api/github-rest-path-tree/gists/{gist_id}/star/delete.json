@@ -1,0 +1,37 @@
+{
+  "summary": "Unstar a gist",
+  "description": "",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/unstar",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#unstar-a-gist"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gist-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

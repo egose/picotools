@@ -1,0 +1,95 @@
+{
+  "summary": "Add social accounts for the authenticated user",
+  "description": "Add one or more social accounts to the authenticated user's profile.\n\nOAuth app tokens and personal access tokens (classic) need the `user` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/add-social-account-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/social-accounts#add-social-accounts-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "account_urls": {
+              "description": "Full URLs for the social media profiles to add.",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "https://twitter.com/github"
+              },
+              "example": []
+            }
+          },
+          "required": [
+            "account_urls"
+          ],
+          "example": {
+            "account_urls": [
+              "https://www.linkedin.com/company/github/",
+              "https://twitter.com/github"
+            ]
+          }
+        },
+        "examples": {
+          "default": {
+            "summary": "Adding multiple social accounts",
+            "value": {
+              "account_urls": [
+                "https://facebook.com/GitHub",
+                "https://www.youtube.com/@GitHub"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/social-account"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/social-account-items"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "social-accounts"
+  }
+}

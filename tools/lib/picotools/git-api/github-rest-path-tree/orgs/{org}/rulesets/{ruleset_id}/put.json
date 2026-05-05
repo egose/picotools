@@ -1,0 +1,151 @@
+{
+  "summary": "Update an organization repository ruleset",
+  "description": "Update a ruleset for an organization.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-org-ruleset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rules#update-an-organization-repository-ruleset"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rules"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "ruleset_id",
+      "description": "The ID of the ruleset.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "description": "Request body",
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the ruleset."
+            },
+            "target": {
+              "type": "string",
+              "description": "The target of the ruleset",
+              "enum": [
+                "branch",
+                "tag",
+                "push",
+                "repository"
+              ]
+            },
+            "enforcement": {
+              "$ref": "#/components/schemas/repository-rule-enforcement"
+            },
+            "bypass_actors": {
+              "type": "array",
+              "description": "The actors that can bypass the rules in this ruleset",
+              "items": {
+                "$ref": "#/components/schemas/repository-ruleset-bypass-actor"
+              }
+            },
+            "conditions": {
+              "$ref": "#/components/schemas/org-ruleset-conditions"
+            },
+            "rules": {
+              "description": "An array of rules within the ruleset.",
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/org-rules"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "super cool ruleset",
+              "target": "branch",
+              "enforcement": "active",
+              "bypass_actors": [
+                {
+                  "actor_id": 234,
+                  "actor_type": "Team",
+                  "bypass_mode": "always"
+                }
+              ],
+              "conditions": {
+                "ref_name": {
+                  "include": [
+                    "refs/heads/main",
+                    "refs/heads/master"
+                  ],
+                  "exclude": [
+                    "refs/heads/dev*"
+                  ]
+                },
+                "repository_name": {
+                  "include": [
+                    "important_repository",
+                    "another_important_repository"
+                  ],
+                  "exclude": [
+                    "unimportant_repository"
+                  ],
+                  "protected": true
+                }
+              },
+              "rules": [
+                {
+                  "type": "commit_author_email_pattern",
+                  "parameters": {
+                    "operator": "contains",
+                    "pattern": "github"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-ruleset"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-ruleset"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  }
+}

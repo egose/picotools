@@ -1,0 +1,31 @@
+{
+  "summary": "Delete a repository subscription",
+  "description": "This endpoint should only be used to stop watching a repository. To control whether or not you wish to receive notifications from a repository, [set the repository's subscription manually](https://docs.github.com/rest/activity/watching#set-a-repository-subscription).",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/delete-repo-subscription",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/watching#delete-a-repository-subscription"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "activity",
+    "subcategory": "watching"
+  }
+}

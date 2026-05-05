@@ -1,0 +1,90 @@
+{
+  "summary": "List packages for an organization",
+  "description": "Lists packages in an organization readable by the user.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` scope to use this endpoint. For more information, see \"[About permissions for GitHub Packages](https://docs.github.com/packages/learn-github-packages/about-permissions-for-github-packages#permissions-for-repository-scoped-packages).\"",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/list-packages-for-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#list-packages-for-an-organization"
+  },
+  "parameters": [
+    {
+      "name": "package_type",
+      "description": "The type of supported package. Packages in GitHub's Gradle registry have the type `maven`. Docker images pushed to GitHub's Container registry (`ghcr.io`) have the type `container`. You can use the type `docker` to find images that were pushed to GitHub's Docker registry (`docker.pkg.github.com`), even if these have now been migrated to the Container registry.",
+      "in": "query",
+      "required": true,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ]
+      }
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/package-visibility"
+    },
+    {
+      "name": "page",
+      "description": "The page number of the results to fetch. For more information, see \"[Using pagination in the REST API](https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api).\"",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "default": 1
+      }
+    },
+    {
+      "name": "per_page",
+      "description": "The number of results per page (max 100). For more information, see \"[Using pagination in the REST API](https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api).\"",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "default": 30
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/package"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/packages-for-org"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "400": {
+      "$ref": "#/components/responses/package_es_list_error"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

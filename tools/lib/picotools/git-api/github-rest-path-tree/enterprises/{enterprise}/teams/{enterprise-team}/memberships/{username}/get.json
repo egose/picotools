@@ -1,0 +1,46 @@
+{
+  "summary": "Get enterprise team membership",
+  "description": "Returns whether the user is a member of the enterprise team.",
+  "tags": [
+    "enterprise-team-memberships"
+  ],
+  "operationId": "enterprise-team-memberships/get",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-members#get-enterprise-team-membership"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "User is a member of the enterprise team.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/simple-user"
+          },
+          "examples": {
+            "exampleKey1": {
+              "$ref": "#/components/examples/simple-user"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-members"
+  }
+}

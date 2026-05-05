@@ -1,0 +1,68 @@
+{
+  "summary": "Get a repository README for a directory",
+  "description": "Gets the README from a repository directory.\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github.raw+json`**: Returns the raw file contents. This is the default if you do not specify a media type.\n- **`application/vnd.github.html+json`**: Returns the README in HTML. Markup languages are rendered to HTML using GitHub's open-source [Markup library](https://github.com/github/markup).",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-readme-in-directory",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/contents#get-a-repository-readme-for-a-directory"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "dir",
+      "description": "The alternate path to look for a README file",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    },
+    {
+      "name": "ref",
+      "description": "The name of the commit/branch/tag. Default: the repository’s default branch.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/content-file"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/content-file"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "contents"
+  }
+}

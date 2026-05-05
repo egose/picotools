@@ -1,0 +1,55 @@
+{
+  "summary": "List deliveries for an app webhook",
+  "description": "Returns a list of webhook deliveries for the webhook configured for a GitHub App.\n\nYou must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/list-webhook-deliveries",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/webhooks#list-deliveries-for-an-app-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/cursor"
+    },
+    {
+      "$ref": "#/components/parameters/webhook-delivery-status"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/hook-delivery-item"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/hook-delivery-items"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "webhooks"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "summary": "Create issue field for an organization",
+  "description": "Creates a new issue field for an organization.\n\nYou can find out more about issue fields in [Managing issue fields in an organization](https://docs.github.com/issues/tracking-your-work-with-issues/using-issues/managing-issue-fields-in-an-organization).\n\nTo use this endpoint, the authenticated user must be an administrator for the organization. OAuth app tokens and\npersonal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/create-issue-field",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/issue-fields#create-issue-field-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/organization-create-issue-field"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "Priority",
+              "description": "Level of importance for the issue",
+              "data_type": "single_select",
+              "options": [
+                {
+                  "name": "High",
+                  "description": "High priority",
+                  "color": "red"
+                },
+                {
+                  "name": "Medium",
+                  "description": "Medium priority",
+                  "color": "yellow"
+                },
+                {
+                  "name": "Low",
+                  "description": "Low priority",
+                  "color": "green"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue-field"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-field"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "issue-fields"
+  }
+}

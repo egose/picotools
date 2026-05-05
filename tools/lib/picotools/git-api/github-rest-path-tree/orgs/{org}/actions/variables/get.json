@@ -1,0 +1,66 @@
+{
+  "summary": "List organization variables",
+  "description": "Lists all organization variables.\n\nAuthenticated users must have collaborator access to a repository to create, update, or read variables.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint. If the repository is private, the `repo` scope is also required.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/list-org-variables",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/variables#list-organization-variables"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/variables-per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "variables"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "variables": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/organization-actions-variable"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-actions-variables-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "variables"
+  }
+}

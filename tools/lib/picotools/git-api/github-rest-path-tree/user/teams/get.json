@@ -1,0 +1,60 @@
+{
+  "summary": "List teams for the authenticated user",
+  "description": "List all of the teams across all of the organizations to which the authenticated\nuser belongs.\n\nOAuth app tokens and personal access tokens (classic) need the `user`, `repo`, or `read:org` scope to use this endpoint.\n\nWhen using a fine-grained personal access token, the resource owner of the token must be a single organization, and the response will only include the teams from that organization.",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/list-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/teams#list-teams-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/team-full"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-full-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "teams",
+    "subcategory": "teams"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "summary": "Get allowed actions and reusable workflows for an organization",
+  "description": "Gets the selected actions and reusable workflows that are allowed in an organization. To use this endpoint, the organization permission policy for `allowed_actions` must be configured to `selected`. For more information, see \"[Set GitHub Actions permissions for an organization](#set-github-actions-permissions-for-an-organization).\"\n\nOAuth tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/get-allowed-actions-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-allowed-actions-and-reusable-workflows-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/selected-actions"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/selected-actions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

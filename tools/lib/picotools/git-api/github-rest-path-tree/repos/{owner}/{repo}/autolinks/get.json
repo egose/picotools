@@ -1,0 +1,46 @@
+{
+  "summary": "Get all autolinks of a repository",
+  "description": "Gets all autolinks that are configured for a repository.\n\nInformation about autolinks are only available to repository administrators.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-autolinks",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/autolinks#get-all-autolinks-of-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/autolink"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/autolink-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "autolinks"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "summary": "Update a release asset",
+  "description": "Users with push access to the repository can edit a release asset.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-release-asset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/assets#update-a-release-asset"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/asset-id"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The file name of the asset."
+            },
+            "label": {
+              "type": "string",
+              "description": "An alternate short description of the asset. Used in place of the filename."
+            },
+            "state": {
+              "type": "string",
+              "example": "\"uploaded\""
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "foo-1.0.0-osx.zip",
+              "label": "Mac binary"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release-asset"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/release-asset"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "assets"
+  }
+}

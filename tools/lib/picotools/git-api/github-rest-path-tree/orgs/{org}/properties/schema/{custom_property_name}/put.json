@@ -1,0 +1,73 @@
+{
+  "summary": "Create or update a custom property for an organization",
+  "description": "Creates a new or updates an existing custom property that is defined for an organization.\n\nTo use this endpoint, the authenticated user must be one of:\n- An administrator for the organization.\n- A user, or a user on a team, with the fine-grained permission of `custom_properties_org_definitions_manager` in the organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/custom-properties-for-repos-create-or-update-organization-definition",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/custom-properties#create-or-update-a-custom-property-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/custom-property-name"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/custom-property-set-payload"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "value_type": "single_select",
+              "required": true,
+              "default_value": "production",
+              "description": "Prod or dev environment",
+              "allowed_values": [
+                "production",
+                "development"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/custom-property"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/custom-property"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "custom-properties"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "summary": "Create a hosted compute network configuration for an organization",
+  "description": "Creates a hosted compute network configuration for an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `write:network_configurations` scope to use this endpoint.",
+  "tags": [
+    "hosted-compute"
+  ],
+  "operationId": "hosted-compute/create-network-configuration-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/network-configurations#create-a-hosted-compute-network-configuration-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "Name of the network configuration. Must be between 1 and 100 characters and may only contain upper and lowercase letters a-z, numbers 0-9, '.', '-', and '_'.",
+              "type": "string"
+            },
+            "compute_service": {
+              "description": "The hosted compute service to use for the network configuration.",
+              "type": "string",
+              "enum": [
+                "none",
+                "actions"
+              ]
+            },
+            "network_settings_ids": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 1,
+              "description": "A list of identifiers of the network settings resources to use for the network configuration. Exactly one resource identifier must be specified in the list.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "failover_network_settings_ids": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 1,
+              "description": "A list of identifiers of the failover network settings resources to use for the network configuration. Exactly one resource identifier must be specified in the list.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "failover_network_enabled": {
+              "type": "boolean",
+              "description": "Indicates whether the failover network resource is enabled."
+            }
+          },
+          "required": [
+            "name",
+            "network_settings_ids"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "my-network-configuration",
+              "network_settings_ids": [
+                "23456789ABDCEF1"
+              ],
+              "compute_service": "actions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/network-configuration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/network-configuration"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "network-configurations"
+  }
+}

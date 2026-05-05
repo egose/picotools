@@ -1,0 +1,92 @@
+{
+  "summary": "List check runs in a check suite",
+  "description": "Lists check runs for a check suite using its `id`.\n\n> [!NOTE]\n> The endpoints to manage checks only look for pushes in the repository where the check suite or check run were created. Pushes to a branch in a forked repository are not detected and return an empty `pull_requests` array.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint on a private repository.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/list-for-suite",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/runs#list-check-runs-in-a-check-suite"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/check-suite-id"
+    },
+    {
+      "$ref": "#/components/parameters/check-name"
+    },
+    {
+      "$ref": "#/components/parameters/status"
+    },
+    {
+      "name": "filter",
+      "description": "Filters check runs by their `completed_at` timestamp. `latest` returns the most recent check runs.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "latest",
+          "all"
+        ],
+        "default": "latest"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "check_runs"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "check_runs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/check-run"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-run-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "runs"
+  }
+}

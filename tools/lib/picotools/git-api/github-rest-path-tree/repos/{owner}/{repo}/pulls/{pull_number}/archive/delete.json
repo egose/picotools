@@ -1,0 +1,43 @@
+{
+  "summary": "Unarchive a pull request",
+  "description": "Unarchives a pull request. Removes the archived flag from the pull request.\nDoes not automatically reopen or unlock the pull request.\nOnly repository admins can unarchive pull requests.",
+  "tags": [
+    "pulls"
+  ],
+  "operationId": "pulls/unarchive",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pulls/pulls#unarchive-a-pull-request"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/pull-number"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pulls",
+    "subcategory": "pulls"
+  }
+}

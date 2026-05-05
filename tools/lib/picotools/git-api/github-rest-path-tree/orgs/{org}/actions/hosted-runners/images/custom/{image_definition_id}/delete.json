@@ -1,0 +1,31 @@
+{
+  "summary": "Delete a custom image from the organization",
+  "description": "Delete a custom image from the organization.\n\nOAuth tokens and personal access tokens (classic) need the `manage_runners:org` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/delete-custom-image-from-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#delete-a-custom-image-from-the-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/actions-custom-image-definition-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "summary": "Get artifact and log retention settings for an organization",
+  "description": "Gets artifact and log retention settings for an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope or the \"Actions policies\" fine-grained permission to use this endpoint.",
+  "operationId": "actions/get-artifact-and-log-retention-settings-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-artifact-and-log-retention-settings-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-artifact-and-log-retention-response"
+          },
+          "examples": {
+            "response": {
+              "summary": "Example response",
+              "value": {
+                "days": 90,
+                "maximum_allowed_days": 365
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "summary": "List code scanning analyses for a repository",
+  "description": "Lists the details of all code scanning analyses for a repository,\nstarting with the most recent.\nThe response is paginated and you can use the `page` and `per_page` parameters\nto list the analyses you're interested in.\nBy default 30 analyses are listed per page.\n\nThe `rules_count` field in the response give the number of rules\nthat were run in the analysis.\nFor very old analyses this data is not available,\nand `0` is returned in this field.\n\n> [!WARNING]\n> **Closing down notice:** The `tool_name` field is closing down and will, in future, not be included in the response for this endpoint. The example response reflects this change. The tool name can now be found inside the `tool` field.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint with private or public repositories, or the `public_repo` scope to use this endpoint with only public repositories.",
+  "operationId": "code-scanning/list-recent-analyses",
+  "tags": [
+    "code-scanning"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#list-code-scanning-analyses-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/tool-name"
+    },
+    {
+      "$ref": "#/components/parameters/tool-guid"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/pr-alias"
+    },
+    {
+      "name": "ref",
+      "in": "query",
+      "description": "The Git reference for the analyses you want to list. The `ref` for a branch can be formatted either as `refs/heads/<branch name>` or simply `<branch name>`. To reference a pull request use `refs/pull/<number>/merge`.",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/code-scanning-ref"
+      }
+    },
+    {
+      "name": "sarif_id",
+      "in": "query",
+      "description": "Filter analyses belonging to the same SARIF upload.",
+      "required": false,
+      "schema": {
+        "$ref": "#/components/schemas/code-scanning-analysis-sarif-id"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "name": "sort",
+      "description": "The property by which to sort the results.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created"
+        ],
+        "default": "created"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/code-scanning-analysis"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-analysis-items"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/code_scanning_forbidden_read"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

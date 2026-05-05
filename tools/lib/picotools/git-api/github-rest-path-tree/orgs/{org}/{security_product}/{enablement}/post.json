@@ -1,0 +1,65 @@
+{
+  "summary": "Enable or disable a security feature for an organization",
+  "description": "> [!WARNING]\n> **Closing down notice:** The ability to enable or disable a security feature for all eligible repositories in an organization is closing down. Please use [code security configurations](https://docs.github.com/rest/code-security/configurations) instead. For more information, see the [changelog](https://github.blog/changelog/2024-07-22-deprecation-of-api-endpoint-to-enable-or-disable-a-security-feature-for-an-organization/).\n\nEnables or disables the specified security feature for all eligible repositories in an organization. For more information, see \"[Managing security managers in your organization](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/managing-security-managers-in-your-organization).\"\n\nThe authenticated user must be an organization owner or be member of a team with the security manager role to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org`, `write:org`, or `repo` scopes to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/enable-or-disable-security-product-on-all-org-repos",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#enable-or-disable-a-security-feature-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/security-product"
+    },
+    {
+      "$ref": "#/components/parameters/org-security-product-enablement"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "query_suite": {
+              "description": "CodeQL query suite to be used. If you specify the `query_suite` parameter, the default setup will be configured with this query suite only on all repositories that didn't have default setup already configured. It will not change the query suite on repositories that already have default setup configured.\nIf you don't specify any `query_suite` in your request, the preferred query suite of the organization will be applied.",
+              "type": "string",
+              "enum": [
+                "default",
+                "extended"
+              ]
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": null
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Action started"
+    },
+    "422": {
+      "description": "The action could not be taken due to an in progress enablement, or a policy is preventing enablement"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "orgs",
+    "subcategory": "orgs",
+    "deprecationDate": "2024-07-22",
+    "removalDate": "2025-07-22"
+  },
+  "deprecated": true
+}

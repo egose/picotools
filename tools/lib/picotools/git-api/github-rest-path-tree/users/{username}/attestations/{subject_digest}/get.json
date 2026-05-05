@@ -1,0 +1,108 @@
+{
+  "summary": "List attestations",
+  "description": "List a collection of artifact attestations with a given subject digest that are associated with repositories owned by a user.\n\nThe collection of attestations returned by this endpoint is filtered according to the authenticated user's permissions; if the authenticated user cannot read a repository, the attestations associated with that repository will not be included in the response. In addition, when using a fine-grained access token the `attestations:read` permission is required.\n\n**Please note:** in order to offer meaningful security benefits, an attestation's signature and timestamps **must** be cryptographically verified, and the identity of the attestation signer **must** be validated. Attestations can be verified using the [GitHub CLI `attestation verify` command](https://cli.github.com/manual/gh_attestation_verify). For more information, see [our guide on how to use artifact attestations to establish a build's provenance](https://docs.github.com/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds).",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/list-attestations",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/attestations#list-attestations"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "name": "subject_digest",
+      "description": "Subject Digest",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    },
+    {
+      "name": "predicate_type",
+      "description": "Optional filter for fetching attestations with a given predicate type.\nThis option accepts `provenance`, `sbom`, `release`, or freeform text\nfor custom predicate types.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "attestations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "repository_id": {
+                      "type": "integer"
+                    },
+                    "bundle_url": {
+                      "type": "string"
+                    },
+                    "initiator": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/list-attestations"
+            }
+          }
+        }
+      }
+    },
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/empty-object"
+          },
+          "examples": {
+            "default": {
+              "value": null
+            }
+          }
+        }
+      }
+    },
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "users",
+    "subcategory": "attestations"
+  }
+}

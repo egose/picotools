@@ -1,0 +1,66 @@
+{
+  "summary": "Update a deployment branch policy",
+  "description": "Updates a deployment branch or tag policy for an environment.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-deployment-branch-policy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/branch-policies#update-a-deployment-branch-policy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/branch-policy-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/deployment-branch-policy-name-pattern"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "release/*"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment-branch-policy"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-branch-policy-wildcard"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "branch-policies"
+  }
+}

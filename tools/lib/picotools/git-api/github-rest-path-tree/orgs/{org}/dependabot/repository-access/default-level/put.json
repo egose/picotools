@@ -1,0 +1,66 @@
+{
+  "summary": "Set the default repository access level for Dependabot",
+  "description": "Sets the default level of repository access Dependabot will have while performing an update.  Available values are:\n- 'public' - Dependabot will only have access to public repositories, unless access is explicitly granted to non-public repositories.\n- 'internal' - Dependabot will only have access to public and internal repositories, unless access is explicitly granted to private repositories.\n\nUnauthorized users will not see the existence of this endpoint.\n\nThis operation supports both server-to-server and user-to-server access.",
+  "tags": [
+    "dependabot"
+  ],
+  "operationId": "dependabot/set-repository-access-default-level",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependabot/repository-access#set-the-default-repository-access-level-for-dependabot"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "default_level": {
+              "type": "string",
+              "description": "The default repository access level for Dependabot updates.",
+              "enum": [
+                "public",
+                "internal"
+              ],
+              "example": "internal"
+            }
+          },
+          "required": [
+            "default_level"
+          ]
+        },
+        "examples": {
+          "204": {
+            "summary": "Example with a 'succeeded' status.",
+            "value": {
+              "default_level": "public"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "dependabot",
+    "subcategory": "repository-access"
+  }
+}

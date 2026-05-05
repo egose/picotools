@@ -1,0 +1,37 @@
+{
+  "summary": "Delete an organization",
+  "description": "Deletes an organization and all its repositories.\n\nThe organization login will be unavailable for 90 days after deletion.\n\nPlease review the Terms of Service regarding account deletion before using this endpoint:\n\nhttps://docs.github.com/site-policy/github-terms/github-terms-of-service",
+  "operationId": "orgs/delete",
+  "tags": [
+    "orgs"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#delete-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "202": {
+      "$ref": "#/components/responses/accepted"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "451": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "orgs"
+  }
+}

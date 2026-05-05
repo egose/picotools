@@ -1,0 +1,140 @@
+{
+  "summary": "List repositories for the authenticated user",
+  "description": "Lists repositories that the authenticated user has explicit permission (`:read`, `:write`, or `:admin`) to access.\n\nThe authenticated user has explicit permission to access repositories they own, repositories where they are a collaborator, and repositories that they can access through an organization membership.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#list-repositories-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "name": "visibility",
+      "description": "Limit results to repositories with the specified visibility.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "all",
+          "public",
+          "private"
+        ],
+        "default": "all"
+      }
+    },
+    {
+      "name": "affiliation",
+      "description": "Comma-separated list of values. Can include:  \n * `owner`: Repositories that are owned by the authenticated user.  \n * `collaborator`: Repositories that the user has been added to as a collaborator.  \n * `organization_member`: Repositories that the user has access to through being a member of an organization. This includes every repository on every team that the user is on.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "owner,collaborator,organization_member"
+      }
+    },
+    {
+      "name": "type",
+      "description": "Limit results to repositories of the specified type. Will cause a `422` error if used in the same request as **visibility** or **affiliation**.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "all",
+          "owner",
+          "public",
+          "private",
+          "member"
+        ],
+        "default": "all"
+      }
+    },
+    {
+      "name": "sort",
+      "description": "The property to sort the results by.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated",
+          "pushed",
+          "full_name"
+        ],
+        "default": "full_name"
+      }
+    },
+    {
+      "name": "direction",
+      "description": "The order to sort by. Default: `asc` when using `full_name`, otherwise `desc`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/since-repo-date"
+    },
+    {
+      "$ref": "#/components/parameters/before-repo-date"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-items-default-response"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

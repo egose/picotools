@@ -1,0 +1,93 @@
+{
+  "summary": "Create a label",
+  "description": "Creates a label for the specified repository with the given name and color. The name and color parameters are required. The color must be a valid [hexadecimal color code](http://www.color-hex.com/).",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/create-label",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/labels#create-a-label"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the label. Emoji can be added to label names, using either native emoji or colon-style markup. For example, typing `:strawberry:` will render the emoji ![:strawberry:](https://github.githubassets.com/images/icons/emoji/unicode/1f353.png \":strawberry:\"). For a full list of available emoji and codes, see \"[Emoji cheat sheet](https://github.com/ikatyang/emoji-cheat-sheet).\""
+            },
+            "color": {
+              "type": "string",
+              "description": "The [hexadecimal color code](http://www.color-hex.com/) for the label, without the leading `#`."
+            },
+            "description": {
+              "type": "string",
+              "description": "A short description of the label. Must be 100 characters or fewer."
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "bug",
+              "description": "Something isn't working",
+              "color": "f29513"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/label"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/label"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/labels/bug",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "labels"
+  }
+}

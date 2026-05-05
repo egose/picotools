@@ -1,0 +1,46 @@
+{
+  "summary": "Get the weekly commit count",
+  "description": "Returns the total commit counts for the `owner` and total commit counts in `all`. `all` is everyone combined, including the `owner` in the last 52 weeks. If you'd like to get the commit counts for non-owners, you can subtract `owner` from `all`.\n\nThe array order is oldest week (index 0) to most recent week.\n\nThe most recent week is seven days ago at UTC midnight to today at UTC midnight.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-participation-stats",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/metrics/statistics#get-the-weekly-commit-count"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "The array order is oldest week (index 0) to most recent week.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/participation-stats"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/participation-stats"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "metrics",
+    "subcategory": "statistics"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "summary": "Updates Dependabot's repository access list for an enterprise",
+  "description": "Updates repositories according to the list of repositories that enterprise admins have given Dependabot access to when they've updated dependencies across organizations in the enterprise.\n\nThe authenticated user must be an enterprise owner to use this endpoint.\n\n**Example request body:**\n```json\n{\n  \"repository_ids_to_add\": [123, 456],\n  \"repository_ids_to_remove\": [789]\n}\n```",
+  "tags": [
+    "dependabot"
+  ],
+  "operationId": "dependabot/update-repository-access-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependabot/repository-access#updates-dependabots-repository-access-list-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repository_ids_to_add": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "List of repository IDs to add."
+            },
+            "repository_ids_to_remove": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "description": "List of repository IDs to remove."
+            }
+          },
+          "example": {
+            "repository_ids_to_add": [
+              123,
+              456
+            ],
+            "repository_ids_to_remove": [
+              789
+            ]
+          }
+        },
+        "examples": {
+          "204": {
+            "summary": "Example with a 'succeeded' status."
+          },
+          "add-example": {
+            "summary": "Add repositories",
+            "value": {
+              "repository_ids_to_add": [
+                123,
+                456
+              ]
+            }
+          },
+          "remove-example": {
+            "summary": "Remove repositories",
+            "value": {
+              "repository_ids_to_remove": [
+                789
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "dependabot",
+    "subcategory": "repository-access"
+  }
+}

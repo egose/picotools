@@ -1,0 +1,46 @@
+{
+  "summary": "List issue types for an organization",
+  "description": "Lists all issue types for an organization. OAuth app tokens and personal access tokens (classic) need the read:org scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-issue-types",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/issue-types#list-issue-types-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/issue-type"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-type-items"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "issue-types"
+  }
+}

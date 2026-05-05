@@ -1,0 +1,69 @@
+{
+  "summary": "List labels for an issue",
+  "description": "Lists all labels for an issue.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/list-labels-on-issue",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/labels#list-labels-for-an-issue"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/issue-number"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/label"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/label-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "labels"
+  }
+}

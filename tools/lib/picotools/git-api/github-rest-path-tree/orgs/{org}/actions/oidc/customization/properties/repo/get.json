@@ -1,0 +1,55 @@
+{
+  "summary": "List OIDC custom property inclusions for an organization",
+  "description": "Lists the repository custom properties that are included in the OIDC token for repository actions in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "oidc"
+  ],
+  "operationId": "oidc/list-oidc-custom-property-inclusions-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#list-oidc-custom-property-inclusions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "A JSON array of OIDC custom property inclusions",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/oidc-custom-property-inclusion"
+            }
+          },
+          "examples": {
+            "default": {
+              "value": [
+                {
+                  "property_name": "environment"
+                },
+                {
+                  "property_name": "team"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

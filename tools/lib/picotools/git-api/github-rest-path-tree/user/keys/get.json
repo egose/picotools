@@ -1,0 +1,63 @@
+{
+  "summary": "List public SSH keys for the authenticated user",
+  "description": "Lists the public SSH keys for the authenticated user's GitHub account.\n\nOAuth app tokens and personal access tokens (classic) need the `read:public_key` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/list-public-ssh-keys-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/keys#list-public-ssh-keys-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/key"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/key-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "keys"
+  }
+}

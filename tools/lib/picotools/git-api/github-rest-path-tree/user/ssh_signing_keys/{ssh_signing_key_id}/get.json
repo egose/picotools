@@ -1,0 +1,52 @@
+{
+  "summary": "Get an SSH signing key for the authenticated user",
+  "description": "Gets extended details for an SSH signing key.\n\nOAuth app tokens and personal access tokens (classic) need the `read:ssh_signing_key` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/get-ssh-signing-key-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/ssh-signing-keys#get-an-ssh-signing-key-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/ssh-signing-key-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/ssh-signing-key"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/ssh-signing-key"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "ssh-signing-keys"
+  }
+}

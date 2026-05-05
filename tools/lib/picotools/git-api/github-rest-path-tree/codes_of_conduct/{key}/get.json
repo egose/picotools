@@ -1,0 +1,51 @@
+{
+  "summary": "Get a code of conduct",
+  "description": "Returns information about the specified GitHub code of conduct.",
+  "tags": [
+    "codes-of-conduct"
+  ],
+  "operationId": "codes-of-conduct/get-conduct-code",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codes-of-conduct/codes-of-conduct#get-a-code-of-conduct"
+  },
+  "parameters": [
+    {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-of-conduct"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-of-conduct"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "codes-of-conduct",
+    "subcategory": "codes-of-conduct"
+  }
+}

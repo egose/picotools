@@ -1,0 +1,40 @@
+{
+  "summary": "Get limits on GitHub-hosted runners for an organization",
+  "description": "Get the GitHub-hosted runners limits for an organization.",
+  "operationId": "actions/get-hosted-runners-limits-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#get-limits-on-github-hosted-runners-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-hosted-runner-limits"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner-limits-default"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "summary": "Start a codespace for the authenticated user",
+  "description": "Starts a user's codespace.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/start-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/codespaces#start-a-codespace-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/codespace"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespace"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "402": {
+      "description": "Payment required",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "codespaces"
+  }
+}

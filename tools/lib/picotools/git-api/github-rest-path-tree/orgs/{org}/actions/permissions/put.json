@@ -1,0 +1,61 @@
+{
+  "summary": "Set GitHub Actions permissions for an organization",
+  "description": "Sets the GitHub Actions permissions policy for repositories and allowed actions and reusable workflows in an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/set-github-actions-permissions-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#set-github-actions-permissions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "enabled_repositories": {
+              "$ref": "#/components/schemas/enabled-repositories"
+            },
+            "allowed_actions": {
+              "$ref": "#/components/schemas/allowed-actions"
+            },
+            "sha_pinning_required": {
+              "$ref": "#/components/schemas/sha-pinning-required"
+            }
+          },
+          "required": [
+            "enabled_repositories"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "enabled_repositories": "all",
+              "allowed_actions": "selected",
+              "sha_pinning_required": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "summary": "Add teams to the Copilot subscription for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nPurchases a GitHub Copilot seat for all users within each specified team.\nThe organization will be billed for each seat based on the organization's Copilot plan. For more information about Copilot pricing, see \"[About billing for GitHub Copilot in your organization](https://docs.github.com/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-the-copilot-subscription-for-your-organization/about-billing-for-github-copilot-in-your-organization).\"\n\nOnly organization owners can purchase Copilot seats for their organization members. The organization must have a Copilot Business or Copilot Enterprise subscription and a configured suggestion matching policy.\nFor more information about setting up a Copilot subscription, see \"[Subscribing to Copilot for your organization](https://docs.github.com/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-the-copilot-subscription-for-your-organization/subscribing-to-copilot-for-your-organization).\"\nFor more information about setting a suggestion matching policy, see \"[Managing policies for Copilot in your organization](https://docs.github.com/copilot/managing-copilot/managing-github-copilot-in-your-organization/setting-policies-for-copilot-in-your-organization/managing-policies-for-copilot-in-your-organization#policies-for-suggestion-matching).\"\n\nThe response contains the total number of new seats that were created and existing seats that were refreshed.\n\nOAuth app tokens and personal access tokens (classic) need either the `manage_billing:copilot` or `admin:org` scopes to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/add-copilot-seats-for-teams",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-user-management#add-teams-to-the-copilot-subscription-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "selected_teams": {
+              "type": "array",
+              "description": "List of team names within the organization to which to grant access to GitHub Copilot.",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "selected_teams"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "selected_teams": [
+                "engteam1",
+                "engteam2",
+                "engteam3"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "required": true
+  },
+  "responses": {
+    "201": {
+      "description": "OK",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "description": "The total number of seats created for members of the specified team(s).",
+            "properties": {
+              "seats_created": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "seats_created"
+            ]
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "seats_created": 5
+              }
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Copilot Business or Enterprise is not enabled for this organization, billing has not been set up for this organization, a public code suggestions policy has not been set for this organization, or the organization's Copilot access setting is set to enable Copilot for all users or is unconfigured."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-user-management"
+  }
+}

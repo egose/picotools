@@ -1,0 +1,74 @@
+{
+  "summary": "Create or update custom property values for organization repositories",
+  "description": "Create new or update existing custom property values for repositories in a batch that belong to an organization.\nEach target repository will have its custom property values updated to match the values provided in the request.\n\nA maximum of 30 repositories can be updated in a single request.\n\nUsing a value of `null` for a custom property will remove or 'unset' the property value from the repository.\n\nTo use this endpoint, the authenticated user must be one of:\n  - An administrator for the organization.\n  - A user, or a user on a team, with the fine-grained permission of `custom_properties_org_values_editor` in the organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/custom-properties-for-repos-create-or-update-organization-values",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/custom-properties#create-or-update-custom-property-values-for-organization-repositories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "repository_names": {
+              "type": "array",
+              "description": "The names of repositories that the custom property values will be applied to.",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1,
+              "maxItems": 30
+            },
+            "properties": {
+              "type": "array",
+              "description": "List of custom property names and associated values to apply to the repositories.",
+              "items": {
+                "$ref": "#/components/schemas/custom-property-value"
+              }
+            }
+          },
+          "required": [
+            "repository_names",
+            "properties"
+          ]
+        },
+        "examples": {
+          "default": {
+            "$ref": "#/components/examples/org-repo-update-custom-property-values"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "No Content when custom property values are successfully created or updated"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "custom-properties"
+  }
+}

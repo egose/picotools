@@ -1,0 +1,46 @@
+{
+  "summary": "Get GitHub Actions cache storage limit for an enterprise",
+  "description": "Gets GitHub Actions cache storage limit for an enterprise. All organizations and repositories under this\nenterprise may not set a higher cache storage limit.\n\nOAuth tokens and personal access tokens (classic) need the `admin:enterprise` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-actions-cache-storage-limit-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/cache#get-github-actions-cache-storage-limit-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-cache-storage-limit-for-enterprise"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-cache-storage-limit"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "cache"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Remove a self-hosted runner from a group for an organization",
+  "description": "Removes a self-hosted runner from a group configured in an organization. The runner is then returned to the default group.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/remove-self-hosted-runner-from-group-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runner-groups#remove-a-self-hosted-runner-from-a-group-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/runner-group-id"
+    },
+    {
+      "$ref": "#/components/parameters/runner-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "self-hosted-runner-groups"
+  }
+}

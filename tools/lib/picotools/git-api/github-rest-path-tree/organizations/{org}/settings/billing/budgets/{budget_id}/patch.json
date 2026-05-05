@@ -1,0 +1,261 @@
+{
+  "summary": "Update a budget for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nUpdates an existing budget for an organization. The authenticated user must be an organization admin or billing manager.",
+  "tags": [
+    "billing"
+  ],
+  "operationId": "billing/update-budget-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/billing/budgets#update-a-budget-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/budget"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "budget_amount": {
+              "type": "integer",
+              "description": "The budget amount in whole dollars. For license-based products, this represents the number of licenses."
+            },
+            "prevent_further_usage": {
+              "type": "boolean",
+              "description": "Whether to prevent additional spending once the budget is exceeded"
+            },
+            "budget_alerting": {
+              "type": "object",
+              "properties": {
+                "will_alert": {
+                  "type": "boolean",
+                  "description": "Whether alerts are enabled for this budget"
+                },
+                "alert_recipients": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Array of user login names who will receive alerts"
+                }
+              }
+            },
+            "budget_scope": {
+              "type": "string",
+              "description": "The scope of the budget",
+              "enum": [
+                "enterprise",
+                "organization",
+                "repository",
+                "cost_center"
+              ]
+            },
+            "budget_entity_name": {
+              "type": "string",
+              "description": "The name of the entity to apply the budget to"
+            },
+            "budget_type": {
+              "description": "The type of pricing for the budget",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "ProductPricing"
+                  ]
+                },
+                {
+                  "type": "string",
+                  "enum": [
+                    "SkuPricing"
+                  ]
+                }
+              ]
+            },
+            "budget_product_sku": {
+              "type": "string",
+              "description": "A single product or SKU that will be covered in the budget"
+            }
+          }
+        },
+        "examples": {
+          "update-budget": {
+            "summary": "Update budget example",
+            "value": {
+              "prevent_further_usage": false,
+              "budget_amount": 10,
+              "budget_alerting": {
+                "will_alert": false,
+                "alert_recipients": []
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Budget updated successfully",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "example": "Budget successfully updated."
+              },
+              "budget": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "ID of the budget."
+                  },
+                  "budget_amount": {
+                    "type": "number",
+                    "format": "float",
+                    "description": "The budget amount in whole dollars. For license-based products, this represents the number of licenses."
+                  },
+                  "prevent_further_usage": {
+                    "type": "boolean",
+                    "description": "Whether to prevent additional spending once the budget is exceeded"
+                  },
+                  "budget_alerting": {
+                    "type": "object",
+                    "required": [
+                      "will_alert",
+                      "alert_recipients"
+                    ],
+                    "properties": {
+                      "will_alert": {
+                        "type": "boolean",
+                        "description": "Whether alerts are enabled for this budget"
+                      },
+                      "alert_recipients": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        },
+                        "description": "Array of user login names who will receive alerts"
+                      }
+                    }
+                  },
+                  "budget_scope": {
+                    "type": "string",
+                    "description": "The scope of the budget",
+                    "enum": [
+                      "enterprise",
+                      "organization",
+                      "repository",
+                      "cost_center"
+                    ]
+                  },
+                  "budget_entity_name": {
+                    "type": "string",
+                    "description": "The name of the entity to apply the budget to",
+                    "default": ""
+                  },
+                  "budget_type": {
+                    "description": "The type of pricing for the budget",
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "ProductPricing"
+                        ]
+                      },
+                      {
+                        "type": "string",
+                        "enum": [
+                          "SkuPricing"
+                        ]
+                      }
+                    ]
+                  },
+                  "budget_product_sku": {
+                    "type": "string",
+                    "description": "A single product or SKU that will be covered in the budget"
+                  }
+                }
+              }
+            }
+          },
+          "examples": {
+            "update-budget": {
+              "$ref": "#/components/examples/update-budget"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "description": "Budget not found or feature not enabled",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          },
+          "examples": {
+            "budget-not-found": {
+              "value": {
+                "message": "Budget with ID 550e8400-e29b-41d4-a716-446655440000 not found.",
+                "documentation_url": "https://docs.github.com/rest/billing/budgets#update-a-budget"
+              }
+            },
+            "feature-not-enabled": {
+              "value": {
+                "message": "Not Found",
+                "documentation_url": "https://docs.github.com/rest/billing/budgets#update-a-budget"
+              }
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "500": {
+      "description": "Internal server error",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          },
+          "examples": {
+            "server-error": {
+              "value": {
+                "message": "Unable to update budget.",
+                "documentation_url": "https://docs.github.com/rest/billing/budgets#update-a-budget"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "billing",
+    "subcategory": "budgets"
+  }
+}

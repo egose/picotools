@@ -1,0 +1,40 @@
+{
+  "summary": "Add a repository to an app installation",
+  "description": "Add a single repository to an installation. The authenticated user must have admin access to the repository.\n\nThis endpoint only works for PATs (classic) with the `repo` scope.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/add-repo-to-installation-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/installations#add-a-repository-to-an-app-installation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/installation-id"
+    },
+    {
+      "$ref": "#/components/parameters/repository-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "installations"
+  }
+}

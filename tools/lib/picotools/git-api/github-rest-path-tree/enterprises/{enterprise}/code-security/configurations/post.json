@@ -1,0 +1,283 @@
+{
+  "summary": "Create a code security configuration for an enterprise",
+  "description": "Creates a code security configuration in an enterprise.\n\nThe authenticated user must be an administrator of the enterprise in order to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:enterprise` scope to use this endpoint.",
+  "tags": [
+    "code-security"
+  ],
+  "operationId": "code-security/create-configuration-for-enterprise",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-security/configurations#create-a-code-security-configuration-for-an-enterprise"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the code security configuration. Must be unique within the enterprise."
+            },
+            "description": {
+              "type": "string",
+              "description": "A description of the code security configuration",
+              "maxLength": 255
+            },
+            "advanced_security": {
+              "type": "string",
+              "description": "The enablement status of GitHub Advanced Security features. `enabled` will enable both Code Security and Secret Protection features.\n\n> [!WARNING]\n> `code_security` and `secret_protection` are deprecated values for this field. Prefer the individual `code_security` and `secret_protection` fields to set the status of these features.\n",
+              "enum": [
+                "enabled",
+                "disabled",
+                "code_security",
+                "secret_protection"
+              ],
+              "default": "disabled"
+            },
+            "code_security": {
+              "type": "string",
+              "description": "The enablement status of GitHub Code Security features.",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ]
+            },
+            "dependency_graph": {
+              "type": "string",
+              "description": "The enablement status of Dependency Graph",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "enabled"
+            },
+            "dependency_graph_autosubmit_action": {
+              "type": "string",
+              "description": "The enablement status of Automatic dependency submission",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "dependency_graph_autosubmit_action_options": {
+              "type": "object",
+              "description": "Feature options for Automatic dependency submission",
+              "properties": {
+                "labeled_runners": {
+                  "type": "boolean",
+                  "description": "Whether to use runners labeled with 'dependency-submission' or standard GitHub runners.",
+                  "default": false
+                }
+              }
+            },
+            "dependabot_alerts": {
+              "type": "string",
+              "description": "The enablement status of Dependabot alerts",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "dependabot_security_updates": {
+              "type": "string",
+              "description": "The enablement status of Dependabot security updates",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "code_scanning_options": {
+              "$ref": "#/components/schemas/code-scanning-options"
+            },
+            "code_scanning_default_setup": {
+              "type": "string",
+              "description": "The enablement status of code scanning default setup",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "code_scanning_default_setup_options": {
+              "$ref": "#/components/schemas/code-scanning-default-setup-options"
+            },
+            "code_scanning_delegated_alert_dismissal": {
+              "type": "string",
+              "description": "The enablement status of code scanning delegated alert dismissal",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_protection": {
+              "type": "string",
+              "description": "The enablement status of GitHub Secret Protection features.",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ]
+            },
+            "secret_scanning": {
+              "type": "string",
+              "description": "The enablement status of secret scanning",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_push_protection": {
+              "type": "string",
+              "description": "The enablement status of secret scanning push protection",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_validity_checks": {
+              "type": "string",
+              "description": "The enablement status of secret scanning validity checks",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_non_provider_patterns": {
+              "type": "string",
+              "description": "The enablement status of secret scanning non provider patterns",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_generic_secrets": {
+              "type": "string",
+              "description": "The enablement status of Copilot secret scanning",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_delegated_alert_dismissal": {
+              "type": "string",
+              "description": "The enablement status of secret scanning delegated alert dismissal",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "secret_scanning_extended_metadata": {
+              "type": "string",
+              "description": "The enablement status of secret scanning extended metadata",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "private_vulnerability_reporting": {
+              "type": "string",
+              "description": "The enablement status of private vulnerability reporting",
+              "enum": [
+                "enabled",
+                "disabled",
+                "not_set"
+              ],
+              "default": "disabled"
+            },
+            "enforcement": {
+              "type": "string",
+              "description": "The enforcement status for a security configuration",
+              "enum": [
+                "enforced",
+                "unenforced"
+              ],
+              "default": "enforced"
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example for a code security configuration",
+            "value": {
+              "name": "High rish settings",
+              "description": "This is a code security configuration for octo-enterprise",
+              "advanced_security": "enabled",
+              "dependabot_alerts": "enabled",
+              "dependabot_security_updates": "not_set",
+              "secret_scanning": "enabled"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Successfully created code security configuration",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-security-configuration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/enterprise-code-security-configuration"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "code-security",
+    "subcategory": "configurations"
+  }
+}

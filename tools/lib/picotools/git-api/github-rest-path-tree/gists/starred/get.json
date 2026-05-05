@@ -1,0 +1,63 @@
+{
+  "summary": "List starred gists",
+  "description": "List the authenticated user's starred gists:",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/list-starred",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#list-starred-gists"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/since"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/base-gist"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/base-gist-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

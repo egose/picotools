@@ -1,0 +1,43 @@
+{
+  "summary": "Block a user",
+  "description": "Blocks the given user and returns a 204. If the authenticated user cannot block the given user a 422 is returned.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/block",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/blocking#block-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "blocking"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "summary": "Get a self-hosted runner group for an organization",
+  "description": "Gets a specific self-hosted runner group for an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "operationId": "actions/get-self-hosted-runner-group-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runner-groups#get-a-self-hosted-runner-group-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/runner-group-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/runner-groups-org"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/runner-group-item"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "self-hosted-runner-groups"
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "summary": "List Dependabot alerts for a repository",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "tags": [
+    "dependabot"
+  ],
+  "operationId": "dependabot/list-alerts-for-repo",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependabot/alerts#list-dependabot-alerts-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-classifications"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-states"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-severities"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-ecosystems"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-packages"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-manifests"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-epss"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-has"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-comma-separated-assignees"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-scope"
+    },
+    {
+      "$ref": "#/components/parameters/dependabot-alert-sort"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/dependabot-alert"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/dependabot-alerts-for-repository"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "dependabot",
+    "subcategory": "alerts"
+  }
+}

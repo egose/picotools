@@ -1,0 +1,112 @@
+{
+  "summary": "Update an import",
+  "description": "An import can be updated with credentials or a project choice by passing in the appropriate parameters in this API\nrequest. If no parameters are provided, the import will be restarted.\n\nSome servers (e.g. TFS servers) can have several projects at a single URL. In those cases the import progress will\nhave the status `detection_found_multiple` and the Import Progress response will include a `project_choices` array.\nYou can select the project to import by providing one of the objects in the `project_choices` array in the update request.\n\n> [!WARNING]\n> **Endpoint closing down notice:** Due to very low levels of usage and available alternatives, this endpoint is closing down and will no longer be available from 00:00 UTC on April 12, 2024. For more details and alternatives, see the [changelog](https://gh.io/source-imports-api-deprecation).",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/update-import",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/source-imports#update-an-import"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "vcs_username": {
+              "type": "string",
+              "description": "The username to provide to the originating repository."
+            },
+            "vcs_password": {
+              "type": "string",
+              "description": "The password to provide to the originating repository."
+            },
+            "vcs": {
+              "type": "string",
+              "description": "The type of version control system you are migrating from.",
+              "enum": [
+                "subversion",
+                "tfvc",
+                "git",
+                "mercurial"
+              ],
+              "example": "\"git\""
+            },
+            "tfvc_project": {
+              "type": "string",
+              "description": "For a tfvc import, the name of the project that is being imported.",
+              "example": "\"project1\""
+            }
+          },
+          "nullable": true
+        },
+        "examples": {
+          "example-1": {
+            "summary": "Update authentication for an import",
+            "value": {
+              "vcs_username": "octocat",
+              "vcs_password": "secret"
+            }
+          },
+          "example-2": {
+            "summary": "Updating the project choice",
+            "value": {
+              "vcs": "tfvc",
+              "tfvc_project": "project1",
+              "human_name": "project1 (tfs)"
+            }
+          },
+          "example-3": {
+            "summary": "Restarting an import"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/import"
+          },
+          "examples": {
+            "example-1": {
+              "$ref": "#/components/examples/import-example-1"
+            },
+            "example-2": {
+              "$ref": "#/components/examples/import-example-2"
+            },
+            "example-3": {
+              "$ref": "#/components/examples/import-response"
+            }
+          }
+        }
+      }
+    },
+    "503": {
+      "$ref": "#/components/responses/porter_maintenance"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "migrations",
+    "subcategory": "source-imports",
+    "deprecationDate": "2023-10-12",
+    "removalDate": "2024-04-12"
+  },
+  "deprecated": true
+}

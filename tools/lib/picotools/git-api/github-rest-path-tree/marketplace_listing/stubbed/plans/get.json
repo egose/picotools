@@ -1,0 +1,54 @@
+{
+  "summary": "List plans (stubbed)",
+  "description": "Lists all plans that are part of your GitHub Marketplace listing.\n\nGitHub Apps must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint. OAuth apps must use [basic authentication](https://docs.github.com/rest/authentication/authenticating-to-the-rest-api#using-basic-authentication) with their client ID and client secret to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/list-plans-stubbed",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/marketplace#list-plans-stubbed"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/marketplace-listing-plan"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/marketplace-listing-plan-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "marketplace"
+  }
+}

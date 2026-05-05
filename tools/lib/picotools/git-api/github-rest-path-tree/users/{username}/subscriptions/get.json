@@ -1,0 +1,54 @@
+{
+  "summary": "List repositories watched by a user",
+  "description": "Lists repositories a user is watching.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/list-repos-watched-by-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/watching#list-repositories-watched-by-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/minimal-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "activity",
+    "subcategory": "watching"
+  }
+}

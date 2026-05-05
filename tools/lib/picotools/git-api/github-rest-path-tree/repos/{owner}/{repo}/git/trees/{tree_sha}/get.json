@@ -1,0 +1,74 @@
+{
+  "summary": "Get a tree",
+  "description": "Returns a single tree using the SHA1 value or ref name for that tree.\n\nIf `truncated` is `true` in the response then the number of items in the `tree` array exceeded our maximum limit. If you need to fetch more items, use the non-recursive method of fetching trees, and fetch one sub-tree at a time.\n\n> [!NOTE]\n> The limit for the `tree` array is 100,000 entries with a maximum size of 7 MB when using the `recursive` parameter.",
+  "tags": [
+    "git"
+  ],
+  "operationId": "git/get-tree",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/git/trees#get-a-tree"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "tree_sha",
+      "description": "The SHA1 value or ref (branch or tag) name of the tree.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "string"
+      },
+      "x-multi-segment": true
+    },
+    {
+      "name": "recursive",
+      "description": "Setting this parameter to any value returns the objects or subtrees referenced by the tree specified in `:tree_sha`. For example, setting `recursive` to any of the following will enable returning objects or subtrees: `0`, `1`, `\"true\"`, and `\"false\"`. Omit this parameter to prevent recursively returning objects or subtrees.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/git-tree"
+          },
+          "examples": {
+            "default-response": {
+              "$ref": "#/components/examples/git-tree-default-response"
+            },
+            "response-recursively-retrieving-a-tree": {
+              "$ref": "#/components/examples/git-tree-response-recursively-retrieving-a-tree"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "git",
+    "subcategory": "trees"
+  }
+}

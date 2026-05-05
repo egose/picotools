@@ -1,0 +1,63 @@
+{
+  "summary": "Remove organization assignments",
+  "description": "Unassign an enterprise team from multiple organizations.",
+  "tags": [
+    "enterprise-team-organizations"
+  ],
+  "operationId": "enterprise-team-organizations/bulk-remove",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-organizations#remove-organization-assignments"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "organization_slugs"
+          ],
+          "properties": {
+            "organization_slugs": {
+              "type": "array",
+              "description": "Organization slug to unassign the team from.",
+              "items": {
+                "type": "string",
+                "description": "Organization slug to unassign the team from"
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "organization_slugs": [
+                "github"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Successfully unassigned the enterprise team from organizations."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-organizations"
+  }
+}

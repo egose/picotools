@@ -1,0 +1,60 @@
+{
+  "summary": "Get an issue event",
+  "description": "Gets a single event by the event id.",
+  "tags": [
+    "issues"
+  ],
+  "operationId": "issues/get-event",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/issues/events#get-an-issue-event"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "event_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue-event"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-event"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "410": {
+      "$ref": "#/components/responses/gone"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "issues",
+    "subcategory": "events"
+  }
+}

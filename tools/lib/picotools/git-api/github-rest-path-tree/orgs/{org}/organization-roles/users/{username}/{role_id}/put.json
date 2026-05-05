@@ -1,0 +1,40 @@
+{
+  "summary": "Assign an organization role to a user",
+  "description": "Assigns an organization role to a member of an organization. For more information on organization roles, see \"[Using organization roles](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/using-organization-roles).\"\n\nThe authenticated user must be an administrator for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/assign-user-to-org-role",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/organization-roles#assign-an-organization-role-to-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/role-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "description": "Response if the organization, user or role does not exist."
+    },
+    "422": {
+      "description": "Response if the organization roles feature is not enabled enabled for the organization, the validation failed, or the user is not an organization member."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "organization-roles"
+  }
+}

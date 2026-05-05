@@ -1,0 +1,81 @@
+{
+  "summary": "List all Copilot seat assignments for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nLists all Copilot seats for which an organization with a Copilot Business or Copilot Enterprise subscription is currently being billed.\nOnly organization owners can view assigned seats.\n\nEach seat object contains information about the assigned user's most recent Copilot activity. Users must have telemetry enabled in their IDE for Copilot in the IDE activity to be reflected in `last_activity_at`.\nFor more information about activity data, see [Metrics data properties for GitHub Copilot](https://docs.github.com/copilot/reference/metrics-data).\n\nOAuth app tokens and personal access tokens (classic) need either the `manage_billing:copilot` or `read:org` scopes to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/list-copilot-seats",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-user-management#list-all-copilot-seat-assignments-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "name": "per_page",
+      "description": "The number of results per page (max 100). For more information, see \"[Using pagination in the REST API](https://docs.github.com/rest/using-the-rest-api/using-pagination-in-the-rest-api).\"",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "default": 50
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_seats": {
+                "type": "integer",
+                "description": "Total number of Copilot seats for the organization currently being billed."
+              },
+              "seats": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/copilot-seat-details"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/copilot-seats-list"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-user-management"
+  }
+}

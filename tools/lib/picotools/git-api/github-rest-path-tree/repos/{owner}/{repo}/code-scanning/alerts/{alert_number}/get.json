@@ -1,0 +1,58 @@
+{
+  "summary": "Get a code scanning alert",
+  "description": "Gets a single code scanning alert.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint with private or public repositories, or the `public_repo` scope to use this endpoint with only public repositories.",
+  "tags": [
+    "code-scanning"
+  ],
+  "operationId": "code-scanning/get-alert",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#get-a-code-scanning-alert"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/alert-number"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-scanning-alert"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-alert"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/code_scanning_forbidden_read"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

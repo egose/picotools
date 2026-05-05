@@ -1,0 +1,52 @@
+{
+  "summary": "Get a release asset",
+  "description": "To download the asset's binary content:\n\n- If within a browser, fetch the location specified in the `browser_download_url` key provided in the response.\n- Alternatively, set the `Accept` header of the request to \n  [`application/octet-stream`](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types). \n  The API will either redirect the client to the location, or stream it directly if possible.\n  API clients should handle both a `200` or `302` response.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-release-asset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/assets#get-a-release-asset"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/asset-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release-asset"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/release-asset"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "302": {
+      "$ref": "#/components/responses/found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "assets"
+  }
+}

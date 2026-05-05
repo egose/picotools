@@ -1,0 +1,65 @@
+{
+  "summary": "List custom deployment rule integrations available for an environment",
+  "description": "Gets all custom deployment protection rule integrations that are available for an environment.\n\nThe authenticated user must have admin or owner permissions to the repository to use this endpoint.\n\nFor more information about environments, see \"[Using environments for deployment](https://docs.github.com/actions/deployment/targeting-different-environments/using-environments-for-deployment).\"\n\nFor more information about the app that is providing this custom deployment rule, see \"[GET an app](https://docs.github.com/rest/apps/apps#get-an-app)\".\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with a private repository.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-custom-deployment-rule-integrations",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/protection-rules#list-custom-deployment-rule-integrations-available-for-an-environment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/environment-name"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "A list of custom deployment rule integrations available for this environment.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "description": "The total number of custom deployment protection rule integrations available for this environment.",
+                "type": "integer",
+                "example": 35
+              },
+              "available_custom_deployment_protection_rule_integrations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/custom-deployment-rule-app"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/custom-deployment-protection-rule-apps"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "protection-rules"
+  }
+}

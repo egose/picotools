@@ -1,0 +1,105 @@
+{
+  "summary": "List secret scanning alerts for an organization",
+  "description": "Lists secret scanning alerts for eligible repositories in an organization, from newest to oldest.\n\nThe authenticated user must be an administrator or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "tags": [
+    "secret-scanning"
+  ],
+  "operationId": "secret-scanning/list-alerts-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/secret-scanning#list-secret-scanning-alerts-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-state"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-secret-type"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-exclude-secret-types"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-exclude-providers"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-providers"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-resolution"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-assignee"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-sort"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-pagination-before-org-repo"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-pagination-after-org-repo"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-validity"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-publicly-leaked"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-multi-repo"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-hide-secret"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/organization-secret-scanning-alert"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-secret-scanning-alert-list"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "secret-scanning",
+    "subcategory": "secret-scanning"
+  }
+}

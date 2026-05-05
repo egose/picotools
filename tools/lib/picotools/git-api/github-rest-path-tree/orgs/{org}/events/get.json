@@ -1,0 +1,49 @@
+{
+  "summary": "List public organization events",
+  "description": "> [!NOTE]\n> This API is not built to serve real-time use cases. Depending on the time of day, event latency can be anywhere from 30s to 6h.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/list-public-org-events",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/events#list-public-organization-events"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/event"
+            }
+          },
+          "examples": {
+            "200-response": {
+              "$ref": "#/components/examples/public-org-events-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "activity",
+    "subcategory": "events"
+  }
+}

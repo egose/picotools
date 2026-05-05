@@ -1,0 +1,70 @@
+{
+  "summary": "List organization migrations",
+  "description": "Lists the most recent migrations, including both exports (which can be started through the REST API) and imports (which cannot be started using the REST API).\n\nA list of `repositories` is only returned for export migrations.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/list-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/orgs#list-organization-migrations"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    },
+    {
+      "name": "exclude",
+      "description": "Exclude attributes from the API response to improve performance",
+      "in": "query",
+      "schema": {
+        "type": "array",
+        "items": {
+          "description": "Allowed values that can be passed to the exclude param.",
+          "enum": [
+            "repositories"
+          ],
+          "example": "repositories",
+          "type": "string"
+        }
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/migration"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/migration-with-short-org-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "orgs"
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "summary": "Create a private registry for an organization",
+  "description": "\nCreates a private registry configuration with an encrypted value for an organization. Encrypt your secret using [LibSodium](https://libsodium.gitbook.io/doc/bindings_for_other_languages). For more information, see \"[Encrypting secrets for the REST API](https://docs.github.com/rest/guides/encrypting-secrets-for-the-rest-api).\"\nFor OIDC-based registries (`oidc_azure`, `oidc_aws`, `oidc_jfrog`, or `oidc_cloudsmith`), the `encrypted_value` and `key_id` fields should be omitted.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "private-registries"
+  ],
+  "operationId": "private-registries/create-org-private-registry",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/private-registries/organization-configurations#create-a-private-registry-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "registry_type": {
+              "description": "The registry type.",
+              "type": "string",
+              "enum": [
+                "maven_repository",
+                "nuget_feed",
+                "goproxy_server",
+                "npm_registry",
+                "rubygems_server",
+                "cargo_registry",
+                "composer_repository",
+                "docker_registry",
+                "git_source",
+                "helm_registry",
+                "hex_organization",
+                "hex_repository",
+                "pub_repository",
+                "python_index",
+                "terraform_registry"
+              ]
+            },
+            "url": {
+              "description": "The URL of the private registry.",
+              "type": "string",
+              "format": "uri"
+            },
+            "username": {
+              "description": "The username to use when authenticating with the private registry. This field should be omitted if the private registry does not require a username for authentication.",
+              "type": "string",
+              "nullable": true
+            },
+            "replaces_base": {
+              "description": "Whether this private registry should replace the base registry (e.g., npmjs.org for npm, rubygems.org for rubygems). When set to `true`, Dependabot will only use this registry and will not fall back to the public registry. When set to `false` (default), Dependabot will use this registry for scoped packages but may fall back to the public registry for other packages.",
+              "type": "boolean",
+              "default": false
+            },
+            "encrypted_value": {
+              "description": "The value for your secret, encrypted with [LibSodium](https://libsodium.gitbook.io/doc/bindings_for_other_languages) using the public key retrieved from the [Get private registries public key for an organization](https://docs.github.com/rest/private-registries/organization-configurations#get-private-registries-public-key-for-an-organization) endpoint. Required when `auth_type` is `token` or `username_password`. Should be omitted for OIDC auth types.",
+              "type": "string",
+              "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{4})$"
+            },
+            "key_id": {
+              "description": "The ID of the key you used to encrypt the secret. Required when `auth_type` is `token` or `username_password`. Should be omitted for OIDC auth types.",
+              "type": "string"
+            },
+            "visibility": {
+              "description": "Which type of organization repositories have access to the private registry. `selected` means only the repositories specified by `selected_repository_ids` can access the private registry.",
+              "type": "string",
+              "enum": [
+                "all",
+                "private",
+                "selected"
+              ]
+            },
+            "selected_repository_ids": {
+              "description": "An array of repository IDs that can access the organization private registry. You can only provide a list of repository IDs when `visibility` is set to `selected`. You can manage the list of selected repositories using the [Update a private registry for an organization](https://docs.github.com/rest/private-registries/organization-configurations#update-a-private-registry-for-an-organization) endpoint. This field should be omitted if `visibility` is set to `all` or `private`.",
+              "type": "array",
+              "items": {
+                "type": "integer"
+              }
+            },
+            "auth_type": {
+              "description": "The authentication type for the private registry. Defaults to `token` if not specified. Use `oidc_azure`, `oidc_aws`, `oidc_jfrog`, or `oidc_cloudsmith` for OIDC authentication.",
+              "type": "string",
+              "enum": [
+                "token",
+                "username_password",
+                "oidc_azure",
+                "oidc_aws",
+                "oidc_jfrog",
+                "oidc_cloudsmith"
+              ]
+            },
+            "tenant_id": {
+              "description": "The tenant ID of the Azure AD application. Required when `auth_type` is `oidc_azure`.",
+              "type": "string"
+            },
+            "client_id": {
+              "description": "The client ID of the Azure AD application. Required when `auth_type` is `oidc_azure`.",
+              "type": "string"
+            },
+            "aws_region": {
+              "description": "The AWS region. Required when `auth_type` is `oidc_aws`.",
+              "type": "string"
+            },
+            "account_id": {
+              "description": "The AWS account ID. Required when `auth_type` is `oidc_aws`.",
+              "type": "string"
+            },
+            "role_name": {
+              "description": "The AWS IAM role name. Required when `auth_type` is `oidc_aws`.",
+              "type": "string"
+            },
+            "domain": {
+              "description": "The CodeArtifact domain. Required when `auth_type` is `oidc_aws`.",
+              "type": "string"
+            },
+            "domain_owner": {
+              "description": "The CodeArtifact domain owner (AWS account ID). Required when `auth_type` is `oidc_aws`.",
+              "type": "string"
+            },
+            "jfrog_oidc_provider_name": {
+              "description": "The JFrog OIDC provider name. Required when `auth_type` is `oidc_jfrog`.",
+              "type": "string"
+            },
+            "audience": {
+              "description": "The OIDC audience. Optional for `oidc_aws`, `oidc_jfrog`, and required for `oidc_cloudsmith` auth types.",
+              "type": "string"
+            },
+            "identity_mapping_name": {
+              "description": "The JFrog identity mapping name. Optional for `oidc_jfrog` auth type.",
+              "type": "string"
+            },
+            "namespace": {
+              "description": "The Cloudsmith organization namespace. Required when `auth_type` is `oidc_cloudsmith`.",
+              "type": "string"
+            },
+            "service_slug": {
+              "description": "The Cloudsmith service account slug. Required when `auth_type` is `oidc_cloudsmith`.",
+              "type": "string"
+            },
+            "api_host": {
+              "description": "The Cloudsmith API host. Optional for `oidc_cloudsmith` auth type. If omitted, `api.cloudsmith.io` is used by default.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "registry_type",
+            "url",
+            "visibility"
+          ]
+        },
+        "examples": {
+          "org-private-registry-with-private-visibility": {
+            "summary": "Example of a private registry configuration with private visibility",
+            "value": {
+              "registry_type": "maven_repository",
+              "url": "https://maven.pkg.github.com/organization/",
+              "username": "monalisa",
+              "replaces_base": true,
+              "encrypted_value": "c2VjcmV0",
+              "key_id": "012345678912345678",
+              "visibility": "private"
+            }
+          },
+          "org-private-registry-with-selected-visibility": {
+            "summary": "Example of a private registry configuration with selected visibility",
+            "value": {
+              "registry_type": "maven_repository",
+              "url": "https://maven.pkg.github.com/organization/",
+              "username": "monalisa",
+              "encrypted_value": "c2VjcmV0",
+              "key_id": "012345678912345678",
+              "visibility": "selected",
+              "selected_repository_ids": [
+                1296269,
+                1296280
+              ]
+            }
+          },
+          "org-private-registry-with-oidc-azure": {
+            "summary": "Example of an OIDC private registry configuration using Azure",
+            "value": {
+              "registry_type": "docker_registry",
+              "url": "https://myregistry.azurecr.io",
+              "auth_type": "oidc_azure",
+              "visibility": "all",
+              "tenant_id": "12345678-1234-1234-1234-123456789012",
+              "client_id": "abcdef01-2345-6789-abcd-ef0123456789"
+            }
+          },
+          "org-private-registry-with-oidc-cloudsmith": {
+            "summary": "Example of an OIDC private registry configuration using Cloudsmith",
+            "value": {
+              "registry_type": "npm_registry",
+              "url": "https://npm.cloudsmith.io/my-org/my-repo/",
+              "auth_type": "oidc_cloudsmith",
+              "visibility": "all",
+              "namespace": "my-org",
+              "service_slug": "my-service-account",
+              "audience": "https://github.com/my-org"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "The organization private registry configuration",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/org-private-registry-configuration-with-selected-repositories"
+          },
+          "examples": {
+            "org-private-registry-with-selected-visibility": {
+              "$ref": "#/components/examples/org-private-registry-configuration"
+            },
+            "org-private-registry-with-private-visibility": {
+              "$ref": "#/components/examples/org-private-registry-configuration-with-selected-repositories"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "private-registries",
+    "subcategory": "organization-configurations"
+  }
+}

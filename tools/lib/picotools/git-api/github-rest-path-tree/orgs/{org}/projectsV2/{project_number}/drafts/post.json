@@ -1,0 +1,91 @@
+{
+  "summary": "Create draft item for organization owned project",
+  "description": "Create draft issue item for the specified organization owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/create-draft-item-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/drafts#create-draft-item-for-organization-owned-project"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/project-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "description": "Details of the draft item to create in the project.",
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string",
+              "description": "The title of the draft issue item to create in the project."
+            },
+            "body": {
+              "type": "string",
+              "description": "The body content of the draft issue item to create in the project."
+            }
+          },
+          "required": [
+            "title"
+          ]
+        },
+        "examples": {
+          "title": {
+            "summary": "Example with Sample Draft Issue Title",
+            "value": {
+              "title": "Sample Draft Issue Title"
+            }
+          },
+          "body": {
+            "summary": "Example with Sample Draft Issue Title and Body",
+            "value": {
+              "title": "Sample Draft Issue Title",
+              "body": "This is the body content of the draft issue."
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-item-simple"
+          },
+          "examples": {
+            "draft_issue": {
+              "$ref": "#/components/examples/projects-v2-item-simple"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "drafts"
+  }
+}

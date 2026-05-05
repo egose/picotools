@@ -1,0 +1,42 @@
+{
+  "summary": "Get fork PR contributor approval permissions for an organization",
+  "description": "Gets the fork PR contributor approval policy for an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope or the \"Actions policies\" fine-grained permission to use this endpoint.",
+  "operationId": "actions/get-fork-pr-contributor-approval-permissions-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-fork-pr-contributor-approval-permissions-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-fork-pr-contributor-approval"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-fork-pr-contributor-approval"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

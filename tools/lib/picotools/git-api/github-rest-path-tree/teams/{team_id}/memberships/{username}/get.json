@@ -1,0 +1,49 @@
+{
+  "summary": "Get team membership for a user (Legacy)",
+  "description": "> [!WARNING]\n> **Endpoint closing down notice:** This endpoint route is closing down and will be removed from the Teams API. We recommend migrating your existing code to use the new [Get team membership for a user](https://docs.github.com/rest/teams/members#get-team-membership-for-a-user) endpoint.\n\nTeam members will include the members of child teams.\n\nTo get a user's membership with a team, the team must be visible to the authenticated user.\n\n**Note:**\nThe response contains the `state` of the membership and the member's `role`.\n\nThe `role` for organization owners is set to `maintainer`. For more information about `maintainer` roles, see [Create a team](https://docs.github.com/rest/teams/teams#create-a-team).",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/get-membership-for-user-legacy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/members#get-team-membership-for-a-user-legacy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/team-id"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/team-membership"
+          },
+          "examples": {
+            "response-if-user-is-a-team-maintainer": {
+              "$ref": "#/components/examples/team-membership-response-if-user-is-a-team-maintainer"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "removalDate": "2021-02-01",
+    "deprecationDate": "2020-01-21",
+    "category": "teams",
+    "subcategory": "members"
+  },
+  "deprecated": true
+}

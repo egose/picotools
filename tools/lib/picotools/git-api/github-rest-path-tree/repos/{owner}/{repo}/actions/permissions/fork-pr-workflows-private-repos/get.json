@@ -1,0 +1,48 @@
+{
+  "summary": "Get private repo fork PR workflow settings for a repository",
+  "description": "Gets the settings for whether workflows from fork pull requests can run on a private repository.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "operationId": "actions/get-private-repo-fork-pr-workflows-settings-repository",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-private-repo-fork-pr-workflow-settings-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-fork-pr-workflows-private-repos"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-fork-pr-workflows-private-repos"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

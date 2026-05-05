@@ -1,0 +1,48 @@
+{
+  "summary": "Get artifact and log retention settings for a repository",
+  "description": "Gets artifact and log retention settings for a repository.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "operationId": "actions/get-artifact-and-log-retention-settings-repository",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#get-artifact-and-log-retention-settings-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-artifact-and-log-retention-response"
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "days": 90,
+                "maximum_allowed_days": 365
+              }
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

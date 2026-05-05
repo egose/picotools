@@ -1,0 +1,52 @@
+{
+  "summary": "Get teams with access to the protected branch",
+  "description": "Protected branches are available in public repositories with GitHub Free and GitHub Free for organizations, and in public and private repositories with GitHub Pro, GitHub Team, GitHub Enterprise Cloud, and GitHub Enterprise Server. For more information, see [GitHub's products](https://docs.github.com/github/getting-started-with-github/githubs-products) in the GitHub Help documentation.\n\nLists the teams who have push access to this branch. The list includes child teams.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-teams-with-access-to-protected-branch",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/branches/branch-protection#get-teams-with-access-to-the-protected-branch"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/branch"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/team"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-items"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "branches",
+    "subcategory": "branch-protection"
+  }
+}

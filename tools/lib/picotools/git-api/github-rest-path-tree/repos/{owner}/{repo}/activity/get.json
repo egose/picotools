@@ -1,0 +1,117 @@
+{
+  "summary": "List repository activities",
+  "description": "Lists a detailed history of changes to a repository, such as pushes, merges, force pushes, and branch changes, and associates these changes with commits and users.\n\nFor more information about viewing repository activity,\nsee \"[Viewing activity and data for your repository](https://docs.github.com/repositories/viewing-activity-and-data-for-your-repository).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-activities",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#list-repository-activities"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-before"
+    },
+    {
+      "$ref": "#/components/parameters/pagination-after"
+    },
+    {
+      "name": "ref",
+      "description": "The Git reference for the activities you want to list.\n\nThe `ref` for a branch can be formatted either as `refs/heads/BRANCH_NAME` or `BRANCH_NAME`, where `BRANCH_NAME` is the name of your branch.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "actor",
+      "description": "The GitHub username to use to filter by the actor who performed the activity.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "time_period",
+      "description": "The time period to filter by.\n\nFor example, `day` will filter for activity that occurred in the past 24 hours, and `week` will filter for activity that occurred in the past 7 days (168 hours).",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "day",
+          "week",
+          "month",
+          "quarter",
+          "year"
+        ]
+      }
+    },
+    {
+      "name": "activity_type",
+      "description": "The activity type to filter by.\n\nFor example, you can choose to filter by \"force_push\", to see all force pushes to the repository.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "push",
+          "force_push",
+          "branch_creation",
+          "branch_deletion",
+          "pr_merge",
+          "merge_queue_merge"
+        ]
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/activity"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/activity-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

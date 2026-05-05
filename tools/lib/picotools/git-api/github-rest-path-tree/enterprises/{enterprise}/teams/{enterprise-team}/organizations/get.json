@@ -1,0 +1,52 @@
+{
+  "summary": "Get organization assignments",
+  "description": "Get all organizations assigned to an enterprise team",
+  "tags": [
+    "enterprise-team-organizations"
+  ],
+  "operationId": "enterprise-team-organizations/get-assignments",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-organizations#get-organization-assignments"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "An array of organizations the team is assigned to",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/organization-simple"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/organization-simple"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-organizations"
+  }
+}

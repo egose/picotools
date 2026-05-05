@@ -1,0 +1,60 @@
+{
+  "summary": "List organization invitation teams",
+  "description": "List all teams associated with an invitation. In order to see invitations in an organization, the authenticated user must be an organization owner.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-invitation-teams",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/members#list-organization-invitation-teams"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/invitation-id"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/team"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/team-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "members"
+  }
+}

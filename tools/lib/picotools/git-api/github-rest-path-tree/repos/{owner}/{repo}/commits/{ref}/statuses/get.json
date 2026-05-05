@@ -1,0 +1,63 @@
+{
+  "summary": "List commit statuses for a reference",
+  "description": "Users with pull access in a repository can view commit statuses for a given ref. The ref can be a SHA, a branch name, or a tag name. Statuses are returned in reverse chronological order. The first status in the list will be the latest one.\n\nThis resource is also available via a legacy route: `GET /repos/:owner/:repo/statuses/:ref`.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-commit-statuses-for-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/commits/statuses#list-commit-statuses-for-a-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/commit-ref"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/status"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/status-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "301": {
+      "$ref": "#/components/responses/moved_permanently"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "commits",
+    "subcategory": "statuses"
+  }
+}

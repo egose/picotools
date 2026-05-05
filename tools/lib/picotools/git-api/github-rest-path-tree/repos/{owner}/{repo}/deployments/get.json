@@ -1,0 +1,98 @@
+{
+  "summary": "List deployments",
+  "description": "Simple filtering of deployments is available via query parameters:",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-deployments",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/deployments#list-deployments"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "sha",
+      "description": "The SHA recorded at creation time.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "none"
+      }
+    },
+    {
+      "name": "ref",
+      "description": "The name of the ref. This can be a branch, tag, or SHA.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "none"
+      }
+    },
+    {
+      "name": "task",
+      "description": "The name of the task for the deployment (e.g., `deploy` or `deploy:migrations`).",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "none"
+      }
+    },
+    {
+      "name": "environment",
+      "description": "The name of the environment that was deployed to (e.g., `staging` or `production`).",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "default": "none",
+        "nullable": true
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/deployment"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "deployments"
+  }
+}

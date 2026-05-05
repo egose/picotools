@@ -1,0 +1,92 @@
+{
+  "summary": "Map a commit author",
+  "description": "Update an author's identity for the import. Your application can continue updating authors any time before you push\nnew commits to the repository.\n\n> [!WARNING]\n> **Endpoint closing down notice:** Due to very low levels of usage and available alternatives, this endpoint is closing down and will no longer be available from 00:00 UTC on April 12, 2024. For more details and alternatives, see the [changelog](https://gh.io/source-imports-api-deprecation).",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/map-commit-author",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/source-imports#map-a-commit-author"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "author_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "email": {
+              "type": "string",
+              "description": "The new Git author email."
+            },
+            "name": {
+              "type": "string",
+              "description": "The new Git author name."
+            }
+          },
+          "additionalProperties": false
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "email": "hubot@github.com",
+              "name": "Hubot the Robot"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/porter-author"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/porter-author"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/porter_maintenance"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "migrations",
+    "subcategory": "source-imports",
+    "deprecationDate": "2023-10-12",
+    "removalDate": "2024-04-12"
+  },
+  "deprecated": true
+}

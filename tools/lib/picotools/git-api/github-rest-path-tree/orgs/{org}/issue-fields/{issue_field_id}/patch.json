@@ -1,0 +1,104 @@
+{
+  "summary": "Update issue field for an organization",
+  "description": "Updates an issue field for an organization.\n\nYou can find out more about issue fields in [Managing issue fields in an organization](https://docs.github.com/issues/tracking-your-work-with-issues/using-issues/managing-issue-fields-in-an-organization).\n\nTo use this endpoint, the authenticated user must be an administrator for the organization. OAuth app tokens and\npersonal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/update-issue-field",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/issue-fields#update-issue-field-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/issue-field-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/organization-update-issue-field"
+        },
+        "examples": {
+          "default": {
+            "summary": "Update name and description",
+            "description": "Update the name and description of an issue field",
+            "value": {
+              "name": "Priority",
+              "description": "Level of importance for the issue"
+            }
+          },
+          "update-single-select-options": {
+            "summary": "Update single select options",
+            "description": "Update the options for a single select issue field",
+            "value": {
+              "name": "Status",
+              "description": "Current status of the issue",
+              "options": [
+                {
+                  "name": "Backlog",
+                  "description": "Items waiting to be prioritized",
+                  "color": "gray",
+                  "priority": 1
+                },
+                {
+                  "name": "In Progress",
+                  "description": "Currently being worked on",
+                  "color": "blue",
+                  "priority": 2
+                },
+                {
+                  "name": "Done",
+                  "description": "Completed work",
+                  "color": "green",
+                  "priority": 3
+                }
+              ]
+            }
+          },
+          "update-name-only": {
+            "summary": "Update name only",
+            "description": "Update only the name of an issue field",
+            "value": {
+              "name": "Updated Field Name"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/issue-field"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/issue-field"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "issue-fields"
+  }
+}

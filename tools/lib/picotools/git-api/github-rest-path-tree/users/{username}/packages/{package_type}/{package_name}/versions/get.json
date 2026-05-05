@@ -1,0 +1,58 @@
+{
+  "summary": "List package versions for a package owned by a user",
+  "description": "Lists package versions for a public package owned by a specified user.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` scope to use this endpoint. For more information, see \"[About permissions for GitHub Packages](https://docs.github.com/packages/learn-github-packages/about-permissions-for-github-packages#permissions-for-repository-scoped-packages).\"",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/get-all-package-versions-for-package-owned-by-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#list-package-versions-for-a-package-owned-by-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/package-type"
+    },
+    {
+      "$ref": "#/components/parameters/package-name"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/package-version"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/package-versions-for-user"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

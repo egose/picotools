@@ -1,0 +1,95 @@
+{
+  "summary": "Delete an email address for the authenticated user",
+  "description": "OAuth app tokens and personal access tokens (classic) need the `user` scope to use this endpoint.",
+  "tags": [
+    "users"
+  ],
+  "operationId": "users/delete-email-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/users/emails#delete-an-email-address-for-the-authenticated-user"
+  },
+  "parameters": [],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "Deletes one or more email addresses from your GitHub account. Must contain at least one email address. **Note:** Alternatively, you can pass a single email address or an `array` of emails addresses directly, but we recommend that you pass an object using the `emails` key.",
+              "properties": {
+                "emails": {
+                  "description": "Email addresses associated with the GitHub user account.",
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "example": "username@example.com"
+                  },
+                  "minItems": 1
+                }
+              },
+              "example": {
+                "emails": [
+                  "octocat@github.com",
+                  "mona@github.com"
+                ]
+              },
+              "required": [
+                "emails"
+              ]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "example": "username@example.com"
+              },
+              "minItems": 1
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "examples": {
+          "default": {
+            "summary": "Example deleting multiple email accounts",
+            "value": {
+              "emails": [
+                "octocat@github.com",
+                "mona@github.com"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "users",
+    "subcategory": "emails"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "summary": "List private registries for an organization",
+  "description": "\nLists all private registry configurations available at the organization-level without revealing their encrypted\nvalues.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "private-registries"
+  ],
+  "operationId": "private-registries/list-org-private-registries",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/private-registries/organization-configurations#list-private-registries-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "configurations"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "configurations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/org-private-registry-configuration"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-private-registry-configurations-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "private-registries",
+    "subcategory": "organization-configurations"
+  }
+}

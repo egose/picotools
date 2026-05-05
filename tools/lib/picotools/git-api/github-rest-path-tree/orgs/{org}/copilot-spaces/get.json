@@ -1,0 +1,89 @@
+{
+  "summary": "List organization Copilot Spaces",
+  "description": "Lists Copilot Spaces owned by an organization. The authenticated user must have read access to the organization's Copilot Spaces.\n\nOnly Spaces that are readable by the authenticated user are returned. This includes public Spaces and internal Spaces if the user is a member of the organization.\n\nOAuth app tokens and personal access tokens (classic) need the `read:org` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/list-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/copilot-spaces#list-organization-copilot-spaces"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "per_page",
+      "description": "The number of results per page (max 100).",
+      "in": "query",
+      "schema": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "default": 30
+      }
+    },
+    {
+      "name": "before",
+      "description": "A cursor, as given in the [Link header](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api#using-link-headers). If specified, the query only searches for results before this cursor.",
+      "in": "query",
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "after",
+      "description": "A cursor, as given in the [Link header](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api#using-link-headers). If specified, the query only searches for results after this cursor.",
+      "in": "query",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "spaces"
+            ],
+            "properties": {
+              "spaces": {
+                "type": "array",
+                "description": "The list of Copilot Spaces on this page of results.",
+                "items": {
+                  "$ref": "#/components/schemas/copilot-space"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/copilot-spaces-organization-list"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "copilot-spaces",
+    "subcategory": "copilot-spaces"
+  }
+}

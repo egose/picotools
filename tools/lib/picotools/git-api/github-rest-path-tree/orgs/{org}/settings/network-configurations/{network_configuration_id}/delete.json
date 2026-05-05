@@ -1,0 +1,31 @@
+{
+  "summary": "Delete a hosted compute network configuration from an organization",
+  "description": "Deletes a hosted compute network configuration from an organization.\n\nOAuth app tokens and personal access tokens (classic) need the `write:network_configurations` scope to use this endpoint.",
+  "tags": [
+    "hosted-compute"
+  ],
+  "operationId": "hosted-compute/delete-network-configuration-from-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/network-configurations#delete-a-hosted-compute-network-configuration-from-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/network-configuration-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "network-configurations"
+  }
+}

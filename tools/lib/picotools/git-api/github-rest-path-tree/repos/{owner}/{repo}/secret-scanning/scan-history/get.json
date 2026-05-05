@@ -1,0 +1,49 @@
+{
+  "summary": "Get secret scanning scan history for a repository",
+  "description": "Lists the latest default incremental and backfill scans by type for a repository.\n\n> [!NOTE]\n> This endpoint requires [GitHub Advanced Security](https://docs.github.com/get-started/learning-about-github/about-github-advanced-security).\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "tags": [
+    "secret-scanning"
+  ],
+  "operationId": "secret-scanning/get-scan-history",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/secret-scanning#get-secret-scanning-scan-history-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "404": {
+      "description": "Repository does not have GitHub Advanced Security or secret scanning enabled"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    },
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/secret-scanning-scan-history"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/secret-scanning-scan-history"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "secret-scanning",
+    "subcategory": "secret-scanning"
+  }
+}

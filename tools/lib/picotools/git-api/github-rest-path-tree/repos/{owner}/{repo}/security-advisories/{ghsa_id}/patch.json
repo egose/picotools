@@ -1,0 +1,146 @@
+{
+  "summary": "Update a repository security advisory",
+  "description": "Update a repository security advisory using its GitHub Security Advisory (GHSA) identifier.\n\nIn order to update any security advisory, the authenticated user must be a security manager or administrator of that repository,\nor a collaborator on the repository security advisory.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `repository_advisories:write` scope to use this endpoint.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/update-repository-advisory",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#update-a-repository-security-advisory"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/ghsa_id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/repository-advisory-update"
+        },
+        "examples": {
+          "default": {
+            "summary": "Updating the severity and state.",
+            "value": {
+              "severity": "critical",
+              "state": "published"
+            }
+          },
+          "add_credit": {
+            "summary": "To add a credit to an advisory, send the whole array of values.",
+            "value": {
+              "credits": [
+                {
+                  "login": "monauser",
+                  "type": "remediation_developer"
+                }
+              ]
+            }
+          },
+          "update_vvrs": {
+            "summary": "To add vulnerable versions, include existing versions in the array.",
+            "value": [
+              {
+                "package": {
+                  "ecosystem": "pip",
+                  "name": "a-package"
+                },
+                "vulnerable_version_range": ">= 1.0.0, < 1.0.1",
+                "patched_versions": "1.0.1",
+                "vulnerable_functions": [
+                  "function1"
+                ]
+              },
+              {
+                "package": {
+                  "ecosystem": "pip",
+                  "name": "another-package"
+                },
+                "vulnerable_version_range": ">= 1.0.0, < 1.0.2",
+                "patched_versions": "1.0.2",
+                "vulnerable_functions": [
+                  "function2"
+                ]
+              }
+            ]
+          },
+          "invalid_state_transition": {
+            "summary": "Example of an invalid state transition, from `published` to `draft`.",
+            "value": {
+              "state": "draft"
+            }
+          },
+          "update_severity_with_cvss_set": {
+            "summary": "Severity cannot be updated when the CVSS is already set.",
+            "value": {
+              "severity": "low"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-advisory"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/repository-advisory"
+            },
+            "add_credit": {
+              "$ref": "#/components/examples/repository-advisory"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Validation failed, or the endpoint has been spammed.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/validation-error"
+          },
+          "examples": {
+            "invalid_state_transition": {
+              "value": {
+                "message": "Invalid state transition from `published` to `draft`."
+              }
+            },
+            "update_severity_with_cvss_set": {
+              "value": {
+                "message": "Cannot update severity value when CVSS is set."
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

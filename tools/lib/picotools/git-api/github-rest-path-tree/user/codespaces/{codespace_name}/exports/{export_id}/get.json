@@ -1,0 +1,46 @@
+{
+  "summary": "Get details about a codespace export",
+  "description": "Gets information about an export of a codespace.\n\nOAuth app tokens and personal access tokens (classic) need the `codespace` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/get-export-details-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/codespaces#get-details-about-a-codespace-export"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    },
+    {
+      "$ref": "#/components/parameters/export-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/codespace-export-details"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/user-export-details"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "codespaces"
+  }
+}

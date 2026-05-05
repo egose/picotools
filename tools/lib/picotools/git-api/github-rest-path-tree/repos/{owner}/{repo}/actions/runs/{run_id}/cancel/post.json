@@ -1,0 +1,49 @@
+{
+  "summary": "Cancel a workflow run",
+  "description": "Cancels a workflow run using its `id`.\n\nOAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/cancel-workflow-run",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/workflow-runs#cancel-a-workflow-run"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/run-id"
+    }
+  ],
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/empty-object"
+          },
+          "examples": {
+            "default": {
+              "value": null
+            }
+          }
+        }
+      }
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "workflow-runs"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "summary": "List app installations for an organization",
+  "description": "Lists all GitHub Apps in an organization. The installation count includes\nall GitHub Apps installed on repositories in the organization.\n\nThe authenticated user must be an organization owner to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:read` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-app-installations",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/orgs#list-app-installations-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "total_count",
+              "installations"
+            ],
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "installations": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/installation"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/installation-paginated"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "orgs"
+  }
+}

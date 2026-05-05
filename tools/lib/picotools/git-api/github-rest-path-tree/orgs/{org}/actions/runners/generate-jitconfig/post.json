@@ -1,0 +1,91 @@
+{
+  "summary": "Create configuration for a just-in-time runner for an organization",
+  "description": "Generates a configuration that can be passed to the runner application at startup.\n\nThe authenticated user must have admin access to the organization.\n\nOAuth tokens and personal access tokens (classic) need the`admin:org` scope to use this endpoint. If the repository is private, OAuth tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/generate-runner-jitconfig-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/self-hosted-runners#create-configuration-for-a-just-in-time-runner-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "name",
+            "runner_group_id",
+            "labels"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name of the new runner."
+            },
+            "runner_group_id": {
+              "type": "integer",
+              "description": "The ID of the runner group to register the runner to."
+            },
+            "labels": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "type": "string"
+              },
+              "description": "The names of the custom labels to add to the runner. **Minimum items**: 1. **Maximum items**: 100."
+            },
+            "work_folder": {
+              "type": "string",
+              "description": "The working directory to be used for job execution, relative to the runner install directory.",
+              "default": "_work"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "New runner",
+              "runner_group_id": 1,
+              "labels": [
+                "self-hosted",
+                "X64",
+                "macOS",
+                "no-gpu"
+              ],
+              "work_folder": "_work"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "$ref": "#/components/responses/actions_runner_jitconfig"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "self-hosted-runners"
+  }
+}

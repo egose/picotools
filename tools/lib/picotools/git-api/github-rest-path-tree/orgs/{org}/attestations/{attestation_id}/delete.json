@@ -1,0 +1,46 @@
+{
+  "summary": "Delete attestations by ID",
+  "description": "Delete an artifact attestation by unique ID that is associated with a repository owned by an org.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/delete-attestations-by-id",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/attestations#delete-attestations-by-id"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "attestation_id",
+      "description": "Attestation ID",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response"
+    },
+    "204": {
+      "description": "Response"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "attestations"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "summary": "Delete a review comment for a pull request",
+  "description": "Deletes a review comment.",
+  "tags": [
+    "pulls"
+  ],
+  "operationId": "pulls/delete-review-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pulls/comments#delete-a-review-comment-for-a-pull-request"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/comment-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pulls",
+    "subcategory": "comments"
+  }
+}

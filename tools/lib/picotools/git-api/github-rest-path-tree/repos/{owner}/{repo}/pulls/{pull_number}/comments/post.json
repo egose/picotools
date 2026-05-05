@@ -1,0 +1,150 @@
+{
+  "summary": "Create a review comment for a pull request",
+  "description": "Creates a review comment on the diff of a specified pull request. To add a regular comment to a pull request timeline, see \"[Create an issue comment](https://docs.github.com/rest/issues/comments#create-an-issue-comment).\"\n\nIf your comment applies to more than one line in the pull request diff, you should use the parameters `line`, `side`, and optionally `start_line` and `start_side` in your request.\n\nThe `position` parameter is closing down. If you use `position`, the `line`, `side`, `start_line`, and `start_side` parameters are not required.\n\nThis endpoint triggers [notifications](https://docs.github.com/github/managing-subscriptions-and-notifications-on-github/about-notifications). Creating content too quickly using this endpoint may result in secondary rate limiting. For more information, see \"[Rate limits for the API](https://docs.github.com/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits)\"\nand \"[Best practices for using the REST API](https://docs.github.com/rest/guides/best-practices-for-using-the-rest-api).\"\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github-commitcomment.raw+json`**: Returns the raw markdown body. Response will include `body`. This is the default if you do not pass any specific media type.\n- **`application/vnd.github-commitcomment.text+json`**: Returns a text only representation of the markdown body. Response will include `body_text`.\n- **`application/vnd.github-commitcomment.html+json`**: Returns HTML rendered from the body's markdown. Response will include `body_html`.\n- **`application/vnd.github-commitcomment.full+json`**: Returns raw, text, and HTML representations. Response will include `body`, `body_text`, and `body_html`.",
+  "tags": [
+    "pulls"
+  ],
+  "operationId": "pulls/create-review-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/pull-number"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string",
+              "description": "The text of the review comment."
+            },
+            "commit_id": {
+              "type": "string",
+              "description": "The SHA of the commit needing a comment. Not using the latest commit SHA may render your comment outdated if a subsequent commit modifies the line you specify as the `position`."
+            },
+            "path": {
+              "type": "string",
+              "description": "The relative path to the file that necessitates a comment."
+            },
+            "position": {
+              "type": "integer",
+              "description": "**This parameter is closing down. Use `line` instead**. The position in the diff where you want to add a review comment. Note this value is not the same as the line number in the file. The position value equals the number of lines down from the first \"@@\" hunk header in the file you want to add a comment. The line just below the \"@@\" line is position 1, the next line is position 2, and so on. The position in the diff continues to increase through lines of whitespace and additional hunks until the beginning of a new file.",
+              "deprecated": true,
+              "x-github": {
+                "deprecationDate": "2022-11-01"
+              }
+            },
+            "side": {
+              "type": "string",
+              "description": "In a split diff view, the side of the diff that the pull request's changes appear on. Can be `LEFT` or `RIGHT`. Use `LEFT` for deletions that appear in red. Use `RIGHT` for additions that appear in green or unchanged lines that appear in white and are shown for context. For a multi-line comment, side represents whether the last line of the comment range is a deletion or addition. For more information, see \"[Diff view options](https://docs.github.com/articles/about-comparing-branches-in-pull-requests#diff-view-options)\" in the GitHub Help documentation.",
+              "enum": [
+                "LEFT",
+                "RIGHT"
+              ]
+            },
+            "line": {
+              "type": "integer",
+              "description": "**Required unless using `subject_type:file`**. The line of the blob in the pull request diff that the comment applies to. For a multi-line comment, the last line of the range that your comment applies to."
+            },
+            "start_line": {
+              "type": "integer",
+              "description": "**Required when using multi-line comments unless using `in_reply_to`**. The `start_line` is the first line in the pull request diff that your multi-line comment applies to. To learn more about multi-line comments, see \"[Commenting on a pull request](https://docs.github.com/articles/commenting-on-a-pull-request#adding-line-comments-to-a-pull-request)\" in the GitHub Help documentation."
+            },
+            "start_side": {
+              "type": "string",
+              "description": "**Required when using multi-line comments unless using `in_reply_to`**. The `start_side` is the starting side of the diff that the comment applies to. Can be `LEFT` or `RIGHT`. To learn more about multi-line comments, see \"[Commenting on a pull request](https://docs.github.com/articles/commenting-on-a-pull-request#adding-line-comments-to-a-pull-request)\" in the GitHub Help documentation. See `side` in this table for additional context.",
+              "enum": [
+                "LEFT",
+                "RIGHT",
+                "side"
+              ]
+            },
+            "in_reply_to": {
+              "type": "integer",
+              "example": 2,
+              "description": "The ID of the review comment to reply to. To find the ID of a review comment with [\"List review comments on a pull request\"](#list-review-comments-on-a-pull-request). When specified, all parameters other than `body` in the request body are ignored."
+            },
+            "subject_type": {
+              "type": "string",
+              "description": "The level at which the comment is targeted.",
+              "enum": [
+                "line",
+                "file"
+              ]
+            }
+          },
+          "required": [
+            "body",
+            "commit_id",
+            "path"
+          ]
+        },
+        "examples": {
+          "example-for-a-multi-line-comment": {
+            "summary": "Example for a multi-line comment",
+            "value": {
+              "body": "Great stuff!",
+              "commit_id": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+              "path": "file1.txt",
+              "start_line": 1,
+              "start_side": "RIGHT",
+              "line": 2,
+              "side": "RIGHT"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/pull-request-review-comment"
+          },
+          "examples": {
+            "example-for-a-multi-line-comment": {
+              "$ref": "#/components/examples/pull-request-review-comment-example-for-a-multi-line-comment"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/pulls/comments/1",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "triggersNotification": true,
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pulls",
+    "subcategory": "comments"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "summary": "Delete an organization migration archive",
+  "description": "Deletes a previous migration archive. Migration archives are automatically deleted after seven days.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/delete-archive-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/orgs#delete-an-organization-migration-archive"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/migration-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "orgs"
+  }
+}

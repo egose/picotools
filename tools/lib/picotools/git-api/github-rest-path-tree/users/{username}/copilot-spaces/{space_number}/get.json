@@ -1,0 +1,54 @@
+{
+  "summary": "Get a Copilot Space for a user",
+  "description": "Gets details about a specific Copilot Space owned by a user. The authenticated user must have read access to the Space.\n\nPrivate user spaces require the authenticated user to be the owner of the space.\nPublic user spaces are accessible to any authenticated user.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "copilot-spaces"
+  ],
+  "operationId": "copilot-spaces/get-for-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot-spaces/copilot-spaces#get-a-copilot-space-for-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "name": "space_number",
+      "description": "The unique identifier of the Copilot Space.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/copilot-space"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/copilot-space-user"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": false,
+    "category": "copilot-spaces",
+    "subcategory": "copilot-spaces"
+  }
+}

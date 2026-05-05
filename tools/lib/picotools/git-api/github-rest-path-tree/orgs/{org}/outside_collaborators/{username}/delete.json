@@ -1,0 +1,57 @@
+{
+  "summary": "Remove outside collaborator from an organization",
+  "description": "Removing a user from this list will remove them from all the organization's repositories.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/remove-outside-collaborator",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/outside-collaborators#remove-outside-collaborator-from-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "422": {
+      "description": "Unprocessable Entity if user is a member of the organization",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string"
+              },
+              "documentation_url": {
+                "type": "string"
+              }
+            }
+          },
+          "examples": {
+            "response-if-user-is-a-member-of-the-organization": {
+              "value": {
+                "message": "You cannot specify an organization member to remove as an outside collaborator.",
+                "documentation_url": "https://docs.github.com/rest/orgs/outside-collaborators#remove-outside-collaborator-from-an-organization"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "outside-collaborators"
+  }
+}

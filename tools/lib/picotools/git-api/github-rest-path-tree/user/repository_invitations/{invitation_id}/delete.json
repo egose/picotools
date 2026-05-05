@@ -1,0 +1,40 @@
+{
+  "summary": "Decline a repository invitation",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/decline-invitation-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/collaborators/invitations#decline-a-repository-invitation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/invitation-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "collaborators",
+    "subcategory": "invitations"
+  }
+}

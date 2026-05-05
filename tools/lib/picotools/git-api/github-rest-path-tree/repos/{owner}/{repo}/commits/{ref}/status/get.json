@@ -1,0 +1,55 @@
+{
+  "summary": "Get the combined status for a specific reference",
+  "description": "Users with pull access in a repository can access a combined view of commit statuses for a given ref. The ref can be a SHA, a branch name, or a tag name.\n\n\nAdditionally, a combined `state` is returned. The `state` is one of:\n\n*   **failure** if any of the contexts report as `error` or `failure`\n*   **pending** if there are no statuses or a context is `pending`\n*   **success** if the latest status for all contexts is `success`",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-combined-status-for-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/commits/statuses#get-the-combined-status-for-a-specific-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/commit-ref"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/combined-commit-status"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/combined-commit-status"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "commits",
+    "subcategory": "statuses"
+  }
+}

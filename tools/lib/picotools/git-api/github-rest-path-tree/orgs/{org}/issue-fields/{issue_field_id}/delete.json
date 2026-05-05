@@ -1,0 +1,37 @@
+{
+  "summary": "Delete issue field for an organization",
+  "description": "Deletes an issue field for an organization.\n\nYou can find out more about issue fields in [Managing issue fields in an organization](https://docs.github.com/issues/tracking-your-work-with-issues/using-issues/managing-issue-fields-in-an-organization).\n\nTo use this endpoint, the authenticated user must be an administrator for the organization. OAuth app tokens and\npersonal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/delete-issue-field",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/issue-fields#delete-issue-field-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/issue-field-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "$ref": "#/components/responses/no_content"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "issue-fields"
+  }
+}

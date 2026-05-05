@@ -1,0 +1,63 @@
+{
+  "summary": "List public gists",
+  "description": "List public gists sorted by most recently updated to least recently updated.\n\nNote: With [pagination](https://docs.github.com/rest/guides/using-pagination-in-the-rest-api), you can fetch up to 3000 gists. For example, you can fetch 100 pages with 30 gists per page or 30 pages with 100 gists per page.",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/list-public",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#list-public-gists"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/since"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/base-gist"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/base-gist-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "summary": "Get emojis",
+  "description": "Lists all the emojis available to use on GitHub.",
+  "operationId": "emojis/get",
+  "tags": [
+    "emojis"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/emojis/emojis#get-emojis"
+  },
+  "parameters": [],
+  "responses": {
+    "200": {
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/emojis-get"
+            }
+          }
+        }
+      },
+      "description": "Response"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "emojis",
+    "subcategory": "emojis"
+  }
+}

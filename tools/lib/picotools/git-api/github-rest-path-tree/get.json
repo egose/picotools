@@ -1,0 +1,35 @@
+{
+  "summary": "GitHub API Root",
+  "description": "Get Hypermedia links to resources accessible in GitHub's REST API",
+  "tags": [
+    "meta"
+  ],
+  "operationId": "meta/root",
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/root"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/root"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "meta",
+    "subcategory": "meta"
+  },
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/meta/meta#github-api-root"
+  }
+}

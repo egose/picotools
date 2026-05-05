@@ -1,0 +1,139 @@
+{
+  "summary": "Start a user migration",
+  "description": "Initiates the generation of a user migration archive.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/start-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/users#start-a-user-migration"
+  },
+  "parameters": [],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "properties": {
+            "lock_repositories": {
+              "description": "Lock the repositories being migrated at the start of the migration",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "exclude_metadata": {
+              "description": "Indicates whether metadata should be excluded and only git source should be included for the migration.",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "exclude_git_data": {
+              "description": "Indicates whether the repository git data should be excluded from the migration.",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "exclude_attachments": {
+              "description": "Do not include attachments in the migration",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "exclude_releases": {
+              "description": "Do not include releases in the migration",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "exclude_owner_projects": {
+              "description": "Indicates whether projects owned by the organization or users should be excluded.",
+              "example": true,
+              "readOnly": false,
+              "type": "boolean"
+            },
+            "org_metadata_only": {
+              "type": "boolean",
+              "example": true,
+              "description": "Indicates whether this should only include organization metadata (repositories array should be empty and will ignore other flags).",
+              "default": false
+            },
+            "exclude": {
+              "description": "Exclude attributes from the API response to improve performance",
+              "example": [
+                "repositories"
+              ],
+              "readOnly": false,
+              "type": "array",
+              "items": {
+                "description": "Allowed values that can be passed to the exclude param.",
+                "enum": [
+                  "repositories"
+                ],
+                "example": "repositories",
+                "type": "string"
+              }
+            },
+            "repositories": {
+              "type": "array",
+              "items": {
+                "description": "Repository path, owner and name",
+                "example": "acme/widgets",
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "repositories"
+          ],
+          "type": "object"
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "repositories": [
+                "octocat/Hello-World"
+              ],
+              "lock_repositories": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/migration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/migration-2"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "users"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "summary": "Get the status of a GitHub Pages deployment",
+  "description": "Gets the current status of a GitHub Pages deployment.\n\nThe authenticated user must have read permission for the GitHub Pages site.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-pages-deployment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/pages/pages#get-the-status-of-a-github-pages-deployment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/pages-deployment-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/pages-deployment-status"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/pages-deployment-status"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "pages",
+    "subcategory": "pages"
+  }
+}

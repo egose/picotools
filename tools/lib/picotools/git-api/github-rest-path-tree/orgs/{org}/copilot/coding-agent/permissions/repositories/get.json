@@ -1,0 +1,76 @@
+{
+  "summary": "List repositories enabled for Copilot cloud agent in an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nLists the selected repositories that are enabled for Copilot cloud agent in an organization.\n\nOrganization owners can use this endpoint when the coding agent repository policy\nis set to `selected` to see which repositories have been enabled.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/list-copilot-coding-agent-selected-repositories-for-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-coding-agent-management#list-repositories-enabled-for-copilot-cloud-agent-in-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "type": "integer"
+              },
+              "repositories": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/minimal-repository"
+                }
+              }
+            },
+            "required": [
+              "total_count",
+              "repositories"
+            ]
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository-paginated"
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-coding-agent-management"
+  }
+}

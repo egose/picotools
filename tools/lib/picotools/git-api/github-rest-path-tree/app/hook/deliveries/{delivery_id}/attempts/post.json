@@ -1,0 +1,34 @@
+{
+  "summary": "Redeliver a delivery for an app webhook",
+  "description": "Redeliver a delivery for the webhook configured for a GitHub App.\n\nYou must use a [JWT](https://docs.github.com/apps/building-github-apps/authenticating-with-github-apps/#authenticating-as-a-github-app) to access this endpoint.",
+  "tags": [
+    "apps"
+  ],
+  "operationId": "apps/redeliver-webhook-delivery",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/apps/webhooks#redeliver-a-delivery-for-an-app-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/delivery-id"
+    }
+  ],
+  "responses": {
+    "202": {
+      "$ref": "#/components/responses/accepted"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "apps",
+    "subcategory": "webhooks"
+  }
+}

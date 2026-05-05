@@ -1,0 +1,55 @@
+{
+  "summary": "Get an organization repository ruleset",
+  "description": "Get a repository ruleset for an organization.\n\n**Note:** To prevent leaking sensitive information, the `bypass_actors` property is only returned if the user\nmaking the API request has write access to the ruleset.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-org-ruleset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/rules#get-an-organization-repository-ruleset"
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "rules"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "ruleset_id",
+      "description": "The ID of the ruleset.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/repository-ruleset"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/org-ruleset"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "summary": "List team members",
+  "description": "Team members will include the members of child teams.\n\nTo list members in a team, the team must be visible to the authenticated user.",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/list-members-in-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/members#list-team-members"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/team-slug"
+    },
+    {
+      "name": "role",
+      "description": "Filters members returned by their role in the team.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "member",
+          "maintainer",
+          "all"
+        ],
+        "default": "all"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/simple-user"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/simple-user-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "teams",
+    "subcategory": "members"
+  }
+}

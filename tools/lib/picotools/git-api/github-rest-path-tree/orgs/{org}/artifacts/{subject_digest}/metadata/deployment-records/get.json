@@ -1,0 +1,56 @@
+{
+  "summary": "List artifact deployment records",
+  "description": "List deployment records for an artifact metadata associated with an organization.",
+  "tags": [
+    "orgs"
+  ],
+  "operationId": "orgs/list-artifact-deployment-records",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/orgs/artifact-metadata#list-artifact-deployment-records"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/subject-digest"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Successful response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "total_count": {
+                "description": "The number of deployment records for this digest and organization",
+                "example": 3,
+                "type": "integer"
+              },
+              "deployment_records": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/artifact-deployment-record"
+                }
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/artifact-deployment-record-list"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "orgs",
+    "subcategory": "artifact-metadata"
+  }
+}

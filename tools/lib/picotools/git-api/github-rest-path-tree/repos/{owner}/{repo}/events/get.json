@@ -1,0 +1,52 @@
+{
+  "summary": "List repository events",
+  "description": "> [!NOTE]\n> This API is not built to serve real-time use cases. Depending on the time of day, event latency can be anywhere from 30s to 6h.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/list-repo-events",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/events#list-repository-events"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/event"
+            }
+          },
+          "examples": {
+            "200-response": {
+              "$ref": "#/components/examples/repo-events-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "activity",
+    "subcategory": "events"
+  }
+}

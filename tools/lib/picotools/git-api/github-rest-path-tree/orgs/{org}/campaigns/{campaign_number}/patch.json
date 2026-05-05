@@ -1,0 +1,138 @@
+{
+  "summary": "Update a campaign",
+  "description": "Updates a campaign in an organization.\n\nThe authenticated user must be an owner or security manager for the organization to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `security_events` scope to use this endpoint.",
+  "tags": [
+    "campaigns"
+  ],
+  "operationId": "campaigns/update-campaign",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/campaigns/campaigns#update-a-campaign"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "campaign_number",
+      "description": "The campaign number.",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "description": "The name of the campaign",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 50
+            },
+            "description": {
+              "description": "A description for the campaign",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "managers": {
+              "description": "The logins of the users to set as the campaign managers. At this time, only a single manager can be supplied.",
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "string"
+              }
+            },
+            "team_managers": {
+              "description": "The slugs of the teams to set as the campaign managers.",
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "description": "The slug of each team",
+                "type": "string"
+              }
+            },
+            "ends_at": {
+              "description": "The end date and time of the campaign, in ISO 8601 format':' YYYY-MM-DDTHH:MM:SSZ.",
+              "type": "string",
+              "format": "date-time"
+            },
+            "contact_link": {
+              "description": "The contact link of the campaign. Must be a URI.",
+              "type": "string",
+              "format": "uri",
+              "nullable": true
+            },
+            "state": {
+              "$ref": "#/components/schemas/campaign-state"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "Critical CodeQL alerts"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/campaign-summary"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/campaign-summary"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "description": "Bad Request",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Unprocessable Entity",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "campaigns",
+    "subcategory": "campaigns"
+  }
+}

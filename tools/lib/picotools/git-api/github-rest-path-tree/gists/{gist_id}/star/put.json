@@ -1,0 +1,37 @@
+{
+  "summary": "Star a gist",
+  "description": "Note that you'll need to set `Content-Length` to zero when calling out to this endpoint. For more information, see \"[HTTP method](https://docs.github.com/rest/guides/getting-started-with-the-rest-api#http-method).\"",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/star",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#star-a-gist"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gist-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "summary": "List repositories starred by a user",
+  "description": "Lists repositories a user has starred.\n\nThis endpoint supports the following custom media types. For more information, see \"[Media types](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types).\"\n\n- **`application/vnd.github.star+json`**: Includes a timestamp of when the star was created.",
+  "tags": [
+    "activity"
+  ],
+  "operationId": "activity/list-repos-starred-by-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/activity/starring#list-repositories-starred-by-a-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/sort-starred"
+    },
+    {
+      "$ref": "#/components/parameters/direction"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/starred-repository"
+                }
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/repository"
+                }
+              }
+            ]
+          },
+          "examples": {
+            "default-response": {
+              "$ref": "#/components/examples/repository-items-default-response"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "activity",
+    "subcategory": "starring"
+  }
+}

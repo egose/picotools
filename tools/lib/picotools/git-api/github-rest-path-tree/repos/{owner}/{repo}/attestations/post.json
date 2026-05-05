@@ -1,0 +1,96 @@
+{
+  "summary": "Create an attestation",
+  "description": "Store an artifact attestation and associate it with a repository.\n\nThe authenticated user must have write permission to the repository and, if using a fine-grained access token, the `attestations:write` permission is required.\n\nArtifact attestations are meant to be created using the [attest action](https://github.com/actions/attest). For more information, see our guide on [using artifact attestations to establish a build's provenance](https://docs.github.com/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds).",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-attestation",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/attestations#create-an-attestation"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "bundle": {
+              "type": "object",
+              "properties": {
+                "mediaType": {
+                  "type": "string"
+                },
+                "verificationMaterial": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": true
+                },
+                "dsseEnvelope": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": true
+                }
+              },
+              "description": "The attestation's Sigstore Bundle.\nRefer to the [Sigstore Bundle Specification](https://github.com/sigstore/protobuf-specs/blob/main/protos/sigstore_bundle.proto) for more information."
+            }
+          },
+          "required": [
+            "bundle"
+          ]
+        },
+        "examples": {
+          "default": {
+            "$ref": "#/components/examples/attestation"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "The ID of the attestation."
+              }
+            }
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "id": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "attestations"
+  }
+}

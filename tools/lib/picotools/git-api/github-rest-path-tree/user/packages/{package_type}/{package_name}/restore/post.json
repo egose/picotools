@@ -1,0 +1,49 @@
+{
+  "summary": "Restore a package for the authenticated user",
+  "description": "Restores a package owned by the authenticated user.\n\nYou can restore a deleted package under the following conditions:\n  - The package was deleted within the last 30 days.\n  - The same package namespace and version is still available and not reused for a new package. If the same package namespace is not available, you will not be able to restore your package. In this scenario, to restore the deleted package, you must delete the new package that uses the deleted package's namespace first.\n\nOAuth app tokens and personal access tokens (classic) need the `read:packages` and `write:packages` scopes to use this endpoint. For more information, see \"[About permissions for GitHub Packages](https://docs.github.com/packages/learn-github-packages/about-permissions-for-github-packages#permissions-for-repository-scoped-packages).\"",
+  "tags": [
+    "packages"
+  ],
+  "operationId": "packages/restore-package-for-authenticated-user",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/packages/packages#restore-a-package-for-the-authenticated-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/package-type"
+    },
+    {
+      "$ref": "#/components/parameters/package-name"
+    },
+    {
+      "name": "token",
+      "description": "package token",
+      "schema": {
+        "type": "string"
+      },
+      "required": false,
+      "in": "query"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "packages",
+    "subcategory": "packages"
+  }
+}

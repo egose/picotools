@@ -1,0 +1,100 @@
+{
+  "summary": "Create reaction for a commit comment",
+  "description": "Create a reaction to a [commit comment](https://docs.github.com/rest/commits/comments#get-a-commit-comment). A response with an HTTP `200` status means that you already added the reaction type to this commit comment.",
+  "tags": [
+    "reactions"
+  ],
+  "operationId": "reactions/create-for-commit-comment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/reactions/reactions#create-reaction-for-a-commit-comment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/comment-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "The [reaction type](https://docs.github.com/rest/reactions/reactions#about-reactions) to add to the commit comment.",
+              "enum": [
+                "+1",
+                "-1",
+                "laugh",
+                "confused",
+                "heart",
+                "hooray",
+                "rocket",
+                "eyes"
+              ]
+            }
+          },
+          "required": [
+            "content"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "content": "heart"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Reaction exists",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/reaction"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/reaction"
+            }
+          }
+        }
+      }
+    },
+    "201": {
+      "description": "Reaction created",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/reaction"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/reaction"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "reactions",
+    "subcategory": "reactions"
+  }
+}

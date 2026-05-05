@@ -1,0 +1,49 @@
+{
+  "summary": "Get an autolink reference of a repository",
+  "description": "This returns a single autolink reference by ID that was configured for the given repository.\n\nInformation about autolinks are only available to repository administrators.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-autolink",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/autolinks#get-an-autolink-reference-of-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/autolink-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/autolink"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/autolink"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "autolinks"
+  }
+}

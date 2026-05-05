@@ -1,0 +1,87 @@
+{
+  "summary": "Upload a release asset",
+  "description": "This endpoint makes use of a [Hypermedia relation](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#hypermedia) to determine which URL to access. The endpoint you call to upload release assets is specific to your release. Use the `upload_url` returned in\nthe response of the [Create a release endpoint](https://docs.github.com/rest/releases/releases#create-a-release) to upload a release asset.\n\nYou need to use an HTTP client which supports [SNI](http://en.wikipedia.org/wiki/Server_Name_Indication) to make calls to this endpoint.\n\nMost libraries will set the required `Content-Length` header automatically. Use the required `Content-Type` header to provide the media type of the asset. For a list of media types, see [Media Types](https://www.iana.org/assignments/media-types/media-types.xhtml). For example: \n\n`application/zip`\n\nGitHub expects the asset data in its raw binary form, rather than JSON. You will send the raw binary content of the asset as the request body. Everything else about the endpoint is the same as the rest of the API. For example,\nyou'll still need to pass your authentication to be able to upload an asset.\n\nWhen an upstream failure occurs, you will receive a `502 Bad Gateway` status. This may leave an empty asset with a state of `starter`. It can be safely deleted.\n\n**Notes:**\n*   GitHub renames asset filenames that have special characters, non-alphanumeric characters, and leading or trailing periods. The \"[List release assets](https://docs.github.com/rest/releases/assets#list-release-assets)\"\nendpoint lists the renamed filenames. For more information and help, contact [GitHub Support](https://support.github.com/contact?tags=dotcom-rest-api).\n*   To find the `release_id` query the [`GET /repos/{owner}/{repo}/releases/latest` endpoint](https://docs.github.com/rest/releases/releases#get-the-latest-release). \n*   If you upload an asset with the same filename as another uploaded asset, you'll receive an error and must delete the old file before you can re-upload the new asset.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/upload-release-asset",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/assets#upload-a-release-asset"
+  },
+  "servers": [
+    {
+      "url": "https://uploads.github.com",
+      "description": "The URL origin (protocol + host name + port) is included in `upload_url` returned in the response of the \"Create a release\" endpoint"
+    }
+  ],
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/release-id"
+    },
+    {
+      "name": "name",
+      "in": "query",
+      "required": true,
+      "schema": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "label",
+      "in": "query",
+      "schema": {
+        "type": "string"
+      }
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/octet-stream": {
+        "schema": {
+          "type": "string",
+          "format": "binary",
+          "description": "The raw file data"
+        },
+        "examples": {
+          "default": {
+            "value": "@example.zip"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response for successful upload",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release-asset"
+          },
+          "examples": {
+            "response-for-successful-upload": {
+              "$ref": "#/components/examples/release-asset-response-for-successful-upload"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "description": "Response if you upload an asset with the same filename as another uploaded asset"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "assets"
+  }
+}

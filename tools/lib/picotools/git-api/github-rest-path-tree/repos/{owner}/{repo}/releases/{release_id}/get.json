@@ -1,0 +1,49 @@
+{
+  "summary": "Get a release",
+  "description": "Gets a public release with the specified release ID.\n\n> [!NOTE]\n> This returns an `upload_url` key corresponding to the endpoint for uploading release assets. This key is a hypermedia resource. For more information, see \"[Getting started with the REST API](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#hypermedia).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-release",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/releases/releases#get-a-release"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/release-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "**Note:** This returns an `upload_url` key corresponding to the endpoint for uploading release assets. This key is a hypermedia resource. For more information, see \"[Getting started with the REST API](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#hypermedia).\"",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/release"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/release"
+            }
+          }
+        }
+      }
+    },
+    "401": {
+      "description": "Unauthorized"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "releases",
+    "subcategory": "releases"
+  }
+}

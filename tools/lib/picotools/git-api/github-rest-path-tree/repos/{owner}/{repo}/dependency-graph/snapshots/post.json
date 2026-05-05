@@ -1,0 +1,82 @@
+{
+  "summary": "Create a snapshot of dependencies for a repository",
+  "description": "Create a new snapshot of a repository's dependencies.\n\nThe authenticated user must have access to the repository.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "dependency-graph"
+  ],
+  "operationId": "dependency-graph/create-repository-snapshot",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/dependency-graph/dependency-submission#create-a-snapshot-of-dependencies-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/snapshot"
+        },
+        "examples": {
+          "example-of-a-dependency-submission": {
+            "$ref": "#/components/examples/dependency-graph-create-snapshot-request"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "required": [
+              "id",
+              "created_at",
+              "result",
+              "message"
+            ],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "ID of the created snapshot."
+              },
+              "created_at": {
+                "type": "string",
+                "description": "The time at which the snapshot was created."
+              },
+              "result": {
+                "type": "string",
+                "description": "Either \"SUCCESS\", \"ACCEPTED\", or \"INVALID\". \"SUCCESS\" indicates that the snapshot was successfully created and the repository's dependencies were updated. \"ACCEPTED\" indicates that the snapshot was successfully created, but the repository's dependencies were not updated. \"INVALID\" indicates that the snapshot was malformed."
+              },
+              "message": {
+                "type": "string",
+                "description": "A message providing further details about the result, such as why the dependencies were not updated."
+              }
+            }
+          },
+          "examples": {
+            "example-of-a-dependency-submission": {
+              "$ref": "#/components/examples/dependency-graph-create-snapshot-success"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "dependency-graph",
+    "subcategory": "dependency-submission"
+  }
+}

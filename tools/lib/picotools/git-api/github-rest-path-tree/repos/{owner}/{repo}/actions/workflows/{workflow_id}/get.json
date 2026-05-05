@@ -1,0 +1,46 @@
+{
+  "summary": "Get a workflow",
+  "description": "Gets a specific workflow. You can replace `workflow_id` with the workflow\nfile name. For example, you could use `main.yaml`.\n\nAnyone with read access to the repository can use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with a private repository.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/get-workflow",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/workflows#get-a-workflow"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/workflow-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/workflow"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/workflow"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "workflows"
+  }
+}

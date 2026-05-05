@@ -1,0 +1,37 @@
+{
+  "summary": "Delete an autolink reference from a repository",
+  "description": "This deletes a single autolink reference by ID that was configured for the given repository.\n\nInformation about autolinks are only available to repository administrators.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/delete-autolink",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/autolinks#delete-an-autolink-reference-from-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/autolink-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "autolinks"
+  }
+}

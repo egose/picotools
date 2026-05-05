@@ -1,0 +1,89 @@
+{
+  "summary": "Create a reference",
+  "description": "Creates a reference for your repository. You are unable to create new references for empty repositories, even if the commit SHA-1 hash used exists. Empty repositories are repositories without branches.",
+  "tags": [
+    "git"
+  ],
+  "operationId": "git/create-ref",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/git/refs#create-a-reference"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "description": "The name of the fully qualified reference (ie: `refs/heads/master`). If it doesn't start with 'refs' and have at least two slashes, it will be rejected."
+            },
+            "sha": {
+              "type": "string",
+              "description": "The SHA1 value for this reference."
+            }
+          },
+          "required": [
+            "ref",
+            "sha"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "ref": "refs/heads/featureA",
+              "sha": "aa218f56b14c9653891f9e74264a383fa43fefbd"
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/git-ref"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/git-ref"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Location": {
+          "example": "https://api.github.com/repos/octocat/Hello-World/git/refs/heads/featureA",
+          "schema": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "409": {
+      "$ref": "#/components/responses/conflict"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "git",
+    "subcategory": "refs"
+  }
+}

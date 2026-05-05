@@ -1,0 +1,37 @@
+{
+  "summary": "Delete a gist",
+  "description": "",
+  "tags": [
+    "gists"
+  ],
+  "operationId": "gists/delete",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/gists/gists#delete-a-gist"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/gist-id"
+    }
+  ],
+  "responses": {
+    "204": {
+      "description": "Response"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "gists",
+    "subcategory": "gists"
+  }
+}

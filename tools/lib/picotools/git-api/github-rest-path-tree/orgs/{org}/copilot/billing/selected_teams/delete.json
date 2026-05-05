@@ -1,0 +1,100 @@
+{
+  "summary": "Remove teams from the Copilot subscription for an organization",
+  "description": "> [!NOTE]\n> This endpoint is in public preview and is subject to change.\n\nSets seats for all members of each team specified to \"pending cancellation\".\nThis will cause the members of the specified team(s) to lose access to GitHub Copilot at the end of the current billing cycle unless they retain access through another team.\nFor more information about disabling access to Copilot, see \"[Revoking access to Copilot for members of your organization](https://docs.github.com/copilot/managing-copilot/managing-github-copilot-in-your-organization/managing-access-to-github-copilot-in-your-organization/revoking-access-to-copilot-for-members-of-your-organization).\"\n\nOnly organization owners can cancel Copilot seats for their organization members.\n\nThe response contains the total number of seats set to \"pending cancellation\".\n\nOAuth app tokens and personal access tokens (classic) need either the `manage_billing:copilot` or `admin:org` scopes to use this endpoint.",
+  "tags": [
+    "copilot"
+  ],
+  "operationId": "copilot/cancel-copilot-seat-assignment-for-teams",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/copilot/copilot-user-management#remove-teams-from-the-copilot-subscription-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "selected_teams": {
+              "type": "array",
+              "description": "The names of teams from which to revoke access to GitHub Copilot.",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "selected_teams"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "selected_teams": [
+                "engteam1",
+                "engteam2",
+                "engteam3"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "required": true
+  },
+  "responses": {
+    "200": {
+      "description": "OK",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "object",
+            "description": "The total number of seats set to \"pending cancellation\" for members of the specified team(s).",
+            "properties": {
+              "seats_cancelled": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "seats_cancelled"
+            ]
+          },
+          "examples": {
+            "default": {
+              "value": {
+                "seats_cancelled": 5
+              }
+            }
+          }
+        }
+      }
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "description": "Copilot Business or Enterprise is not enabled for this organization, billing has not been set up for this organization, a public code suggestions policy has not been set for this organization, or the organization's Copilot access setting is set to enable Copilot for all users or is unconfigured."
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "copilot",
+    "subcategory": "copilot-user-management"
+  }
+}

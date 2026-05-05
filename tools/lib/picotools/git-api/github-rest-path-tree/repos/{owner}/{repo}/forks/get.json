@@ -1,0 +1,76 @@
+{
+  "summary": "List forks",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-forks",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/forks#list-forks"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "name": "sort",
+      "description": "The sort order. `stargazers` will sort by star count.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "newest",
+          "oldest",
+          "stargazers",
+          "watchers"
+        ],
+        "default": "newest"
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/minimal-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository-items-2"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "forks"
+  }
+}

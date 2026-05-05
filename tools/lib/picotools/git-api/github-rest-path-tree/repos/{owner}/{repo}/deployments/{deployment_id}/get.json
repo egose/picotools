@@ -1,0 +1,49 @@
+{
+  "summary": "Get a deployment",
+  "description": "",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-deployment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/deployments#get-a-deployment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/deployment-id"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "deployments"
+  }
+}

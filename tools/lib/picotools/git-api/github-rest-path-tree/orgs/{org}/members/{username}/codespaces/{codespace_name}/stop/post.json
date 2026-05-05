@@ -1,0 +1,61 @@
+{
+  "summary": "Stop a codespace for an organization user",
+  "description": "Stops a user's codespace.\n\nOAuth app tokens and personal access tokens (classic) need the `admin:org` scope to use this endpoint.",
+  "tags": [
+    "codespaces"
+  ],
+  "operationId": "codespaces/stop-in-organization",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/codespaces/organizations#stop-a-codespace-for-an-organization-user"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    },
+    {
+      "$ref": "#/components/parameters/codespace-name"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/codespace"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/codespace"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "500": {
+      "$ref": "#/components/responses/internal_error"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "codespaces",
+    "subcategory": "organizations"
+  }
+}

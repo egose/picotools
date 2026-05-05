@@ -1,0 +1,58 @@
+{
+  "summary": "Get a secret scanning alert",
+  "description": "Gets a single secret scanning alert detected in an eligible repository.\n\nThe authenticated user must be an administrator for the repository or for the organization that owns the repository to use this endpoint.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` or `security_events` scope to use this endpoint. If this endpoint is only used with public repositories, the token can use the `public_repo` scope instead.",
+  "tags": [
+    "secret-scanning"
+  ],
+  "operationId": "secret-scanning/get-alert",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/secret-scanning/secret-scanning#get-a-secret-scanning-alert"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/alert-number"
+    },
+    {
+      "$ref": "#/components/parameters/secret-scanning-alert-hide-secret"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/secret-scanning-alert"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/secret-scanning-alert-open"
+            }
+          }
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "404": {
+      "description": "Repository is public, or secret scanning is disabled for the repository, or the resource is not found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "secret-scanning",
+    "subcategory": "secret-scanning"
+  }
+}

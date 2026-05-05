@@ -1,0 +1,57 @@
+{
+  "summary": "Get a deployment status",
+  "description": "Users with pull access can view a deployment status for a deployment:",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/get-deployment-status",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/statuses#get-a-deployment-status"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/deployment-id"
+    },
+    {
+      "name": "status_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+        "type": "integer"
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/deployment-status"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/deployment-status"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "statuses"
+  }
+}

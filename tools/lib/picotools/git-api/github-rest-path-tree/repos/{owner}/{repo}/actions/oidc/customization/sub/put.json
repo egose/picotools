@@ -1,0 +1,95 @@
+{
+  "summary": "Set the customization template for an OIDC subject claim for a repository",
+  "description": "Sets the customization template and `opt-in` or `opt-out` flag for an OpenID Connect (OIDC) subject claim for a repository.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "actions"
+  ],
+  "operationId": "actions/set-custom-oidc-sub-claim-for-repo",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/oidc#set-the-customization-template-for-an-oidc-subject-claim-for-a-repository"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "title": "Actions OIDC subject customization for a repository",
+          "description": "Actions OIDC subject customization for a repository",
+          "type": "object",
+          "required": [
+            "use_default"
+          ],
+          "properties": {
+            "use_default": {
+              "description": "Whether to use the default template or not. If `true`, the `include_claim_keys` field is ignored.",
+              "type": "boolean"
+            },
+            "include_claim_keys": {
+              "description": "Array of unique strings. Each claim key can only contain alphanumeric characters and underscores.",
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "use_immutable_subject": {
+              "description": "Whether to opt in to the immutable OIDC subject claim format for this repository. When `true`, OIDC tokens will use a stable, repository-ID-based `sub` claim.",
+              "type": "boolean"
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "use_default": false,
+              "include_claim_keys": [
+                "repo",
+                "context"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Empty response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/empty-object"
+          },
+          "examples": {
+            "default": {
+              "value": null
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed_simple"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "previews": [],
+    "category": "actions",
+    "subcategory": "oidc"
+  }
+}

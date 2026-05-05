@@ -1,0 +1,55 @@
+{
+  "summary": "Check team permissions for a repository (Legacy)",
+  "description": "> [!WARNING]\n> **Endpoint closing down notice:** This endpoint route is closing down and will be removed from the Teams API. We recommend migrating your existing code to use the new [Check team permissions for a repository](https://docs.github.com/rest/teams/teams#check-team-permissions-for-a-repository) endpoint.\n\n> [!NOTE]\n> Repositories inherited through a parent team will also be checked.\n\nYou can also get information about the specified repository, including what permissions the team grants on it, by passing the following custom [media type](https://docs.github.com/rest/using-the-rest-api/getting-started-with-the-rest-api#media-types/) via the `Accept` header:",
+  "tags": [
+    "teams"
+  ],
+  "operationId": "teams/check-permissions-for-repo-legacy",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/teams/teams#check-team-permissions-for-a-repository-legacy"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/team-id"
+    },
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Alternative response with extra repository information",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/team-repository"
+          },
+          "examples": {
+            "alternative-response-with-extra-repository-information": {
+              "$ref": "#/components/examples/team-repository-alternative-response-with-extra-repository-information"
+            }
+          }
+        }
+      }
+    },
+    "204": {
+      "description": "Response if repository is managed by this team"
+    },
+    "404": {
+      "description": "Not Found if repository is not managed by this team"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "removalDate": "2021-02-01",
+    "deprecationDate": "2020-01-21",
+    "category": "teams",
+    "subcategory": "teams"
+  },
+  "deprecated": true
+}

@@ -1,0 +1,58 @@
+{
+  "summary": "Set private repo fork PR workflow settings for an organization",
+  "description": "Sets the settings for whether workflows from fork pull requests can run on private repositories in an organization.",
+  "operationId": "actions/set-private-repo-fork-pr-workflows-settings-organization",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/permissions#set-private-repo-fork-pr-workflow-settings-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "$ref": "#/components/schemas/actions-fork-pr-workflows-private-repos-request"
+        },
+        "examples": {
+          "default": {
+            "$ref": "#/components/examples/actions-fork-pr-workflows-private-repos"
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "204": {
+      "description": "Empty response for successful settings update"
+    },
+    "403": {
+      "description": "Forbidden - Fork PR workflow settings for private repositories are managed by the enterprise owner",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "category": "actions",
+    "subcategory": "permissions"
+  }
+}

@@ -1,0 +1,80 @@
+{
+  "summary": "Get an item for an organization owned project",
+  "description": "Get a specific item from an organization-owned project.",
+  "tags": [
+    "projects"
+  ],
+  "operationId": "projects/get-org-item",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/projects/items#get-an-item-for-an-organization-owned-project"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/project-number"
+    },
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/item-id"
+    },
+    {
+      "name": "fields",
+      "description": "Limit results to specific fields, by their IDs. If not specified, the title field will be returned.\n\nExample: fields[]=123&fields[]=456&fields[]=789 or fields=123,456,789",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/projects-v2-item-with-content"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/projects-v2-item-with-content"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    },
+    "304": {
+      "$ref": "#/components/responses/not_modified"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "401": {
+      "$ref": "#/components/responses/requires_authentication"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "projects",
+    "subcategory": "items"
+  }
+}

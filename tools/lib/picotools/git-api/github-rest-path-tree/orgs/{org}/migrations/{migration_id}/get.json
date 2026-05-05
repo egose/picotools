@@ -1,0 +1,62 @@
+{
+  "summary": "Get an organization migration status",
+  "description": "Fetches the status of a migration.\n\nThe `state` of a migration can be one of the following values:\n\n*   `pending`, which means the migration hasn't started yet.\n*   `exporting`, which means the migration is in progress.\n*   `exported`, which means the migration finished successfully.\n*   `failed`, which means the migration failed.",
+  "tags": [
+    "migrations"
+  ],
+  "operationId": "migrations/get-status-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/migrations/orgs#get-an-organization-migration-status"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "$ref": "#/components/parameters/migration-id"
+    },
+    {
+      "name": "exclude",
+      "description": "Exclude attributes from the API response to improve performance",
+      "in": "query",
+      "schema": {
+        "type": "array",
+        "items": {
+          "description": "Allowed values that can be passed to the exclude param.",
+          "enum": [
+            "repositories"
+          ],
+          "example": "repositories",
+          "type": "string"
+        }
+      }
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "*   `pending`, which means the migration hasn't started yet.\n*   `exporting`, which means the migration is in progress.\n*   `exported`, which means the migration finished successfully.\n*   `failed`, which means the migration failed.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/migration"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/migration-with-short-org"
+            }
+          }
+        }
+      }
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "migrations",
+    "subcategory": "orgs"
+  }
+}

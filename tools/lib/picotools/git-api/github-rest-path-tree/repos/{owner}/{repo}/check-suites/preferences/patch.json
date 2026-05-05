@@ -1,0 +1,89 @@
+{
+  "summary": "Update repository preferences for check suites",
+  "description": "Changes the default automatic flow when creating check suites. By default, a check suite is automatically created each time code is pushed to a repository. When you disable the automatic creation of check suites, you can manually [Create a check suite](https://docs.github.com/rest/checks/suites#create-a-check-suite).\nYou must have admin permissions in the repository to set preferences for check suites.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/set-suites-preferences",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/suites#update-repository-preferences-for-check-suites"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "auto_trigger_checks": {
+              "type": "array",
+              "description": "Enables or disables automatic creation of CheckSuite events upon pushes to the repository. Enabled by default.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "app_id": {
+                    "type": "integer",
+                    "description": "The `id` of the GitHub App."
+                  },
+                  "setting": {
+                    "type": "boolean",
+                    "description": "Set to `true` to enable automatic creation of CheckSuite events upon pushes to the repository, or `false` to disable them.",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "app_id",
+                  "setting"
+                ]
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "auto_trigger_checks": [
+                {
+                  "app_id": 4,
+                  "setting": false
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/check-suite-preference"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-suite-preference"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "suites"
+  }
+}

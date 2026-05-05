@@ -1,0 +1,119 @@
+{
+  "summary": "Create or update an environment",
+  "description": "Create or update an environment with protection rules, such as required reviewers. For more information about environment protection rules, see \"[Environments](/actions/reference/environments#environment-protection-rules).\"\n\n> [!NOTE]\n> To create or update name patterns that branches must match in order to deploy to this environment, see \"[Deployment branch policies](/rest/deployments/branch-policies).\"\n\n> [!NOTE]\n> To create or update secrets for an environment, see \"[GitHub Actions secrets](/rest/actions/secrets).\"\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint.",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/create-or-update-environment",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/deployments/environments#create-or-update-an-environment"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/environment-name"
+    }
+  ],
+  "requestBody": {
+    "required": false,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "nullable": true,
+          "properties": {
+            "wait_timer": {
+              "$ref": "#/components/schemas/wait-timer"
+            },
+            "prevent_self_review": {
+              "$ref": "#/components/schemas/prevent-self-review"
+            },
+            "reviewers": {
+              "type": "array",
+              "nullable": true,
+              "description": "The people or teams that may review jobs that reference the environment. You can list up to six users or teams as reviewers. The reviewers must have at least read access to the repository. Only one of the required reviewers needs to approve the job for it to proceed.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "$ref": "#/components/schemas/deployment-reviewer-type"
+                  },
+                  "id": {
+                    "type": "integer",
+                    "description": "The id of the user or team who can review the deployment",
+                    "example": 4532992
+                  }
+                }
+              }
+            },
+            "deployment_branch_policy": {
+              "$ref": "#/components/schemas/deployment-branch-policy-settings"
+            }
+          },
+          "additionalProperties": false
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "wait_timer": 30,
+              "prevent_self_review": false,
+              "reviewers": [
+                {
+                  "type": "User",
+                  "id": 1
+                },
+                {
+                  "type": "Team",
+                  "id": 1
+                }
+              ],
+              "deployment_branch_policy": {
+                "protected_branches": false,
+                "custom_branch_policies": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/environment"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/environment"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "description": "Validation error when the environment name is invalid or when `protected_branches` and `custom_branch_policies` in `deployment_branch_policy` are set to the same value",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/basic-error"
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "deployments",
+    "subcategory": "environments"
+  }
+}

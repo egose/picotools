@@ -1,0 +1,106 @@
+{
+  "summary": "Update a repository webhook",
+  "description": "Updates a webhook configured in a repository. If you previously had a `secret` set, you must provide the same `secret` or set a new `secret` or the secret will be removed. If you are only updating individual webhook `config` properties, use \"[Update a webhook configuration for a repository](/rest/webhooks/repo-config#update-a-webhook-configuration-for-a-repository).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/update-webhook",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/webhooks#update-a-repository-webhook"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/hook-id"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "config": {
+              "$ref": "#/components/schemas/webhook-config"
+            },
+            "events": {
+              "type": "array",
+              "description": "Determines what [events](https://docs.github.com/webhooks/event-payloads) the hook is triggered for. This replaces the entire array of events.",
+              "default": [
+                "push"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "add_events": {
+              "type": "array",
+              "description": "Determines a list of events to be added to the list of events that the Hook triggers for.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "remove_events": {
+              "type": "array",
+              "description": "Determines a list of events to be removed from the list of events that the Hook triggers for.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "active": {
+              "type": "boolean",
+              "description": "Determines if notifications are sent when the webhook is triggered. Set to `true` to send notifications.",
+              "default": true
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "active": true,
+              "add_events": [
+                "pull_request"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/hook"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/hook"
+            }
+          }
+        }
+      }
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "webhooks"
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "summary": "List organization repositories",
+  "description": "Lists repositories for the specified organization.\n\n> [!NOTE]\n> In order to see the `security_and_analysis` block for a repository you must have admin permissions for the repository or be an owner or security manager for the organization that owns the repository. For more information, see \"[Managing security managers in your organization](https://docs.github.com/organizations/managing-peoples-access-to-your-organization-with-roles/managing-security-managers-in-your-organization).\"",
+  "tags": [
+    "repos"
+  ],
+  "operationId": "repos/list-for-org",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/repos/repos#list-organization-repositories"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    },
+    {
+      "name": "type",
+      "description": "Specifies the types of repositories you want returned.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "all",
+          "public",
+          "private",
+          "forks",
+          "sources",
+          "member"
+        ],
+        "default": "all"
+      }
+    },
+    {
+      "name": "sort",
+      "description": "The property to sort the results by.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "created",
+          "updated",
+          "pushed",
+          "full_name"
+        ],
+        "default": "created"
+      }
+    },
+    {
+      "name": "direction",
+      "description": "The order to sort by. Default: `asc` when using `full_name`, otherwise `desc`.",
+      "in": "query",
+      "required": false,
+      "schema": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      }
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/minimal-repository"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/minimal-repository-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "repos",
+    "subcategory": "repos"
+  }
+}

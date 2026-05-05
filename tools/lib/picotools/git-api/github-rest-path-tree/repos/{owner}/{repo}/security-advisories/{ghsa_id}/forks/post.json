@@ -1,0 +1,58 @@
+{
+  "summary": "Create a temporary private fork",
+  "description": "Create a temporary private fork to collaborate on fixing a security vulnerability in your repository.\n\n> [!NOTE]\n> Forking a repository happens asynchronously. You may have to wait up to 5 minutes before you can access the fork.",
+  "tags": [
+    "security-advisories"
+  ],
+  "operationId": "security-advisories/create-fork",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/security-advisories/repository-advisories#create-a-temporary-private-fork"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/ghsa_id"
+    }
+  ],
+  "responses": {
+    "202": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/full-repository"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/full-repository"
+            }
+          }
+        }
+      }
+    },
+    "400": {
+      "$ref": "#/components/responses/bad_request"
+    },
+    "422": {
+      "$ref": "#/components/responses/validation_failed"
+    },
+    "403": {
+      "$ref": "#/components/responses/forbidden"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "security-advisories",
+    "subcategory": "repository-advisories"
+  }
+}

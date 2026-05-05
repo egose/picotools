@@ -1,0 +1,60 @@
+{
+  "summary": "List check run annotations",
+  "description": "Lists annotations for a check run using the annotation `id`.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint on a private repository.",
+  "tags": [
+    "checks"
+  ],
+  "operationId": "checks/list-annotations",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/checks/runs#list-check-run-annotations"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    },
+    {
+      "$ref": "#/components/parameters/check-run-id"
+    },
+    {
+      "$ref": "#/components/parameters/per-page"
+    },
+    {
+      "$ref": "#/components/parameters/page"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/check-annotation"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/check-annotation-items"
+            }
+          }
+        }
+      },
+      "headers": {
+        "Link": {
+          "$ref": "#/components/headers/link"
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "checks",
+    "subcategory": "runs"
+  }
+}

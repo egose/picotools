@@ -1,0 +1,122 @@
+{
+  "summary": "Create a GitHub-hosted runner for an organization",
+  "description": "Creates a GitHub-hosted runner for an organization.\nOAuth tokens and personal access tokens (classic) need the `manage_runners:org` scope to use this endpoint.",
+  "operationId": "actions/create-hosted-runner-for-org",
+  "tags": [
+    "actions"
+  ],
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/actions/hosted-runners#create-a-github-hosted-runner-for-an-organization"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/org"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "Name of the runner. Must be between 1 and 64 characters and may only contain upper and lowercase letters a-z, numbers 0-9, '.', '-', and '_'.",
+              "type": "string"
+            },
+            "image": {
+              "description": "The image of runner. To list all available images, use `GET /actions/hosted-runners/images/github-owned` or `GET /actions/hosted-runners/images/partner`.",
+              "type": "object",
+              "properties": {
+                "id": {
+                  "description": "The unique identifier of the runner image.",
+                  "type": "string"
+                },
+                "source": {
+                  "description": "The source of the runner image.",
+                  "type": "string",
+                  "enum": [
+                    "github",
+                    "partner",
+                    "custom"
+                  ]
+                },
+                "version": {
+                  "description": "The version of the runner image to deploy. This is relevant only for runners using custom images.",
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            },
+            "size": {
+              "description": "The machine size of the runner. To list available sizes, use `GET actions/hosted-runners/machine-sizes`",
+              "type": "string"
+            },
+            "runner_group_id": {
+              "description": "The existing runner group to add this runner to.",
+              "type": "integer"
+            },
+            "maximum_runners": {
+              "description": "The maximum amount of runners to scale up to. Runners will not auto-scale above this number. Use this setting to limit your cost.",
+              "type": "integer"
+            },
+            "enable_static_ip": {
+              "description": "Whether this runner should be created with a static public IP. Note limit on account. To list limits on account, use `GET actions/hosted-runners/limits`",
+              "type": "boolean"
+            },
+            "image_gen": {
+              "description": "Whether this runner should be used to generate custom images.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "name",
+            "image",
+            "size",
+            "runner_group_id"
+          ]
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "name": "My Hosted runner",
+              "image": {
+                "id": "ubuntu-latest",
+                "source": "github"
+              },
+              "runner_group_id": 1,
+              "size": "4-core",
+              "maximum_runners": 50,
+              "enable_static_ip": false
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "201": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/actions-hosted-runner"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/actions-hosted-runner"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "enabledForGitHubApps": true,
+    "githubCloudOnly": false,
+    "category": "actions",
+    "subcategory": "hosted-runners"
+  }
+}

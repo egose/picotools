@@ -1,0 +1,79 @@
+{
+  "summary": "Bulk remove team members",
+  "description": "Remove multiple team members from an enterprise team.",
+  "tags": [
+    "enterprise-team-memberships"
+  ],
+  "operationId": "enterprise-team-memberships/bulk-remove",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-members#bulk-remove-team-members"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    }
+  ],
+  "requestBody": {
+    "required": true,
+    "content": {
+      "application/json": {
+        "schema": {
+          "type": "object",
+          "required": [
+            "usernames"
+          ],
+          "properties": {
+            "usernames": {
+              "type": "array",
+              "description": "The GitHub user handles to be removed from the team.",
+              "items": {
+                "type": "string",
+                "description": "The handle for the GitHub user account."
+              }
+            }
+          }
+        },
+        "examples": {
+          "default": {
+            "value": {
+              "usernames": [
+                "monalisa",
+                "octocat"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "responses": {
+    "200": {
+      "description": "Successfully removed team members.",
+      "content": {
+        "application/json": {
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/simple-user"
+            }
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/simple-user-items"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-members"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "summary": "Get a code scanning default setup configuration",
+  "description": "Gets a code scanning default setup configuration.\n\nOAuth app tokens and personal access tokens (classic) need the `repo` scope to use this endpoint with private or public repositories, or the `public_repo` scope to use this endpoint with only public repositories.",
+  "tags": [
+    "code-scanning"
+  ],
+  "operationId": "code-scanning/get-default-setup",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/code-scanning/code-scanning#get-a-code-scanning-default-setup-configuration"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/owner"
+    },
+    {
+      "$ref": "#/components/parameters/repo"
+    }
+  ],
+  "responses": {
+    "200": {
+      "description": "Response",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/code-scanning-default-setup"
+          },
+          "examples": {
+            "default": {
+              "$ref": "#/components/examples/code-scanning-default-setup"
+            }
+          }
+        }
+      }
+    },
+    "403": {
+      "$ref": "#/components/responses/code_scanning_forbidden_read"
+    },
+    "404": {
+      "$ref": "#/components/responses/not_found"
+    },
+    "503": {
+      "$ref": "#/components/responses/service_unavailable"
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": true,
+    "category": "code-scanning",
+    "subcategory": "code-scanning"
+  }
+}

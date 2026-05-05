@@ -1,0 +1,46 @@
+{
+  "summary": "Add team member",
+  "description": "Add a team member to an enterprise team.",
+  "tags": [
+    "enterprise-team-memberships"
+  ],
+  "operationId": "enterprise-team-memberships/add",
+  "externalDocs": {
+    "description": "API method documentation",
+    "url": "https://docs.github.com/rest/enterprise-teams/enterprise-team-members#add-team-member"
+  },
+  "parameters": [
+    {
+      "$ref": "#/components/parameters/enterprise"
+    },
+    {
+      "$ref": "#/components/parameters/enterprise-team"
+    },
+    {
+      "$ref": "#/components/parameters/username"
+    }
+  ],
+  "responses": {
+    "201": {
+      "description": "Successfully added team member",
+      "content": {
+        "application/json": {
+          "schema": {
+            "$ref": "#/components/schemas/simple-user"
+          },
+          "examples": {
+            "exampleKey1": {
+              "$ref": "#/components/examples/simple-user"
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-github": {
+    "githubCloudOnly": false,
+    "enabledForGitHubApps": false,
+    "category": "enterprise-teams",
+    "subcategory": "enterprise-team-members"
+  }
+}
