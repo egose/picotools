@@ -1,3 +1,18 @@
+## [0.22.0](https://github.com/egose/picotools/compare/v0.21.1...v0.22.0) (2026-05-05)
+
+### Features
+
+* add --debug flag to all tools ([de5d62f](https://github.com/egose/picotools/commit/de5d62f59b6e1ef34b16229c764faec64ef36c8f))
+* add --pr option to create pull requests via git-api ([510acc7](https://github.com/egose/picotools/commit/510acc73933766a1477e599fd35d82ddb3b75b16))
+* add configure command and token persistence to git-api ([6475567](https://github.com/egose/picotools/commit/64755677cd55a3eb834bca0dd3dac70d954454c6))
+* add debug logging and curl timeout to model-provider ([1e42874](https://github.com/egose/picotools/commit/1e4287422f9820589d5212a3f9607ae7644473cd))
+* add debug logging and handle oversized diffs in git-commit ([19a2568](https://github.com/egose/picotools/commit/19a2568a225e5f09c15eaa9690a7c4d2dcc08058))
+* add git-api tool for calling GitHub REST operations by operationId ([1756049](https://github.com/egose/picotools/commit/1756049d62f397b830cebb60d9aecf59da51ce50))
+
+### Refactors
+
+* verify load script exists in candidate lib directories ([9b8216a](https://github.com/egose/picotools/commit/9b8216a1d95eeee3882c1cde8db61a949bd944ec))
+
 ## [0.21.1](https://github.com/egose/picotools/compare/v0.21.0...v0.21.1) (2026-05-04)
 
 ### Bug Fixes
