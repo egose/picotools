@@ -179,6 +179,10 @@ if args[0] == '-r' and len(args) >= 2:
         print(data.get('html_url', ''))
         sys.exit(0)
 
+    if expr == '.default_branch // empty':
+        print(data.get('default_branch', ''))
+        sys.exit(0)
+
 sys.exit(1)
 EOF
   chmod +x "$stub_path"
@@ -192,7 +196,7 @@ create_git_api_stub() {
 set -euo pipefail
 
 if [ -n "${GIT_API_ARGS_LOG:-}" ]; then
-  printf '%s\n' "$*" >"$GIT_API_ARGS_LOG"
+  printf '%s\n' "$*" >>"$GIT_API_ARGS_LOG"
 fi
 
 if [ "${1:-}" = '--debug' ]; then
@@ -200,6 +204,12 @@ if [ "${1:-}" = '--debug' ]; then
 fi
 
 case "${1:-}" in
+repos/get)
+  if [ "${GIT_API_REPOS_GET_FAIL:-false}" = 'true' ]; then
+    exit 1
+  fi
+  printf '%s\n' "${GIT_API_REPOS_GET_RESPONSE:-{\"default_branch\":\"main\"}}"
+  ;;
 pulls/create)
   printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
   ;;
@@ -1025,7 +1035,7 @@ create_initial_commit() {
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply and push mode'
 }
 
-@test "applies, pushes, and opens a pull request with --pr" {
+@test "applies, pushes, and opens a pull request with --pr using the default branch from git-api" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
 
   stub_path="$TMP_HOME/model-provider-stub"
@@ -1063,9 +1073,77 @@ create_initial_commit() {
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply, push, and PR mode'
   assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch through git-api'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
   assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should target the main branch'
   assert_contains "$(<"$git_api_log")" 'head=feat/11222' 'git-commit should use the current branch as the PR head'
+}
+
+@test "uses the explicit base branch provided to --pr" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --apply --push --pr release-1.0 2>&1)
+
+  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when an explicit base is provided'
+  assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api when an explicit base is provided'
+  assert_contains "$(<"$git_api_log")" 'base=release-1.0' 'git-commit should use the provided PR base branch'
+}
+
+@test "falls back to git metadata when git-api cannot resolve the default branch" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_REPOS_GET_FAIL=true \
+    "$TOOL" --apply --push --pr 2>&1)
+
+  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create a pull request when git-api default-branch lookup fails'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should try git-api before falling back to git metadata'
+  assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should fall back to the git remote default branch'
 }
 
 @test "applies grouped commits with --apply" {
