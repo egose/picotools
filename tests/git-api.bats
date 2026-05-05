@@ -130,6 +130,7 @@ assert_contains() {
   run "$TOOL" --help
 
   [ "$status" -eq 0 ] || fail 'help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '<operationId> [path-args...] [flags]' 'help should document operationId commands'
   assert_contains "$output" 'git-api repos/get octocat hello-world' 'help should show an operationId example'
 }
@@ -162,9 +163,11 @@ assert_contains() {
 }
 
 @test "operation command uses ordered path args" {
-  run "$TOOL" repos/get octo demo
+  run "$TOOL" --debug repos/get octo demo
 
   [ "$status" -eq 0 ] || fail 'repos/get should succeed'
+  assert_contains "$output" "[git-api] Calling 'repos/get' with method 'GET' path '/repos/octo/demo'" 'debug mode should describe the resolved operation call'
+  assert_contains "$output" '[git-api] Preparing GET request to' 'debug mode should describe the outgoing HTTP request'
   assert_contains "$output" '"full_name": "octo/demo"' 'repos/get should print the API json'
   assert_contains "$(<"$TMP_DIR/curl-request.log")" 'GET https://api.github.com/repos/octo/demo' 'repos/get should call the resolved endpoint'
   assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'X-GitHub-Api-Version: 2026-03-10' 'repos/get should send the default API version header'

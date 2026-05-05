@@ -23,6 +23,7 @@ Options:
   --yes                     Update the requirements file without prompting
   --scope SCOPE             Allowed upgrade scope: major, minor, or patch
                             (default: major)
+  --debug                   Print progress details to stderr
   -h, --help, help        Show this help message
   -v, --version, version  Show the tool version
 
@@ -33,6 +34,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[pip-upgrade] %s\n' "$1" >&2
+  fi
 }
 
 cleanup_tmpfile() {
@@ -52,6 +65,7 @@ select_target_version() {
   lookup_name="${lookup_name#"${lookup_name%%[![:space:]]*}"}"
   base_name="${lookup_name%%\[*}"
 
+  debug_log "Fetching PyPI metadata for '${base_name}'"
   response=$(curl -sf --max-time 5 "https://pypi.org/pypi/${base_name}/json" 2>/dev/null) || return 1
 
   CURRENT_VERSION="$current_version" UPGRADE_SCOPE="$scope" python3 -c '
@@ -141,6 +155,10 @@ main() {
       scope="$2"
       shift 2
       ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
     -h | --help | help)
       usage
       exit 0
@@ -176,6 +194,7 @@ main() {
     exit 1
   fi
 
+  debug_log "Using requirements file '$requirements_file' with scope '$scope'"
   picotools_require_command python3
 
   tmpfile=$(mktemp)
@@ -200,14 +219,17 @@ main() {
 
     target_version=$(select_target_version "$name" "$current_version" "$scope") || true
     if [ -z "${target_version:-}" ]; then
+      debug_log "Skipping '$name' because no eligible target version was found"
       printf '%s\n' "$line" >>"$tmpfile"
       continue
     fi
 
+    debug_log "Selected ${name}${operator}${target_version}"
     printf '%s%s%s%s\n' "$name" "$operator" "$target_version" "$suffix" >>"$tmpfile"
   done <"$requirements_file"
 
   if cmp -s "$tmpfile" "$requirements_file"; then
+    debug_log 'No requirement updates were produced'
     echo "No updates found."
     exit 0
   fi
@@ -216,6 +238,7 @@ main() {
     picotools_confirm_action "Proceed with updating ${requirements_file}?" || exit 1
   fi
 
+  debug_log "Writing updated requirements to '$requirements_file'"
   cp "$tmpfile" "$requirements_file"
   echo "${requirements_file} updated."
 }

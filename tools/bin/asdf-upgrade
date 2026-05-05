@@ -23,6 +23,7 @@ selected source files together.
 
 Options:
   --yes                     Update every listed tool without prompting
+  --debug                   Print progress details to stderr
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
 EOF
@@ -30,6 +31,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[asdf-upgrade] %s\n' "$1" >&2
+  fi
 }
 
 cleanup_tmp_dir() {
@@ -138,6 +151,7 @@ collect_upgrade_rows() {
     [ -f "$resolved_source" ] || continue
 
     processed_count=$((processed_count + 1))
+    debug_log "Checking installed tool '$tool' from '$resolved_source'"
     printf 'Checking %s %s from %s...\n' "$tool" "$current_version" "$resolved_source" >&2
     latest_version=$(latest_stable_version "$tool")
     [ -n "$latest_version" ] || continue
@@ -276,6 +290,7 @@ maybe_run_asdf_install() {
   fi
 
   if [ "$run_install" = 'yes' ]; then
+    debug_log 'Running asdf install for selected upgrades'
     asdf install
     return 0
   fi
@@ -294,6 +309,10 @@ main() {
     case "$1" in
     --yes)
       assume_yes=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
       shift
       ;;
     -h | --help | help)
@@ -317,6 +336,7 @@ main() {
   ASDF_UPGRADE_TMP_DIR=$(mktemp -d)
   trap 'cleanup_tmp_dir' EXIT
   upgrades_file="$ASDF_UPGRADE_TMP_DIR/upgrades.tsv"
+  debug_log "Created temporary directory '$ASDF_UPGRADE_TMP_DIR'"
 
   collect_upgrade_rows "$upgrades_file"
 
@@ -341,6 +361,7 @@ main() {
     exit 1
   fi
 
+  debug_log "Applying ${#selected_indexes[@]} selected upgrade(s)"
   apply_selected_upgrades "$upgrades_file" "${selected_indexes[@]}"
   maybe_run_asdf_install "$assume_yes"
 }

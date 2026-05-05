@@ -117,9 +117,10 @@ EOF
   printf '%s\n' 'nodejs 20.10.0' 'poetry latest' >"$root_versions_file"
   printf '%s\n' 'python 3.11.7 # app runtime' >"$nested_versions_file"
 
-  ASDF_STUB_SCENARIO=upgrades ASDF_INSTALL_LOG="$install_log" run bash -c 'cd "$1" && printf "1 2\ny\n" | bash "$2"' _ "$WORKSPACE_DIR" "$TOOL"
+  ASDF_STUB_SCENARIO=upgrades ASDF_INSTALL_LOG="$install_log" run bash -c 'cd "$1" && printf "1 2\ny\n" | bash "$2" --debug' _ "$WORKSPACE_DIR" "$TOOL"
 
   [ "$status" -eq 0 ] || fail 'asdf-upgrade should succeed when selections are provided'
+  assert_contains "$output" '[asdf-upgrade] Created temporary directory' 'should print temporary-directory debug output'
   assert_contains "$output" 'Checking nodejs 20.10.0' 'should print progress before fetching nodejs versions'
   assert_contains "$output" 'Checking python 3.11.7' 'should print progress before fetching python versions'
   assert_contains "$output" 'Checked 2 tool(s).' 'should print a final progress summary'
@@ -166,4 +167,11 @@ EOF
   assert_contains "$output" 'Checking nodejs 20.11.1' 'should print progress for eligible tools even when no upgrade exists'
   assert_contains "$output" 'Checked 1 tool(s).' 'should print the count of checked tools when no upgrades exist'
   assert_contains "$output" 'No upgrades found.' 'should report when no strict-semver upgrades are available'
+}
+
+@test "help documents debug mode" {
+  run "$TOOL" --help
+
+  [ "$status" -eq 0 ] || fail 'asdf-upgrade --help should succeed'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 }

@@ -69,6 +69,12 @@ create_model_provider_stub() {
 #!/usr/bin/env bash
 set -euo pipefail
 
+debug_requested=false
+if [ "${1:-}" = '--debug' ]; then
+  debug_requested=true
+  shift
+fi
+
 message_file=''
 system_message_file=''
 
@@ -98,11 +104,15 @@ models)
   esac
   ;;
 ask)
-  if [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]; then
+  if [ "$debug_requested" = 'true' ] || [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]; then
     printf '%s\n' '[model-provider] Stub debug enabled' >&2
   fi
   if [ -n "${MODEL_PROVIDER_ASK_ARGS_LOG:-}" ]; then
-    printf '%s\n' "$*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    if [ "$debug_requested" = 'true' ]; then
+      printf '%s\n' "--debug $*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    else
+      printf '%s\n' "$*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+    fi
     if [ -n "$system_message_file" ]; then
       printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
     fi
@@ -495,11 +505,12 @@ create_initial_commit() {
 }
 
 @test "prints progress steps when --debug is enabled" {
-  local stub_path jq_stub repo output
+  local stub_path jq_stub repo ask_log output
 
   stub_path="$TMP_HOME/model-provider-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -512,6 +523,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
     MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --debug 2>&1)
 
@@ -519,6 +531,8 @@ create_initial_commit() {
   assert_contains "$output" '[git-commit] Collecting changed files' 'git-commit should print a changed-files debug step'
   assert_contains "$output" '[git-commit] Requesting commit plan from model-provider profile' 'git-commit should print a model-provider debug step'
   assert_contains "$output" '[model-provider] Stub debug enabled' 'git-commit should enable model-provider debug output in debug mode'
+  assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should still call model-provider ask with the configured profile and model'
+  assert_contains "$(<"$ask_log")" '--debug' 'git-commit should forward --debug to model-provider'
   assert_contains "$output" '[git-commit] Printing commit plan preview' 'git-commit should print the preview debug step'
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview in debug mode'
 }

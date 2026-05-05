@@ -251,6 +251,8 @@ run_tool() {
   assert_contains "$output" 'Usage: model-provider <command>' 'help should describe the command entrypoint'
   assert_contains "$output" 'list      List saved model provider profiles' 'help should describe the list command'
   assert_contains "$output" 'read      Show detailed information for a saved model provider profile' 'help should list the read command'
+  assert_contains "$output" '--debug                   Print request debug steps to stderr' 'help should list the debug flag'
+  assert_contains "$output" 'MODEL_PROVIDER_DEBUG=true          Deprecated fallback for --debug' 'help should describe the deprecated debug env'
 
   version=$(run_tool --version)
   assert_eq "$version" "$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")" 'version output should match VERSION file'
@@ -465,15 +467,38 @@ run_tool() {
     CURL_BODY_LOG="$TMP_HOME/curl-body.log" \
     CURL_ARGS_LOG="$curl_args_log" \
     CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"debug answer"}}]}' \
-    MODEL_PROVIDER_DEBUG=true \
     MODEL_PROVIDER_CURL_MAX_TIME=42 \
-    "$TOOL" ask work-openai --model gpt-4o --message 'Hello from test' 2>&1)
+    "$TOOL" ask --debug work-openai --model gpt-4o --message 'Hello from test' 2>&1)
 
   assert_contains "$output" '[model-provider] Preparing chat completion request for profile' 'ask should print request preparation in debug mode'
   assert_contains "$output" '[model-provider] Starting HTTP request' 'ask should print the HTTP request start in debug mode'
   assert_contains "$output" '[model-provider] HTTP request completed with status 200' 'ask should print the HTTP status in debug mode'
   assert_contains "$output" 'debug answer' 'ask should still print the response text in debug mode'
   assert_contains "$(<"$curl_args_log")" '--max-time 42' 'ask should pass the configured curl max time'
+}
+
+@test "ask warns when deprecated MODEL_PROVIDER_DEBUG env is used" {
+  local stub_bin output
+
+  stub_bin="$TMP_HOME/bin"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$TMP_HOME/curl-url.log" \
+    CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
+    CURL_BODY_LOG="$TMP_HOME/curl-body.log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"debug answer"}}]}' \
+    MODEL_PROVIDER_DEBUG=true \
+    "$TOOL" ask work-openai --model gpt-4o --message 'Hello from test' 2>&1)
+
+  assert_contains "$output" 'Warning: MODEL_PROVIDER_DEBUG is deprecated; use --debug instead.' 'ask should warn when the deprecated debug env is used'
+  assert_contains "$output" '[model-provider] Preparing chat completion request for profile' 'ask should still enable debug logging via the deprecated env'
+  assert_contains "$output" 'debug answer' 'ask should still print the response text when using the deprecated env'
 }
 
 @test "ask supports interactive mode with no arguments" {

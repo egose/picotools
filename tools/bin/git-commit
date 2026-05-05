@@ -120,7 +120,7 @@ run_model_provider() {
 
   tool=$(model_provider_command)
   if debug_enabled; then
-    MODEL_PROVIDER_DEBUG=true "$tool" "$@"
+    "$tool" --debug "$@"
     return $?
   fi
 

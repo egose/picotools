@@ -217,12 +217,24 @@ assert_create_fails() {
   output=$(run_tool --help)
   assert_contains "$output" 'Usage: git-context <command>' 'help should describe the command entrypoint'
   assert_contains "$output" 'read      Show detailed information for a saved git context' 'help should list the read command'
+  assert_contains "$output" '--debug' 'help should list debug mode'
 
   version=$(run_tool --version)
   assert_eq "$version" "$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")" 'version output should match VERSION file'
 
   output=$(run_tool list)
   assert_contains "$output" 'No git contexts found.' 'list should explain when there are no saved contexts'
+}
+
+@test "list prints debug details when enabled" {
+  local output
+
+  printf 'personal\nJane Dev\njane@example.com\nno\nno\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(run_tool --debug list 2>&1)
+  assert_contains "$output" '[git-context] Listing 1 saved context(s)' 'debug mode should describe the number of saved contexts'
+  assert_contains "$output" 'personal' 'debug mode should still print the context list'
 }
 
 @test "create list and delete context" {

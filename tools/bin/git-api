@@ -37,6 +37,7 @@ Options:
   --body-file PATH           Raw request body file
   --api-root URL             Override the GitHub API root
   --api-version DATE         Override the GitHub API version header
+  --debug                    Print request details to stderr
   -h, --help, help           Show this help message
   -v, --version, version     Show the tool version
 
@@ -55,8 +56,21 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
+debug_mode=false
+
+git_api_debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+git_api_debug_log() {
+  if git_api_debug_enabled; then
+    printf '[git-api] %s\n' "$1" >&2
+  fi
+}
+
 render_operations() {
   local prefix="${1:-}"
+  local prefix_suffix=''
   local line
   local -a rows=()
 
@@ -67,6 +81,11 @@ render_operations() {
     rows+=("$line")
   done < <(git_api_list_operations "$SCRIPT_DIR" "$prefix")
 
+  if [ -n "$prefix" ]; then
+    prefix_suffix=" for prefix '$prefix'"
+  fi
+
+  git_api_debug_log "Rendering ${#rows[@]} operation(s)$prefix_suffix"
   picotools_print_table $'OperationId\tMethod\tPath\tSummary' "${rows[@]}"
 }
 
@@ -83,6 +102,8 @@ show_operation() {
   docs_url=$(git_api_operation_docs_url "$file")
   summary=$(git_api_operation_summary "$file")
   description=$(git_api_operation_description "$file")
+
+  git_api_debug_log "Showing operation metadata for '$operation_id' from '$file'"
 
   printf 'Operation: %s\n' "$operation_id"
   printf 'Method: %s\n' "${method^^}"
@@ -283,12 +304,19 @@ call_operation() {
   done
 
   git_api_assert_no_placeholders "$path"
+  git_api_debug_log "Calling '$operation_id' with method '${method^^}' path '$path'"
   git_api_request "$method" "$api_root" "$api_version" "$path" "$body_file" \
     "${queries[@]}" --headers "${headers[@]}" --fields "${fields[@]}"
 }
 
 main() {
   local command="${1:-}"
+
+  while [ "$command" = '--debug' ]; do
+    debug_mode=true
+    shift
+    command="${1:-}"
+  done
 
   case "$command" in
   -h | --help | help)

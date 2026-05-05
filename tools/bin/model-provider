@@ -28,6 +28,7 @@ Commands:
 Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
+  --debug                   Print request debug steps to stderr
 
 Ask:
   model-provider ask
@@ -36,7 +37,7 @@ Ask:
   model-provider ask <profile> --message-file PATH [--model MODEL] [--system-message-file PATH]
 
 Environment:
-  MODEL_PROVIDER_DEBUG=true          Print request debug steps to stderr
+  MODEL_PROVIDER_DEBUG=true          Deprecated fallback for --debug
   MODEL_PROVIDER_CURL_MAX_TIME=<s>   Set curl --max-time for ask requests
 EOF
 }
@@ -45,13 +46,41 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
-debug_enabled() {
+debug_mode=false
+
+enable_debug_logging() {
+  debug_mode=true
+}
+
+legacy_debug_enabled() {
   [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]
+}
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ] || legacy_debug_enabled
 }
 
 debug_log() {
   if debug_enabled; then
     printf '[model-provider] %s\n' "$1" >&2
+  fi
+}
+
+args_include_debug_flag() {
+  local arg
+
+  for arg in "$@"; do
+    if [ "$arg" = '--debug' ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+warn_deprecated_debug_env() {
+  if legacy_debug_enabled && ! args_include_debug_flag "$@"; then
+    echo 'Warning: MODEL_PROVIDER_DEBUG is deprecated; use --debug instead.' >&2
   fi
 }
 
@@ -904,12 +933,14 @@ ask_provider_interactive() {
 }
 
 ask_provider_cli() {
-  local profile_name="$1"
-  shift
-  local file model='' system_message='You are a helpful assistant.' user_message=''
+  local profile_name='' file model='' system_message='You are a helpful assistant.' user_message=''
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
+    --debug)
+      enable_debug_logging
+      shift
+      ;;
     --model)
       if [ "$#" -lt 2 ]; then
         echo 'Error: --model requires a value' >&2
@@ -958,13 +989,28 @@ ask_provider_cli() {
       user_message=$(<"$2")
       shift 2
       ;;
-    *)
+    --*)
       echo "Error: unknown ask option '$1'" >&2
       usage >&2
       exit 1
       ;;
+    *)
+      if [ -z "$profile_name" ]; then
+        profile_name="$1"
+        shift
+      else
+        echo "Error: unknown ask option '$1'" >&2
+        usage >&2
+        exit 1
+      fi
+      ;;
     esac
   done
+
+  if [ -z "$profile_name" ]; then
+    echo 'Error: ask requires a profile name' >&2
+    exit 1
+  fi
 
   if [ -z "$user_message" ]; then
     echo 'Error: ask requires --message or --user-message' >&2
@@ -996,6 +1042,13 @@ ask_provider() {
 }
 
 main() {
+  while [ "${1:-}" = '--debug' ]; do
+    enable_debug_logging
+    shift
+  done
+
+  warn_deprecated_debug_env "$@"
+
   case "${1:-}" in
   -h | --help | help | '')
     usage

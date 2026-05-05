@@ -91,6 +91,19 @@ git_api_request() {
     url+="?${query_string}"
   fi
 
+  git_api_debug_log "Preparing ${method^^} request to '$url'"
+  if [ "${#query_args[@]}" -gt 0 ]; then
+    git_api_debug_log "Query params: ${query_args[*]}"
+  fi
+  if [ "${#header_args[@]}" -gt 0 ]; then
+    git_api_debug_log "Extra headers: ${#header_args[@]}"
+  fi
+  if [ -n "$body_file" ]; then
+    git_api_debug_log "Using raw body file '$body_file'"
+  elif [ "${#field_args[@]}" -gt 0 ]; then
+    git_api_debug_log "Encoding ${#field_args[@]} body field(s) as JSON"
+  fi
+
   token=$(git_api_token)
   tmpfile=$(mktemp)
 
@@ -124,6 +137,8 @@ git_api_request() {
   http_code=$("$@" "$url")
   body=$(<"$tmpfile")
   rm -f "$tmpfile"
+
+  git_api_debug_log "Received HTTP status $http_code"
 
   if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
     git_api_print_response "$body"

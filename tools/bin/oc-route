@@ -43,9 +43,10 @@ Commands:
 Options:
   -n, --namespace NS    Namespace/project to target
   -i, --interactive     Use interactive prompts for `read` or `update`
+  --debug               Print progress details to stderr
   -h, --help, help      Show this help message
   -v, --version, version
-                        Show the tool version
+                         Show the tool version
 
 Update options:
   --name NAME           Route name
@@ -80,7 +81,26 @@ print_version() {
   picotools_print_version "$SCRIPT_DIR"
 }
 
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[oc-route] %s\n' "$1" >&2
+  fi
+}
+
 run_oc() {
+  local namespace_suffix=''
+
+  if [ -n "$OC_ROUTE_NAMESPACE" ]; then
+    namespace_suffix=" in namespace '$OC_ROUTE_NAMESPACE'"
+  fi
+
+  debug_log "Running oc $*$namespace_suffix"
   picotools_oc "$OC_ROUTE_NAMESPACE" "$@"
 }
 
@@ -319,6 +339,7 @@ select_service_name() {
 read_route() {
   local route_name="$1"
 
+  debug_log "Reading route '$route_name'"
   run_oc get route "$route_name" -o yaml
 }
 
@@ -369,6 +390,7 @@ apply_route_manifest() {
     print_yaml_field '    ' 'name' "$UPDATE_ROUTE_SERVICE_NAME"
   } >"$OC_ROUTE_TMPFILE"
 
+  debug_log "Applying generated manifest from '$OC_ROUTE_TMPFILE' for route '$UPDATE_ROUTE_NAME'"
   run_oc apply -f "$OC_ROUTE_TMPFILE"
   cleanup_tmpfile
   OC_ROUTE_TMPFILE=""
@@ -586,11 +608,13 @@ update_route_from_flags() {
       usage >&2
       exit 1
     fi
+    debug_log 'Starting interactive route update flow'
     update_route_interactive "$UPDATE_ROUTE_NAME"
     return 0
   fi
 
   validate_update_values
+  debug_log "Updating route '$UPDATE_ROUTE_NAME' from flags"
   apply_route_manifest
 }
 
@@ -601,6 +625,10 @@ handle_read_command() {
     case "$1" in
     -i | --interactive)
       OC_ROUTE_INTERACTIVE=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
       shift
       ;;
     -h | --help | help)
@@ -668,6 +696,10 @@ main() {
       OC_ROUTE_INTERACTIVE=true
       shift
       ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
     -h | --help | help)
       usage
       exit 0
@@ -709,6 +741,7 @@ main() {
       usage >&2
       exit 1
     fi
+    debug_log 'Listing routes'
     list_routes
     ;;
   read)

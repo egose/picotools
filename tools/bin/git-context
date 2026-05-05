@@ -25,6 +25,7 @@ Commands:
   delete    Delete a saved git context
 
 Options:
+  --debug                   Print progress details to stderr
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
 EOF
@@ -32,6 +33,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[git-context] %s\n' "$1" >&2
+  fi
 }
 
 default_pull_rebase() {
@@ -685,6 +698,7 @@ save_context() {
   local ssh_add_on_start="${16}"
 
   rm -f "$file"
+  debug_log "Saving context file '$file'"
 
   write_context_value "$file" user.name "$user_name"
   write_context_value "$file" user.email "$email"
@@ -722,6 +736,7 @@ create_context() {
   validate_context_name "$name"
   file=$(context_file "$name")
   ensure_context_dir
+  debug_log "Creating context '$name' at '$file'"
 
   if [ -f "$file" ]; then
     overwrite=$(prompt_yes_no "Context '$name' already exists. Overwrite?" no)
@@ -785,6 +800,7 @@ list_contexts() {
     index=$((index + 1))
   done < <(saved_context_files)
 
+  debug_log "Listing ${#rows[@]} saved context(s)"
   picotools_print_table $'#\tName\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
 }
 
@@ -808,6 +824,7 @@ read_context() {
   if ! file=$(select_context_file); then
     return 0
   fi
+  debug_log "Reading context from '$file'"
   if [ "$commands_only" = 'yes' ]; then
     print_context_commands "$file"
   else
@@ -907,6 +924,7 @@ delete_context_file() {
     fi
   fi
 
+  debug_log "Deleting context file '$file'"
   rm -f "$file"
   echo 'Deleted context.'
 }
@@ -931,6 +949,7 @@ apply_context() {
   local file="$1"
   local signing_key gpg_program ssh_command ssh_add_on_start
 
+  debug_log "Applying context values from '$file'"
   write_local_value user.name "$(read_context_value "$file" user.name)"
   write_local_value user.email "$(read_context_value "$file" user.email)"
   write_local_value commit.gpgsign "$(read_managed_context_value "$file" commit.gpgsign)"
@@ -981,6 +1000,7 @@ set_context_file() {
   local file="$1"
 
   ensure_git_repository
+  debug_log "Applying selected context '$file' to current repository"
   apply_context "$file"
   echo "Applied context '$(context_name_from_file "$file")'."
 }
@@ -994,6 +1014,7 @@ update_context_file() {
   local selected_field
 
   name=$(context_name_from_file "$file")
+  debug_log "Updating context '$name' from '$file'"
   user_name=$(read_context_value "$file" user.name)
   email=$(read_context_value "$file" user.email)
 
@@ -1083,6 +1104,11 @@ update_context() {
 }
 
 main() {
+  while [ "${1:-}" = '--debug' ]; do
+    debug_mode=true
+    shift
+  done
+
   case "${1:-}" in
   -h | --help | help | "")
     usage

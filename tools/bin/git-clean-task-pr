@@ -30,6 +30,7 @@ Options:
   -m, --temp-message MSG    Temporary commit message for --continue
                             (default: chore(0000): temporary message)
   --continue                Resume after resolving merge conflicts
+  --debug                   Print progress details to stderr
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
 
@@ -41,6 +42,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[git-clean-task-pr] %s\n' "$1" >&2
+  fi
 }
 
 ensure_clean_worktree() {
@@ -118,10 +131,13 @@ continue_after_conflicts() {
     exit 1
   fi
 
+  debug_log "Fetching '$remote/$base_branch' before continuing"
   git fetch "$remote" "$base_branch"
   ensure_base_branch_exists "$remote" "$base_branch"
 
+  debug_log "Creating temporary merge-resolution commit '$temp_message'"
   git commit -m "$temp_message"
+  debug_log "Soft-resetting to '${remote}/${base_branch}'"
   git reset --soft "${remote}/${base_branch}"
 
   echo "Soft reset complete. Create your final commit when ready."
@@ -165,6 +181,10 @@ main() {
       ;;
     --continue)
       continue_mode=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
       shift
       ;;
     -h | --help | help)
@@ -219,6 +239,7 @@ main() {
   fi
 
   if [ "$continue_mode" = true ]; then
+    debug_log "Continuing cleanup branch flow for '$remote/$base_branch'"
     continue_after_conflicts "$remote" "$base_branch" "$temp_message"
     exit 0
   fi
@@ -250,14 +271,19 @@ main() {
     exit 1
   fi
 
+  debug_log "Creating cleanup branch '$new_branch' from '$current_branch' against '$remote/$base_branch'"
   ensure_branch_available "$new_branch"
 
+  debug_log "Fetching '$remote/$base_branch'"
   git fetch "$remote" "$base_branch"
   ensure_base_branch_exists "$remote" "$base_branch"
 
+  debug_log "Checking out new branch '$new_branch'"
   git checkout -b "$new_branch"
 
+  debug_log "Pulling '$remote/$base_branch' into '$new_branch'"
   if git pull "$remote" "$base_branch" --no-rebase --no-edit; then
+    debug_log "Soft-resetting '$new_branch' to '${remote}/${base_branch}'"
     git reset --soft "${remote}/${base_branch}"
     echo "Soft reset complete. Create your final commit when ready."
     exit 0

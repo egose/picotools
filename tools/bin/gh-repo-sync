@@ -27,6 +27,7 @@ Downloads and extracts repositories for a GitHub user or organization into
 
 Options:
   --reset-pat                 Remove the stored GitHub PAT and exit
+  --debug                     Print progress details to stderr
   -h, --help, help           Show this help message
   -v, --version, version     Show the tool version
 EOF
@@ -34,6 +35,18 @@ EOF
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[gh-repo-sync] %s\n' "$1" >&2
+  fi
 }
 
 # --- PAT management ---
@@ -44,12 +57,14 @@ check_required_tools() {
 
 load_pat() {
   if [ -n "${GITHUB_PAT:-}" ]; then
+    debug_log 'Using GITHUB_PAT from the environment'
     return
   fi
 
   if [ -f "$PAT_FILE" ]; then
     GITHUB_PAT=$(<"$PAT_FILE")
     export GITHUB_PAT
+    debug_log "Loaded GitHub PAT from '$PAT_FILE'"
     return
   fi
 
@@ -64,6 +79,7 @@ load_pat() {
     export GITHUB_PAT
     echo "Token saved to $PAT_FILE"
   else
+    debug_log 'Continuing without a GitHub PAT'
     echo "Continuing without authentication (rate limit: 60 requests/hour)."
   fi
 }
@@ -106,6 +122,7 @@ gh_api() {
   if [ -n "${GITHUB_PAT:-}" ]; then
     auth_header=(-H "Authorization: token ${GITHUB_PAT}")
   fi
+  debug_log "Requesting GitHub API endpoint '$endpoint'"
   http_code=$(curl -s -w '%{http_code}' -o "$tmpfile" \
     "${auth_header[@]}" \
     -H "Accept: application/vnd.github+json" \
@@ -143,6 +160,7 @@ download_repo_archive() {
   fi
 
   while [ "$attempt" -le "$max_attempts" ]; do
+    debug_log "Downloading archive for '${repo_name}' attempt ${attempt}/${max_attempts}"
     tmp_zip=$(mktemp "${destination}.XXXXXX")
     response_code=$(curl -sS -L --retry 2 --retry-delay 1 --retry-all-errors \
       -w '%{http_code}' \
@@ -186,6 +204,7 @@ fetch_all_repos() {
 
   while true; do
     echo "Fetching page ${page}..." >&2
+    debug_log "Fetching repository page ${page} for '${name}'"
 
     # Try as org first, then as user
     local data
@@ -212,28 +231,35 @@ fetch_all_repos() {
 # --- Main ---
 
 main() {
-  case "${1:-}" in
-  -h | --help | help)
-    usage
-    exit 0
-    ;;
-  -v | --version | version)
-    print_version
-    exit 0
-    ;;
-  --reset-pat)
-    rm -f "$PAT_FILE"
-    echo "PAT has been reset."
-    exit 0
-    ;;
-  "")
-    ;;
-  *)
-    echo "Error: unexpected argument: $1" >&2
-    usage >&2
-    exit 1
-    ;;
-  esac
+  while [ $# -gt 0 ]; do
+    case "${1:-}" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --reset-pat)
+      rm -f "$PAT_FILE"
+      echo "PAT has been reset."
+      exit 0
+      ;;
+    "")
+      break
+      ;;
+    *)
+      echo "Error: unexpected argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
 
   check_required_tools
 
@@ -248,6 +274,7 @@ main() {
   fi
 
   mkdir -p "$REPOS_DIR"
+  debug_log "Syncing repositories into '$REPOS_DIR' using cache '$CACHE_FILE'"
 
   local cache
   cache=$(load_cache)

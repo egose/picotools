@@ -59,6 +59,7 @@ assert_file_not_exists() {
   [ "$status" -eq 0 ] || fail 'gh-repo-sync --help should succeed'
   assert_contains "$output" 'Usage: gh-repo-sync [--reset-pat]' 'help should describe the entrypoint'
   assert_contains "$output" '--reset-pat' 'help should document PAT reset support'
+  assert_contains "$output" '--debug' 'help should document debug support'
 }
 
 @test "resets the stored PAT file" {
