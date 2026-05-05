@@ -21,7 +21,7 @@ jobs:
 
         mkdir -p dist
         chmod +x tools/bin/*
-        tar -czf "dist/${artifact}" -C . VERSION lib -C tools bin
+        tar -czf "dist/${artifact}" -C . VERSION lib -C tools bin lib
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
