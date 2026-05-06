@@ -20,6 +20,7 @@ The following scripts are included in `tools/bin`:
 | `git-api` | Calls GitHub REST operations by `operationId` using split OpenAPI method files |
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
+| `license` | Creates or updates a LICENSE file from MIT or Apache 2.0 templates |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
@@ -42,6 +43,8 @@ The following scripts are included in `tools/bin`:
 `oc-quota-requests` requires `oc` with access to `oc adm top pods`. It reads `requests.cpu` and `requests.memory` from `compute-long-running-quota` by default, sums each pod's effective requests, normalizes CPU to millicores and memory to Mi, and compares the totals with current pod usage from metrics. It also evaluates the selected quota's `spec.scopes` and `scopeSelector` so the report can show which pods are likely counted by that quota and which are excluded, and it skips Job-owned pods from the quota-comparison totals. Use `--namespace` to target another namespace or `--quota-name` to override the quota resource name.
 
 `git-clean-task-pr` first tries `git remote set-head <remote> --auto`, then falls back to cached local Git refs, and finally uses `main` when `refs/remotes/<remote>/main` exists. It also prompts for a new branch name and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
+
+`license` writes `LICENSE` in the current directory by default. It prompts you to choose `MIT License` or `Apache License 2.0`, asks before overwriting an existing file, updates `package.json` in the current directory when present, supports `--type` for non-interactive runs, and accepts an optional output path. It always requires a copyright owner for all supported license types and defaults that prompt from `package.json.author` when available. For Apache 2.0, copyright years are optional and the interactive flow lets you choose among omitting years, deriving them from git history, or entering them manually. For CI or scripted use, `--copyright-owner` or `--owner` works for all supported license types, and `--copyright-years` or `--years` supplies the Apache years directly.
 
 All tools support `--help`, `--version`, and `--debug`. The version is read from the repository `VERSION` file.
 
@@ -90,6 +93,7 @@ git-commit
 git-api
 git-clean-branches
 git-clean-task-pr
+license
 ```
 
 Please check the [asdf documentation](https://github.com/asdf-vm/asdf) for more details.
