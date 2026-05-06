@@ -1,3 +1,9 @@
+## [0.24.0](https://github.com/egose/picotools/compare/v0.23.0...v0.24.0) (2026-05-06)
+
+### Features
+
+* add license tool ([983a655](https://github.com/egose/picotools/commit/983a655bf7d77b577dbf82c822d93cd7190362d1))
+
 ## [0.23.0](https://github.com/egose/picotools/compare/v0.22.0...v0.23.0) (2026-05-05)
 
 ### Features
