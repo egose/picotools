@@ -1,7 +1,9 @@
 {
   "name": "picotools",
-  "version": "0.24.0",
   "description": "A collection of installable bash scripts with asdf plugin support",
+  "license": "Apache-2.0",
+  "version": "0.24.0",
+  "author": "Junmin Dev",
   "homepage": "https://github.com/egose/picotools",
   "repository": {
     "type": "git",
@@ -10,6 +12,12 @@
   "bugs": {
     "url": "https://github.com/egose/picotools/issues"
   },
+  "scripts": {
+    "release": "release-it",
+    "test:git-context": "bats tests/git-context.bats",
+    "changelog": "node changelog.mjs",
+    "test": "bats tests/*.bats"
+  },
   "keywords": [
     "asdf",
     "asdf-plugin",
@@ -17,22 +25,14 @@
     "cli",
     "tools"
   ],
-  "scripts": {
-    "test": "bats tests/*.bats",
-    "test:git-context": "bats tests/git-context.bats",
-    "release": "release-it",
-    "changelog": "node changelog.mjs"
-  },
-  "author": "Junmin Dev",
-  "license": "Apache-2.0",
   "devDependencies": {
-    "@commitlint/cli": "^20.5.3",
-    "@commitlint/config-conventional": "^20.5.3",
+    "git-semver-tags": "^8.0.1",
     "@commitlint/format": "^20.5.0",
-    "@release-it/bumper": "^7.0.5",
+    "release-it": "^20.0.1",
     "conventional-changelog": "^7.2.0",
     "conventional-changelog-conventionalcommits": "^9.3.1",
-    "git-semver-tags": "^8.0.1",
-    "release-it": "^20.0.1"
+    "@commitlint/config-conventional": "^20.5.3",
+    "@commitlint/cli": "^20.5.3",
+    "@release-it/bumper": "^7.0.5"
   }
 }
