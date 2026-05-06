@@ -51,7 +51,7 @@ assert_eq() {
   assert_contains "$output" "Wrote MIT License to 'LICENSE'." 'should confirm the written file'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'MIT License' 'should write MIT content'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright (c) Junmin Dev' 'should use the prompted default owner'
-  assert_contains "$(<"$WORKSPACE/package.json")" '"license" : "MIT"' 'should rewrite package.json license'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"license": "MIT"' 'should rewrite package.json license'
 }
 
 @test "supports non-interactive MIT copyright owner flag" {
@@ -62,7 +62,26 @@ assert_eq() {
   [ "$status" -eq 0 ] || fail 'license should support non-interactive MIT copyright owner flag'
   assert_contains "$output" "Wrote MIT License to 'LICENSE'." 'should confirm the written file'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright (c) Example Org' 'should write the provided MIT copyright owner'
-  assert_contains "$(<"$WORKSPACE/package.json")" '"license" : "MIT"' 'should update package.json to MIT'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"license": "MIT"' 'should update package.json to MIT'
+}
+
+@test "inserts license under description and preserves field order" {
+  printf '%s\n' '{' '  "name": "demo",' '  "description": "Demo package",' '  "version": "1.0.0"' '}' >"$WORKSPACE/package.json"
+
+  run bash -c 'cd "$1" && "$2" --type mit --owner "Example Org" --yes' bash "$WORKSPACE" "$TOOL"
+
+  [ "$status" -eq 0 ] || fail 'license should preserve package.json field order'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"description": "Demo package",' 'should keep the existing description line'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"description": "Demo package",'$'\n''  "license": "MIT",'$'\n''  "version": "1.0.0"' 'should insert license directly under description'
+}
+
+@test "creates description under name before inserting license when missing" {
+  printf '%s\n' '{' '  "name": "demo",' '  "version": "1.0.0"' '}' >"$WORKSPACE/package.json"
+
+  run bash -c 'cd "$1" && "$2" --type mit --owner "Example Org" --yes' bash "$WORKSPACE" "$TOOL"
+
+  [ "$status" -eq 0 ] || fail 'license should add description before license when missing'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"name": "demo",'$'\n''  "description": "",'$'\n''  "license": "MIT",'$'\n''  "version": "1.0.0"' 'should create description under name and place license under it'
 }
 
 @test "rejects copyright years for MIT" {
@@ -121,7 +140,7 @@ EOF
   assert_contains "$output" 'Copyright owner [Junmin Dev]:' 'should prompt with the package author as default'
   assert_contains "$output" 'Copyright Years:' 'should show the years selection menu'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright 2000-2026 Junmin Dev' 'should write the populated copyright line'
-  assert_contains "$(<"$WORKSPACE/package.json")" '"license" : "Apache-2.0"' 'should update package.json to Apache-2.0'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"license": "Apache-2.0"' 'should update package.json to Apache-2.0'
 }
 
 @test "supports interactive Apache custom years input" {
@@ -143,7 +162,7 @@ EOF
   [ "$status" -eq 0 ] || fail 'license should support non-interactive Apache copyright flags'
   assert_contains "$output" "Wrote Apache License 2.0 to 'LICENSE'." 'should confirm the written file'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright 2001-2026 Example Org' 'should write the provided copyright line'
-  assert_contains "$(<"$WORKSPACE/package.json")" '"license" : "Apache-2.0"' 'should update package.json to Apache-2.0'
+  assert_contains "$(<"$WORKSPACE/package.json")" '"license": "Apache-2.0"' 'should update package.json to Apache-2.0'
 }
 
 @test "supports owner and years aliases" {
