@@ -417,7 +417,72 @@ update_package_json_license() {
   local license_value="$2"
 
   picotools_require_command perl
-  perl -MJSON::PP -0777 -e 'my ($path, $license) = @ARGV; open my $fh, q{<}, $path or die $!; local $/; my $json = <$fh>; close $fh; my $pkg = JSON::PP->new->decode($json); $pkg->{license} = $license; open my $out, q{>}, $path or die $!; print {$out} JSON::PP->new->ascii->pretty->canonical(0)->encode($pkg); close $out;' "$package_json_path" "$license_value"
+  perl -e '
+my ($path, $license) = @ARGV;
+open my $fh, q{<}, $path or die $!;
+my @lines = <$fh>;
+close $fh;
+
+chomp @lines;
+
+my $indent = q{  };
+for my $line (@lines) {
+  if ($line =~ /^(\s+)"[^"]+"\s*:/) {
+    $indent = $1;
+    last;
+  }
+}
+
+sub ensure_trailing_comma {
+  my ($lines_ref, $index) = @_;
+  $lines_ref->[$index] =~ s/,\s*$//;
+  $lines_ref->[$index] .= q{,};
+}
+
+my ($license_index, $description_index, $name_index, $open_index) = (-1, -1, -1, -1);
+
+for my $index (0 .. $#lines) {
+  my $line = $lines[$index];
+  $open_index = $index if $open_index == -1 && $line =~ /^\s*\{\s*$/;
+  $license_index = $index if $license_index == -1 && $line =~ /^\Q$indent\E"license"\s*:/;
+  $description_index = $index if $description_index == -1 && $line =~ /^\Q$indent\E"description"\s*:/;
+  $name_index = $index if $name_index == -1 && $line =~ /^\Q$indent\E"name"\s*:/;
+}
+
+if ($license_index != -1) {
+  my $has_comma = $lines[$license_index] =~ /,\s*$/ ? q{,} : q{};
+  $lines[$license_index] = qq{$indent"license": "$license"$has_comma};
+} else {
+  if ($description_index == -1) {
+    if ($name_index != -1) {
+      ensure_trailing_comma(\@lines, $name_index);
+      splice @lines, $name_index + 1, 0, qq{$indent"description": ""};
+      $description_index = $name_index + 1;
+    } else {
+      $open_index = 0 if $open_index == -1;
+      splice @lines, $open_index + 1, 0, qq{$indent"description": ""};
+      $description_index = $open_index + 1;
+    }
+  }
+
+  ensure_trailing_comma(\@lines, $description_index);
+
+  my $insert_index = $description_index + 1;
+  my $has_following_property = 0;
+  for my $index ($insert_index .. $#lines) {
+    next if $lines[$index] =~ /^\s*$/;
+    $has_following_property = $lines[$index] !~ /^\s*\}/ ? 1 : 0;
+    last;
+  }
+
+  my $comma = $has_following_property ? q{,} : q{};
+  splice @lines, $insert_index, 0, qq{$indent"license": "$license"$comma};
+}
+
+open my $out, q{>}, $path or die $!;
+print {$out} join("\n", @lines), "\n";
+close $out;
+' "$package_json_path" "$license_value"
 }
 
 apache_copyright_line() {
