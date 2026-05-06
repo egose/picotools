@@ -1,3 +1,9 @@
+## [0.25.0](https://github.com/egose/picotools/compare/v0.24.0...v0.25.0) (2026-05-06)
+
+### Features
+
+* improve package.json handling in license tool ([2cd9db2](https://github.com/egose/picotools/commit/2cd9db238530e29dd916b69560a458101508ca5b))
+
 ## [0.24.0](https://github.com/egose/picotools/compare/v0.23.0...v0.24.0) (2026-05-06)
 
 ### Features
