@@ -778,6 +778,30 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should accept --scope=value'
 }
 
+@test "strips trailing numeric branch suffix from derived ticket scope" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b chore/CCP-4318_2
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROVIDER_BIN="$stub_path" \
+    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" 'git commit -m "chore(CCP-4318): update readme"' 'git-commit should strip the trailing numeric branch suffix from the derived scope'
+}
+
 @test "omits scope when --no-scope is provided" {
   local stub_path jq_stub repo output
 
