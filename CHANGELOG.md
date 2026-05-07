@@ -1,3 +1,9 @@
+## [0.26.0](https://github.com/egose/picotools/compare/v0.25.0...v0.26.0) (2026-05-07)
+
+### Features
+
+* strip trailing numeric suffix from derived branch scope ([9000864](https://github.com/egose/picotools/commit/9000864e5e430e62d321a1d9b5095ee3fa6bfe0a))
+
 ## [0.25.0](https://github.com/egose/picotools/compare/v0.24.0...v0.25.0) (2026-05-06)
 
 ### Features
