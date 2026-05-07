@@ -358,6 +358,16 @@ derive_scope_from_branch() {
   fi
 
   last_segment=${branch##*/}
+  # Drop a trailing split suffix from ticket-style branches, e.g.
+  # chore/ABC-9876_2 -> ABC-9876
+  # feat/my-feature -> my-feature (no change)
+  if [[ "$last_segment" =~ ^(.+)_([0-9]+)$ ]]; then
+    last_segment=${BASH_REMATCH[1]}
+  fi
+
+  # Keep just the leading numeric ticket when the branch uses a plain number,
+  # e.g. feat/11222 -> 11222 or fix/445566_2 -> 445566.
+  # feat/my-feature does not match here, so it falls through unchanged.
   if [[ "$last_segment" =~ ^([0-9]+)([_-].*)?$ ]]; then
     printf '%s\n' "${BASH_REMATCH[1]}"
     return 0
