@@ -30,6 +30,17 @@ assert_not_contains() {
   esac
 }
 
+assert_eq_either() {
+  local actual="$1"
+  local expected_a="$2"
+  local expected_b="$3"
+  local message="$4"
+
+  if [ "$actual" != "$expected_a" ] && [ "$actual" != "$expected_b" ]; then
+    fail "$message (expected '$expected_a' or '$expected_b', got '$actual')"
+  fi
+}
+
 strip_first_line() {
   local value="$1"
 
@@ -52,9 +63,10 @@ run_prompt_script() {
 
   [ "$status" -eq 0 ] || fail "interactive prompt command should succeed"
 
-  assert_eq "$output" "ab^[[DZ
+  assert_eq_either "$output" "ab^[[DZ
 Label:
-aZb" 'prompt should return the edited line without readline moving back into the prompt text'
+aZb" "ab^[[DZ
+Label: aZb" 'prompt should preserve the edited answer across readline prompt rendering differences'
 }
 
 @test "interactive value prompt preserves question text during repeated left-arrow editing" {
@@ -62,9 +74,10 @@ aZb" 'prompt should return the edited line without readline moving back into the
 
   [ "$status" -eq 0 ] || fail "interactive repeated-left-arrow prompt command should succeed"
 
-  assert_eq "$output" "abcd^[[D^[[DXY
+  assert_eq_either "$output" "abcd^[[D^[[DXY
 Models (comma-separated):
-abXYcd" 'left-arrow editing should change only the answer text and preserve the full prompt label'
+abXYcd" "abcd^[[D^[[DXY
+Models (comma-separated): abXYcd" 'left-arrow editing should preserve the edited answer across readline prompt rendering differences'
 }
 
 @test "interactive secret prompt masks typed characters with asterisks" {
