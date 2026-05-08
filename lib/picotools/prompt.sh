@@ -5,20 +5,133 @@ if [ "${PICOTOOLS_PROMPT_SH_LOADED:-0}" -eq 1 ]; then
 fi
 PICOTOOLS_PROMPT_SH_LOADED=1
 
+picotools_prompt_read_value() {
+  local prompt_text="${1:-}"
+  local answer=''
+  local use_readline="${2:-false}"
+  local silent="${3:-false}"
+
+  if [ "$use_readline" = true ]; then
+    if [ "$silent" = true ]; then
+      read -ers -p "$prompt_text" answer || true
+    else
+      read -er -p "$prompt_text" answer || true
+    fi
+  else
+    printf '%s' "$prompt_text" >&2
+    if [ "$silent" = true ]; then
+      read -rs answer || true
+    else
+      read -r answer || true
+    fi
+  fi
+
+  printf '%s\n' "$answer"
+}
+
+picotools_prompt_read_masked_value() {
+  local prompt_text="${1:-}"
+  local answer=''
+  local key=''
+
+  printf '%s' "$prompt_text" >&2
+  while true; do
+    if ! key=$(picotools_prompt_read_key); then
+      break
+    fi
+
+    case "$key" in
+    '')
+      break
+      ;;
+    $'\177' | $'\b')
+      if [ -n "$answer" ]; then
+        answer=${answer%?}
+        printf '\b \b' >&2
+      fi
+      ;;
+    $'\x1b' | $'\x1b['* | $'\x1bO'*)
+      ;;
+    *)
+      answer+="$key"
+      printf '*' >&2
+      ;;
+    esac
+  done
+
+  printf '%s\n' "$answer"
+}
+
+picotools_prompt_read_key() {
+  local key=''
+  local suffix=''
+  local timeout='0.1'
+  local expect_final=false
+
+  if ! IFS= read -rsn1 key; then
+    return 1
+  fi
+
+  if [ "$key" = $'\x1b' ]; then
+    if ! IFS= read -rsn1 -t "$timeout" suffix; then
+      printf '%s\n' "$key"
+      return 0
+    fi
+
+    key+="$suffix"
+    case "$suffix" in
+    '[' | O)
+      expect_final=true
+      ;;
+    [A-Za-z~])
+      printf '%s\n' "$key"
+      return 0
+      ;;
+    esac
+
+    while IFS= read -rsn1 -t "$timeout" suffix; do
+      key+="$suffix"
+      if [ "$expect_final" = true ]; then
+        case "$suffix" in
+        [~A-Za-z])
+          break
+          ;;
+        esac
+      else
+        case "$suffix" in
+        [~A-Za-z])
+          break
+          ;;
+        esac
+      fi
+      case "$key" in
+      $'\x1b['[A-Za-z~] | $'\x1bO'[A-Za-z~])
+        break
+        ;;
+      esac
+    done
+  fi
+
+  printf '%s\n' "$key"
+}
+
 picotools_prompt_value() {
   local label="$1"
   local default_value="${2:-}"
   local required="${3:-false}"
   local answer
+  local use_readline=false
+
+  if [ -t 0 ] && [ -t 2 ]; then
+    use_readline=true
+  fi
 
   while true; do
     if [ -n "$default_value" ]; then
-      printf '%s [%s]: ' "$label" "$default_value" >&2
+      answer=$(picotools_prompt_read_value "$label [$default_value]: " "$use_readline")
     else
-      printf '%s: ' "$label" >&2
+      answer=$(picotools_prompt_read_value "$label: " "$use_readline")
     fi
-
-    read -r answer || true
     if [ -z "$answer" ]; then
       answer="$default_value"
     fi
@@ -38,15 +151,26 @@ picotools_prompt_secret_value() {
   local default_value="${2:-}"
   local required="${3:-false}"
   local answer
+  local interactive=false
+
+  if [ -t 0 ] && [ -t 2 ]; then
+    interactive=true
+  fi
 
   while true; do
-    if [ -n "$default_value" ]; then
-      printf '%s [%s]: ' "$label" "$default_value" >&2
+    if [ "$interactive" = true ]; then
+      if [ -n "$default_value" ]; then
+        answer=$(picotools_prompt_read_masked_value "$label [$default_value]: ")
+      else
+        answer=$(picotools_prompt_read_masked_value "$label: ")
+      fi
     else
-      printf '%s: ' "$label" >&2
+      if [ -n "$default_value" ]; then
+        answer=$(picotools_prompt_read_value "$label [$default_value]: " false true)
+      else
+        answer=$(picotools_prompt_read_value "$label: " false true)
+      fi
     fi
-
-    read -rs answer || true
     printf '\n' >&2
     if [ -z "$answer" ]; then
       answer="$default_value"
@@ -68,6 +192,11 @@ picotools_prompt_yes_no() {
   local prompt
   local answer
   local normalized
+  local use_readline=false
+
+  if [ -t 0 ] && [ -t 2 ]; then
+    use_readline=true
+  fi
 
   case "$default_value" in
   y | yes)
@@ -85,8 +214,7 @@ picotools_prompt_yes_no() {
   esac
 
   while true; do
-    printf '%s %s: ' "$label" "$prompt" >&2
-    read -r answer || true
+    answer=$(picotools_prompt_read_value "$label $prompt: " "$use_readline")
     normalized=${answer,,}
 
     if [ -z "$normalized" ]; then
@@ -116,7 +244,6 @@ picotools_prompt_select_index() {
   shift 4
   local selection
   local key
-  local suffix
   local option_count
   local selected_index
   local rendered=false
@@ -205,7 +332,7 @@ picotools_prompt_select_index() {
     done
     rendered=true
 
-    if ! IFS= read -rsn1 key; then
+    if ! key=$(picotools_prompt_read_key); then
       printf '\033[?25h' >&2
       return 2
     fi
@@ -220,26 +347,19 @@ picotools_prompt_select_index() {
       printf '\033[?25h\n' >&2
       return 2
       ;;
+    $'\x1b[A')
+      if [ "$selected_index" -gt 1 ]; then
+        selected_index=$((selected_index - 1))
+      fi
+      ;;
+    $'\x1b[B')
+      if [ "$selected_index" -lt "$option_count" ]; then
+        selected_index=$((selected_index + 1))
+      fi
+      ;;
     $'\x1b')
-      suffix=''
-      IFS= read -rsn2 -t 0.1 suffix || true
-      key+="$suffix"
-      case "$key" in
-      $'\x1b[A')
-        if [ "$selected_index" -gt 1 ]; then
-          selected_index=$((selected_index - 1))
-        fi
-        ;;
-      $'\x1b[B')
-        if [ "$selected_index" -lt "$option_count" ]; then
-          selected_index=$((selected_index + 1))
-        fi
-        ;;
-      $'\x1b')
-        printf '\033[?25h\n' >&2
-        return 2
-        ;;
-      esac
+      printf '\033[?25h\n' >&2
+      return 2
       ;;
     esac
   done
@@ -290,7 +410,6 @@ picotools_prompt_select_multiple_indexes() {
   shift 3
   local selection
   local key
-  local suffix
   local option_count
   local selected_index=1
   local rendered=false
@@ -367,7 +486,7 @@ picotools_prompt_select_multiple_indexes() {
     done
     rendered=true
 
-    if ! IFS= read -rsn1 key; then
+    if ! key=$(picotools_prompt_read_key); then
       printf '\033[?25h' >&2
       return 2
     fi
@@ -400,26 +519,19 @@ picotools_prompt_select_multiple_indexes() {
       printf '\033[?25h\n' >&2
       return 2
       ;;
+    $'\x1b[A')
+      if [ "$selected_index" -gt 1 ]; then
+        selected_index=$((selected_index - 1))
+      fi
+      ;;
+    $'\x1b[B')
+      if [ "$selected_index" -lt "$option_count" ]; then
+        selected_index=$((selected_index + 1))
+      fi
+      ;;
     $'\x1b')
-      suffix=''
-      IFS= read -rsn2 -t 0.1 suffix || true
-      key+="$suffix"
-      case "$key" in
-      $'\x1b[A')
-        if [ "$selected_index" -gt 1 ]; then
-          selected_index=$((selected_index - 1))
-        fi
-        ;;
-      $'\x1b[B')
-        if [ "$selected_index" -lt "$option_count" ]; then
-          selected_index=$((selected_index + 1))
-        fi
-        ;;
-      $'\x1b')
-        printf '\033[?25h\n' >&2
-        return 2
-        ;;
-      esac
+      printf '\033[?25h\n' >&2
+      return 2
       ;;
     esac
   done
