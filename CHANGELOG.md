@@ -1,3 +1,10 @@
+## [0.27.0](https://github.com/egose/picotools/compare/v0.26.0...v0.27.0) (2026-05-08)
+
+### Features
+
+* improve interactive prompt input handling and selector key parsing ([fccd5d9](https://github.com/egose/picotools/commit/fccd5d94ec5cc6fffa1924790fce54aae1317562))
+* mask secret input with asterisks in interactive terminals ([84da2b0](https://github.com/egose/picotools/commit/84da2b014fefff10cfd61ca0c2077ba4a5e98ef3))
+
 ## [0.26.0](https://github.com/egose/picotools/compare/v0.25.0...v0.26.0) (2026-05-07)
 
 ### Features
