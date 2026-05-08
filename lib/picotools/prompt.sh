@@ -29,6 +29,39 @@ picotools_prompt_read_value() {
   printf '%s\n' "$answer"
 }
 
+picotools_prompt_read_masked_value() {
+  local prompt_text="${1:-}"
+  local answer=''
+  local key=''
+
+  printf '%s' "$prompt_text" >&2
+  while true; do
+    if ! key=$(picotools_prompt_read_key); then
+      break
+    fi
+
+    case "$key" in
+    '')
+      break
+      ;;
+    $'\177' | $'\b')
+      if [ -n "$answer" ]; then
+        answer=${answer%?}
+        printf '\b \b' >&2
+      fi
+      ;;
+    $'\x1b' | $'\x1b['* | $'\x1bO'*)
+      ;;
+    *)
+      answer+="$key"
+      printf '*' >&2
+      ;;
+    esac
+  done
+
+  printf '%s\n' "$answer"
+}
+
 picotools_prompt_read_key() {
   local key=''
   local suffix=''
@@ -118,17 +151,25 @@ picotools_prompt_secret_value() {
   local default_value="${2:-}"
   local required="${3:-false}"
   local answer
-  local use_readline=false
+  local interactive=false
 
   if [ -t 0 ] && [ -t 2 ]; then
-    use_readline=true
+    interactive=true
   fi
 
   while true; do
-    if [ -n "$default_value" ]; then
-      answer=$(picotools_prompt_read_value "$label [$default_value]: " "$use_readline" true)
+    if [ "$interactive" = true ]; then
+      if [ -n "$default_value" ]; then
+        answer=$(picotools_prompt_read_masked_value "$label [$default_value]: ")
+      else
+        answer=$(picotools_prompt_read_masked_value "$label: ")
+      fi
     else
-      answer=$(picotools_prompt_read_value "$label: " "$use_readline" true)
+      if [ -n "$default_value" ]; then
+        answer=$(picotools_prompt_read_value "$label [$default_value]: " false true)
+      else
+        answer=$(picotools_prompt_read_value "$label: " false true)
+      fi
     fi
     printf '\n' >&2
     if [ -z "$answer" ]; then

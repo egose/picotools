@@ -40,11 +40,11 @@ run_prompt_script() {
   local input_bytes="$1"
   local prompt_call="$2"
 
-  INPUT_BYTES="$input_bytes" bash -lc '
-    script -qec "bash -lc '\''stty -echo; . \"\$1\"; eval \"\$2\"'\'' bash \"$1\" \"$2\"" /dev/null \
+  INPUT_BYTES="$input_bytes" PROMPT_CALL="$prompt_call" bash -lc '
+    script -qec "bash -lc '\''stty -echo; . \"\$1\"; eval \"\$PROMPT_CALL\"'\'' bash \"$1\"" /dev/null \
       < <(printf "%b" "$INPUT_BYTES") \
       | perl -pe "s/\e\[[0-9;?]*[ -\/]*[@-~]//g; s/\r//g"
-  ' bash "$PROMPT_SH" "$prompt_call"
+  ' bash "$PROMPT_SH"
 }
 
 @test "interactive value prompt uses line editing for arrow keys" {
@@ -65,6 +65,27 @@ aZb" 'prompt should return the edited line without readline moving back into the
   assert_eq "$output" "abcd^[[D^[[DXY
 Models (comma-separated):
 abXYcd" 'left-arrow editing should change only the answer text and preserve the full prompt label'
+}
+
+@test "interactive secret prompt masks typed characters with asterisks" {
+  run run_prompt_script 'secret123\n' 'picotools_prompt_secret_value "API key"'
+
+  [ "$status" -eq 0 ] || fail "interactive secret prompt command should succeed"
+
+  assert_eq "$output" "secret123
+API key: *********
+secret123" 'secret prompt should display one asterisk per typed character while returning the original value'
+}
+
+@test "interactive secret prompt handles backspace while updating mask" {
+  local expected_output
+
+  run run_prompt_script 'secretx\177\n' 'picotools_prompt_secret_value "API key"'
+
+  [ "$status" -eq 0 ] || fail "interactive secret prompt with backspace should succeed"
+
+  expected_output=$'secretx\b \b\nAPI key: ******\nsecret'
+  assert_eq "$output" "$expected_output" 'secret prompt should erase the last mask character when backspace is pressed'
 }
 
 @test "single-select prompt ignores left and right arrows without corrupting output" {
