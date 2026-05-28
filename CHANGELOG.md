@@ -1,3 +1,9 @@
+## [0.28.0](https://github.com/egose/picotools/compare/v0.27.0...v0.28.0) (2026-05-28)
+
+### Features
+
+* support optional fallback model provider ([25d390c](https://github.com/egose/picotools/commit/25d390c12cc20b4c402f23b62366567dc20b7843))
+
 ## [0.27.0](https://github.com/egose/picotools/compare/v0.26.0...v0.27.0) (2026-05-08)
 
 ### Features
