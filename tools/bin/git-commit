@@ -90,6 +90,14 @@ write_config_value() {
   git config -f "$(config_file)" "$key" "$value"
 }
 
+unset_config_value() {
+  local key="$1"
+
+  if [ -f "$(config_file)" ]; then
+    git config -f "$(config_file)" --unset-all "$key" 2>/dev/null || true
+  fi
+}
+
 read_config_value_optional() {
   local key="$1"
 
@@ -218,10 +226,36 @@ select_from_list() {
   printf '%s\n' "${items[$((selection - 1))]}"
 }
 
+select_optional_from_list() {
+  local header="$1"
+  local prompt="$2"
+  shift 2
+  local none_label='None'
+  local selection
+  local -a items=("$@")
+  local -a options=()
+
+  options=("${items[@]}")
+  options+=("$none_label")
+
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" 1 false "${options[@]}"); then
+    return 1
+  fi
+
+  if [ "$selection" -eq "${#options[@]}" ]; then
+    printf '\n'
+    return 0
+  fi
+
+  printf '%s\n' "${options[$((selection - 1))]}"
+}
+
 configure_tool() {
-  local profile model
+  local profile model additional_profile='' additional_model=''
   local -a profiles=()
   local -a models=()
+  local -a additional_profiles=()
+  local candidate_profile
 
   model_provider_command >/dev/null
   mapfile -t profiles < <(run_model_provider profiles)
@@ -244,23 +278,61 @@ configure_tool() {
     echo 'Cancelled.' >&2
     exit 1
   fi
+
+  for candidate_profile in "${profiles[@]}"; do
+    if [ "$candidate_profile" != "$profile" ]; then
+      additional_profiles+=("$candidate_profile")
+    fi
+  done
+
+  if [ "${#additional_profiles[@]}" -gt 0 ]; then
+    if ! additional_profile=$(select_optional_from_list 'Additional Profile (Optional)' 'Select additional profile' "${additional_profiles[@]}"); then
+      echo 'Cancelled.' >&2
+      exit 1
+    fi
+
+    if [ -n "$additional_profile" ]; then
+      mapfile -t models < <(run_model_provider models "$additional_profile")
+      if [ "${#models[@]}" -eq 0 ]; then
+        echo "Error: no models configured for profile '$additional_profile'" >&2
+        exit 1
+      fi
+
+      if ! additional_model=$(select_from_list 'Additional Models' 'Select additional model' "${models[@]}"); then
+        echo 'Cancelled.' >&2
+        exit 1
+      fi
+    fi
+  fi
+
   write_config_value model.profile "$profile"
   write_config_value model.name "$model"
+  if [ -n "$additional_profile" ] && [ -n "$additional_model" ]; then
+    write_config_value model.additional.profile "$additional_profile"
+    write_config_value model.additional.name "$additional_model"
+    echo "Configured git-commit with profile '$profile' and model '$model', plus additional profile '$additional_profile' and model '$additional_model'."
+    return 0
+  fi
+
+  unset_config_value model.additional.profile
+  unset_config_value model.additional.name
   echo "Configured git-commit with profile '$profile' and model '$model'."
 }
 
 load_configuration() {
-  local profile model
+  local profile model additional_profile additional_model
 
   profile=$(read_config_value_optional model.profile)
   model=$(read_config_value_optional model.name)
+  additional_profile=$(read_config_value_optional model.additional.profile)
+  additional_model=$(read_config_value_optional model.additional.name)
 
   if [ -z "$profile" ] || [ -z "$model" ]; then
     echo 'Warning: git-commit is not configured. Run git-commit configure.' >&2
     exit 1
   fi
 
-  printf '%s\t%s\n' "$profile" "$model"
+  printf '%s\t%s\t%s\t%s\n' "$profile" "$model" "$additional_profile" "$additional_model"
 }
 
 ensure_changes_exist() {
@@ -811,37 +883,85 @@ build_commit_planning_message() {
     'Unified diff:' "$diff_section"
 }
 
-request_commit_plan() {
+should_retry_with_additional_model() {
+  local error_output="$1"
+
+  case "$error_output" in
+  *'Error: request failed with HTTP 429'* | *'Error: request failed with HTTP 503'*)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+request_commit_plan_once() {
   local profile="$1"
   local model="$2"
-  local system_message="$3"
-  local user_message="$4"
-  local system_message_file user_message_file output status=0
+  local system_message_file="$3"
+  local user_message_file="$4"
+  local stderr_file="$5"
+  local output status=0
 
   debug_log "Requesting commit plan from model-provider profile '$profile' model '$model'"
-  debug_log "Prompt sizes: system=${#system_message} chars, user=${#user_message} chars"
-
-  system_message_file=$(mktemp)
-  user_message_file=$(mktemp)
-  register_tmpfile "$system_message_file"
-  register_tmpfile "$user_message_file"
-  trap 'cleanup_tmpfiles' EXIT
-  printf '%s' "$system_message" >"$system_message_file"
-  printf '%s' "$user_message" >"$user_message_file"
-
-  if output=$(run_model_provider ask "$profile" --model "$model" --system-message-file "$system_message_file" --message-file "$user_message_file"); then
-    :
+  if output=$(run_model_provider ask "$profile" --model "$model" --system-message-file "$system_message_file" --message-file "$user_message_file" 2>"$stderr_file"); then
+    if [ -s "$stderr_file" ]; then
+      printf '%s' "$(<"$stderr_file")" >&2
+    fi
+    debug_log "Received commit plan response (${#output} chars)"
+    printf '%s\n' "$output"
+    return 0
   else
     status=$?
   fi
 
-  if [ "$status" -ne 0 ]; then
-    return "$status"
+  return "$status"
+}
+
+request_commit_plan() {
+  local profile="$1"
+  local model="$2"
+  local additional_profile="$3"
+  local additional_model="$4"
+  local system_message="$5"
+  local user_message="$6"
+  local system_message_file user_message_file stderr_file output status=0 error_output=''
+
+  debug_log "Prompt sizes: system=${#system_message} chars, user=${#user_message} chars"
+
+  system_message_file=$(mktemp)
+  user_message_file=$(mktemp)
+  stderr_file=$(mktemp)
+  register_tmpfile "$system_message_file"
+  register_tmpfile "$user_message_file"
+  register_tmpfile "$stderr_file"
+  trap 'cleanup_tmpfiles' EXIT
+  printf '%s' "$system_message" >"$system_message_file"
+  printf '%s' "$user_message" >"$user_message_file"
+
+  if output=$(request_commit_plan_once "$profile" "$model" "$system_message_file" "$user_message_file" "$stderr_file"); then
+    printf '%s\n' "$output"
+    return 0
+  fi
+  status=$?
+  error_output=$(<"$stderr_file")
+
+  if [ -n "$additional_profile" ] && [ -n "$additional_model" ] && should_retry_with_additional_model "$error_output"; then
+    debug_log "Primary model request failed with a retryable status; retrying with additional profile '$additional_profile' model '$additional_model'"
+    : >"$stderr_file"
+    if output=$(request_commit_plan_once "$additional_profile" "$additional_model" "$system_message_file" "$user_message_file" "$stderr_file"); then
+      printf '%s\n' "$output"
+      return 0
+    fi
+    status=$?
+    error_output=$(<"$stderr_file")
   fi
 
-  debug_log "Received commit plan response (${#output} chars)"
+  if [ -n "$error_output" ]; then
+    printf '%s' "$error_output" >&2
+  fi
 
-  printf '%s\n' "$output"
+  return "$status"
 }
 
 valid_commit_type() {
@@ -1410,7 +1530,7 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count
+  local config_values profile model additional_profile additional_model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1447,7 +1567,7 @@ run_commit_tool() {
 
   debug_log 'Loading configured model provider'
   config_values=$(load_configuration)
-  IFS=$'\t' read -r profile model <<<"$config_values"
+  IFS=$'\t' read -r profile model additional_profile additional_model <<<"$config_values"
   require_dependencies
   if [ "$create_pr" = 'true' ]; then
     git_api_command >/dev/null
@@ -1462,7 +1582,7 @@ run_commit_tool() {
   diff_output=$(collect_changes_diff "$changed_files")
   system_message=$(commit_planning_system_message)
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
-  plan_json=$(request_commit_plan "$profile" "$model" "$system_message" "$user_message")
+  plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message")
 
   if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
     echo 'Error: model-provider ask did not return valid commit plan JSON' >&2

@@ -62,6 +62,15 @@ assert_config_value() {
   assert_eq "$(git config -f "$(git_commit_config_file)" --get "$key")" "$expected" "$message"
 }
 
+assert_config_missing() {
+  local key="$1"
+  local message="$2"
+
+  if git config -f "$(git_commit_config_file)" --get "$key" >/dev/null 2>&1; then
+    fail "$message ($key)"
+  fi
+}
+
 create_model_provider_stub() {
   local stub_path="$1"
 
@@ -77,8 +86,13 @@ fi
 
 message_file=''
 system_message_file=''
+selected_profile=''
+selected_model=''
 
 for ((i = 1; i <= $#; i++)); do
+  if [ "$i" -eq 2 ] && [ "${1:-}" = 'ask' ]; then
+    selected_profile="${!i}"
+  fi
   if [ "${!i}" = '--message-file' ] || [ "${!i}" = '--user-message-file' ]; then
     next_index=$((i + 1))
     message_file="${!next_index}"
@@ -86,6 +100,10 @@ for ((i = 1; i <= $#; i++)); do
   if [ "${!i}" = '--system-message-file' ]; then
     next_index=$((i + 1))
     system_message_file="${!next_index}"
+  fi
+  if [ "${!i}" = '--model' ]; then
+    next_index=$((i + 1))
+    selected_model="${!next_index}"
   fi
 done
 
@@ -109,9 +127,9 @@ ask)
   fi
   if [ -n "${MODEL_PROVIDER_ASK_ARGS_LOG:-}" ]; then
     if [ "$debug_requested" = 'true' ]; then
-      printf '%s\n' "--debug $*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf '%s\n' "--debug $*" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
     else
-      printf '%s\n' "$*" >"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf '%s\n' "$*" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
     fi
     if [ -n "$system_message_file" ]; then
       printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
@@ -119,6 +137,11 @@ ask)
     if [ -n "$message_file" ]; then
       printf 'MESSAGE_FILE_CONTENT=%s\n' "$(<"$message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
     fi
+  fi
+  if [ -n "${MODEL_PROVIDER_ASK_FAIL_PROFILE:-}" ] && [ "$selected_profile" = "$MODEL_PROVIDER_ASK_FAIL_PROFILE" ] &&
+    [ -n "${MODEL_PROVIDER_ASK_FAIL_MODEL:-}" ] && [ "$selected_model" = "$MODEL_PROVIDER_ASK_FAIL_MODEL" ]; then
+    printf '%s\n' "${MODEL_PROVIDER_ASK_FAIL_MESSAGE:-Error: request failed}" >&2
+    exit 1
   fi
   printf '%s\n' "$MODEL_PROVIDER_ASK_RESPONSE"
   ;;
@@ -285,18 +308,23 @@ run_configure_with_stub() {
   local input_file
 
   input_file="$TMP_HOME/configure-input.txt"
-  printf '1\n1\n' >"$input_file"
+  printf '1\n1\n2\n' >"$input_file"
   MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure <"$input_file"
 }
 
 write_git_commit_config() {
   local profile="$1"
   local model="$2"
+  local additional_profile="${3:-}"
+  local additional_model="${4:-}"
   local file
 
   mkdir -p "$GIT_COMMIT_CONFIG_DIR"
   file="$(git_commit_config_file)"
   printf '[model]\n\tprofile = %s\n\tname = %s\n' "$profile" "$model" >"$file"
+  if [ -n "$additional_profile" ] && [ -n "$additional_model" ]; then
+    printf '[model "additional"]\n\tprofile = %s\n\tname = %s\n' "$additional_profile" "$additional_model" >>"$file"
+  fi
 }
 
 init_repo() {
@@ -350,10 +378,27 @@ create_initial_commit() {
   assert_contains "$output" '--pr' 'help should list pull request mode'
   assert_contains "$output" '--pre-commit-retries <n>' 'help should list pre-commit retry option'
 
-  printf '2\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
+  printf '2\n2\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
   assert_file_exists "$(git_commit_config_file)" 'configure should create a config file'
   assert_config_value model.profile 'beta-profile' 'configure should save the selected profile'
   assert_config_value model.name 'beta-model-2' 'configure should save the selected model'
+  assert_config_missing model.additional.profile 'configure should not save an additional profile when none is selected'
+  assert_config_missing model.additional.name 'configure should not save an additional model when none is selected'
+}
+
+@test "configure command can save an optional additional model provider" {
+  local stub_path
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  create_model_provider_stub "$stub_path"
+
+  printf '1\n1\n1\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
+
+  assert_file_exists "$(git_commit_config_file)" 'configure should create a config file when additional model provider is selected'
+  assert_config_value model.profile 'alpha-profile' 'configure should save the primary selected profile'
+  assert_config_value model.name 'alpha-model' 'configure should save the primary selected model'
+  assert_config_value model.additional.profile 'beta-profile' 'configure should exclude the primary profile from the additional profile list'
+  assert_config_value model.additional.name 'beta-model-2' 'configure should save the selected additional model'
 }
 
 @test "warns when configuration is missing" {
@@ -466,6 +511,80 @@ create_initial_commit() {
   assert_contains "$(<"$ask_log")" '--message-file' 'git-commit should pass the user prompt through a temp file'
   assert_contains "$(<"$ask_log")" 'SYSTEM_MESSAGE_FILE_CONTENT=You are an expert software engineer creating conventional commit plans.' 'git-commit should write the system prompt into the temp file'
   assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
+}
+
+@test "falls back to the additional model provider on HTTP 429" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model beta-profile beta-model-2
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROVIDER_BIN="$stub_path" \
+      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROVIDER_ASK_FAIL_PROFILE='alpha-profile' \
+      MODEL_PROVIDER_ASK_FAIL_MODEL='alpha-model' \
+      MODEL_PROVIDER_ASK_FAIL_MESSAGE='Error: request failed with HTTP 429' \
+      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should retry with the additional model after HTTP 429 ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$ask_payload" 'ask alpha-profile --model alpha-model' 'git-commit should try the primary configured model first'
+  assert_contains "$ask_payload" 'ask beta-profile --model beta-model-2' 'git-commit should retry with the configured additional model after HTTP 429'
+  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after falling back to the additional model'
+}
+
+@test "falls back to the additional model provider on HTTP 503" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-provider-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-provider-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model beta-profile beta-model-2
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROVIDER_BIN="$stub_path" \
+      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROVIDER_ASK_FAIL_PROFILE='alpha-profile' \
+      MODEL_PROVIDER_ASK_FAIL_MODEL='alpha-model' \
+      MODEL_PROVIDER_ASK_FAIL_MESSAGE='Error: request failed with HTTP 503' \
+      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should retry with the additional model after HTTP 503 ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$ask_payload" 'ask alpha-profile --model alpha-model' 'git-commit should try the primary configured model first before handling HTTP 503'
+  assert_contains "$ask_payload" 'ask beta-profile --model beta-model-2' 'git-commit should retry with the configured additional model after HTTP 503'
+  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after a HTTP 503 fallback'
 }
 
 @test "omits oversized modified file diffs before calling model-provider" {
