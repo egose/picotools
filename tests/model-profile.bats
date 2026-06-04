@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
-TOOL="$REPO_ROOT/tools/bin/model-provider"
+TOOL="$REPO_ROOT/tools/bin/model-profile"
 
 setup() {
   TMP_HOME="$(mktemp -d)" || return 1
@@ -9,8 +9,8 @@ setup() {
   export HOME="$TMP_HOME"
   export XDG_CONFIG_HOME="$TMP_HOME/.config"
   export XDG_DATA_HOME="$TMP_HOME/.local/share"
-  export CONFIG_DIR="$XDG_CONFIG_HOME/model-provider"
-  export DATA_DIR="$XDG_DATA_HOME/model-provider"
+  export CONFIG_DIR="$XDG_CONFIG_HOME/model-profile"
+  export DATA_DIR="$XDG_DATA_HOME/model-profile"
 }
 
 teardown() {
@@ -248,17 +248,18 @@ run_tool() {
   local output version
 
   output=$(run_tool --help)
-  assert_contains "$output" 'Usage: model-provider <command>' 'help should describe the command entrypoint'
-  assert_contains "$output" 'list      List saved model provider profiles' 'help should describe the list command'
-  assert_contains "$output" 'read      Show detailed information for a saved model provider profile' 'help should list the read command'
+  assert_contains "$output" 'Usage: model-profile <command>' 'help should describe the command entrypoint'
+  assert_contains "$output" 'list      List saved model profiles' 'help should describe the list command'
+  assert_contains "$output" 'read      Show detailed information for a saved model profile' 'help should list the read command'
+  assert_contains "$output" 'test      Send a tiny chat request to test a model profile' 'help should list the test command'
   assert_contains "$output" '--debug                   Print request debug steps to stderr' 'help should list the debug flag'
-  assert_contains "$output" 'MODEL_PROVIDER_DEBUG=true          Deprecated fallback for --debug' 'help should describe the deprecated debug env'
+  assert_contains "$output" 'MODEL_PROFILE_DEBUG=true          Deprecated fallback for --debug' 'help should describe the deprecated debug env'
 
   version=$(run_tool --version)
   assert_eq "$version" "$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")" 'version output should match VERSION file'
 
   output=$(run_tool list)
-  assert_contains "$output" 'No model provider profiles found.' 'list should explain when there are no saved profiles'
+  assert_contains "$output" 'No model profiles found.' 'list should explain when there are no saved profiles'
 }
 
 @test "create azure-openai profile stores metadata and token separately" {
@@ -414,6 +415,45 @@ run_tool() {
   assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Hello from test"' 'ask should send the prompted user message'
 }
 
+@test "test sends a tiny connection check and prints details" {
+  local stub_bin curl_url_log curl_auth_log curl_body_log output
+
+  stub_bin="$TMP_HOME/bin"
+  curl_url_log="$TMP_HOME/curl-url.log"
+  curl_auth_log="$TMP_HOME/curl-auth.log"
+  curl_body_log="$TMP_HOME/curl-body.log"
+
+  write_curl_stub "$stub_bin"
+  write_jq_stub "$stub_bin"
+
+  printf 'work-openai\n1\nexample-openai\ngpt-5, gpt-4o\nsecret-openai-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$stub_bin:$PATH" \
+    CURL_URL_LOG="$curl_url_log" \
+    CURL_AUTH_LOG="$curl_auth_log" \
+    CURL_BODY_LOG="$curl_body_log" \
+    CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"OK"}}]}' \
+    "$TOOL" test work-openai)
+
+  assert_contains "$output" '| Field ' 'test should render a two-column table'
+  assert_contains "$output" '| Profile ' 'test should show the selected profile name'
+  assert_contains "$output" 'work-openai' 'test should print the profile value'
+  assert_contains "$output" '| Type ' 'test should show the provider type'
+  assert_contains "$output" 'Azure OpenAI' 'test should show the readable provider label'
+  assert_contains "$output" '| Endpoint ' 'test should show the provider endpoint'
+  assert_contains "$output" 'https://example-openai.openai.azure.com/' 'test should print the resolved endpoint'
+  assert_contains "$output" '| Model ' 'test should show the selected model'
+  assert_contains "$output" 'gpt-5' 'test should default to the first configured model'
+  assert_contains "$output" '| Status ' 'test should show the request status'
+  assert_contains "$output" 'OK' 'test should print the probe response'
+  assert_eq "$(<"$curl_url_log")" 'https://example-openai.openai.azure.com/openai/v1/chat/completions' 'test should use the provider chat completions endpoint'
+  assert_eq "$(<"$curl_auth_log")" 'Authorization: Bearer secret-openai-token' 'test should send the stored API key as a bearer token'
+  assert_contains "$(<"$curl_body_log")" '"model":"gpt-5"' 'test should use the default configured model when --model is omitted'
+  assert_contains "$(<"$curl_body_log")" '"role":"system","content":"You are a connection test. Reply with the single word OK."' 'test should send the fixed system message'
+  assert_contains "$(<"$curl_body_log")" '"role":"user","content":"Reply with OK."' 'test should send the fixed user message'
+}
+
 @test "ask reads large prompt content from files" {
   local stub_bin curl_body_log system_message_file user_message_file jq_args_log output
 
@@ -467,17 +507,17 @@ run_tool() {
     CURL_BODY_LOG="$TMP_HOME/curl-body.log" \
     CURL_ARGS_LOG="$curl_args_log" \
     CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"debug answer"}}]}' \
-    MODEL_PROVIDER_CURL_MAX_TIME=42 \
+    MODEL_PROFILE_CURL_MAX_TIME=42 \
     "$TOOL" ask --debug work-openai --model gpt-4o --message 'Hello from test' 2>&1)
 
-  assert_contains "$output" '[model-provider] Preparing chat completion request for profile' 'ask should print request preparation in debug mode'
-  assert_contains "$output" '[model-provider] Starting HTTP request' 'ask should print the HTTP request start in debug mode'
-  assert_contains "$output" '[model-provider] HTTP request completed with status 200' 'ask should print the HTTP status in debug mode'
+  assert_contains "$output" '[model-profile] Preparing chat completion request for profile' 'ask should print request preparation in debug mode'
+  assert_contains "$output" '[model-profile] Starting HTTP request' 'ask should print the HTTP request start in debug mode'
+  assert_contains "$output" '[model-profile] HTTP request completed with status 200' 'ask should print the HTTP status in debug mode'
   assert_contains "$output" 'debug answer' 'ask should still print the response text in debug mode'
   assert_contains "$(<"$curl_args_log")" '--max-time 42' 'ask should pass the configured curl max time'
 }
 
-@test "ask warns when deprecated MODEL_PROVIDER_DEBUG env is used" {
+@test "ask warns when deprecated MODEL_PROFILE_DEBUG env is used" {
   local stub_bin output
 
   stub_bin="$TMP_HOME/bin"
@@ -493,11 +533,11 @@ run_tool() {
     CURL_AUTH_LOG="$TMP_HOME/curl-auth.log" \
     CURL_BODY_LOG="$TMP_HOME/curl-body.log" \
     CURL_RESPONSE_BODY='{"choices":[{"message":{"content":"debug answer"}}]}' \
-    MODEL_PROVIDER_DEBUG=true \
+    MODEL_PROFILE_DEBUG=true \
     "$TOOL" ask work-openai --model gpt-4o --message 'Hello from test' 2>&1)
 
-  assert_contains "$output" 'Warning: MODEL_PROVIDER_DEBUG is deprecated; use --debug instead.' 'ask should warn when the deprecated debug env is used'
-  assert_contains "$output" '[model-provider] Preparing chat completion request for profile' 'ask should still enable debug logging via the deprecated env'
+  assert_contains "$output" 'Warning: MODEL_PROFILE_DEBUG is deprecated; use --debug instead.' 'ask should warn when the deprecated debug env is used'
+  assert_contains "$output" '[model-profile] Preparing chat completion request for profile' 'ask should still enable debug logging via the deprecated env'
   assert_contains "$output" 'debug answer' 'ask should still print the response text when using the deprecated env'
 }
 

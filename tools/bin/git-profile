@@ -13,16 +13,16 @@ picotools_source_modules "$SCRIPT_DIR" prompt table version
 
 usage() {
   cat <<'EOF'
-Usage: git-context <command>
+Usage: git-profile <command>
 
 Commands:
-  create    Create a saved git context
-  update    Update a saved git context
-  list      List saved git contexts
-  read      Show detailed information for a saved git context
-  commands  Print shell commands for the current repository context
-  set       Apply a saved git context to the current repository
-  delete    Delete a saved git context
+  create    Create a saved git profile
+  update    Update a saved git profile
+  list      List saved git profiles
+  read      Show detailed information for a saved git profile
+  commands  Print shell commands for saved git profiles
+  set       Apply a saved git profile to the current repository
+  delete    Delete a saved git profile
 
 Options:
   --debug                   Print progress details to stderr
@@ -43,7 +43,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[git-context] %s\n' "$1" >&2
+    printf '[git-profile] %s\n' "$1" >&2
   fi
 }
 
@@ -88,14 +88,14 @@ default_gpg_program() {
 }
 
 context_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-contexts"
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-profiles"
 }
 
 validate_context_name() {
   local name="$1"
 
   if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    echo "Error: context name must match [A-Za-z0-9._-]+" >&2
+    echo "Error: profile name must match [A-Za-z0-9._-]+" >&2
     exit 1
   fi
 }
@@ -169,7 +169,7 @@ prompt_update_field() {
     case "$selection" in
     1)
       if [ "$allow_gpg_program" != 'yes' ]; then
-        echo 'GPG Program can only be updated when GPG signing is enabled for the context.' >&2
+        echo 'GPG Program can only be updated when GPG signing is enabled for the profile.' >&2
         continue
       fi
       printf '%s\n' gpg_program
@@ -205,7 +205,7 @@ prompt_update_field() {
       ;;
     9)
       if [ "$allow_ssh_add_on_start" != 'yes' ]; then
-        echo 'SSH Add On Start can only be updated when SSH is enabled for the context.' >&2
+        echo 'SSH Add On Start can only be updated when SSH is enabled for the profile.' >&2
         continue
       fi
       printf '%s\n' ssh_add_on_start
@@ -708,7 +708,7 @@ save_context() {
   local ssh_add_on_start="${16}"
 
   rm -f "$file"
-  debug_log "Saving context file '$file'"
+  debug_log "Saving profile file '$file'"
 
   write_context_value "$file" user.name "$user_name"
   write_context_value "$file" user.email "$email"
@@ -746,7 +746,7 @@ create_context() {
   validate_context_name "$name"
   file=$(context_file "$name")
   ensure_context_dir
-  debug_log "Creating context '$name' at '$file'"
+  debug_log "Creating profile '$name' at '$file'"
 
   if [ -f "$file" ]; then
     overwrite=$(prompt_yes_no "Context '$name' already exists. Overwrite?" no)
@@ -792,7 +792,7 @@ create_context() {
 
   save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
 
-  echo "Saved context '$name'."
+  echo "Saved profile '$name'."
 }
 
 list_contexts() {
@@ -801,7 +801,7 @@ list_contexts() {
   local -a rows=()
 
   if ! saved_context_files >/dev/null; then
-    echo 'No git contexts found.'
+    echo 'No git profiles found.'
     return 0
   fi
 
@@ -810,7 +810,7 @@ list_contexts() {
     index=$((index + 1))
   done < <(saved_context_files)
 
-  debug_log "Listing ${#rows[@]} saved context(s)"
+  debug_log "Listing ${#rows[@]} saved profile(s)"
   picotools_print_table $'#\tName\tUser\tEmail\tSSH\tGPG' "${rows[@]}"
 }
 
@@ -834,7 +834,7 @@ read_context() {
   if ! file=$(select_context_file); then
     return 0
   fi
-  debug_log "Reading context from '$file'"
+  debug_log "Reading profile from '$file'"
   if [ "$commands_only" = 'yes' ]; then
     print_context_commands "$file"
   else
@@ -886,7 +886,7 @@ select_context_file() {
   local names=()
 
   if ! saved_context_files >/dev/null; then
-    echo 'No git contexts found.' >&2
+    echo 'No git profiles found.' >&2
     exit 1
   fi
 
@@ -896,7 +896,7 @@ select_context_file() {
     names+=("$name")
   done < <(saved_context_files)
 
-  if ! selection=$(prompt_select_index 'Contexts' 'Select context' '' false "${names[@]}"); then
+  if ! selection=$(prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
     return 1
   fi
 
@@ -934,9 +934,9 @@ delete_context_file() {
     fi
   fi
 
-  debug_log "Deleting context file '$file'"
+  debug_log "Deleting profile file '$file'"
   rm -f "$file"
-  echo 'Deleted context.'
+  echo 'Deleted profile.'
 }
 
 delete_context() {
@@ -959,7 +959,7 @@ apply_context() {
   local file="$1"
   local signing_key gpg_program ssh_command ssh_add_on_start
 
-  debug_log "Applying context values from '$file'"
+  debug_log "Applying profile values from '$file'"
   write_local_value user.name "$(read_context_value "$file" user.name)"
   write_local_value user.email "$(read_context_value "$file" user.email)"
   write_local_value commit.gpgsign "$(read_managed_context_value "$file" commit.gpgsign)"
@@ -1010,9 +1010,9 @@ set_context_file() {
   local file="$1"
 
   ensure_git_repository
-  debug_log "Applying selected context '$file' to current repository"
+  debug_log "Applying selected profile '$file' to current repository"
   apply_context "$file"
-  echo "Applied context '$(context_name_from_file "$file")'."
+  echo "Applied profile '$(context_name_from_file "$file")'."
 }
 
 update_context_file() {
@@ -1024,7 +1024,7 @@ update_context_file() {
   local selected_field
 
   name=$(context_name_from_file "$file")
-  debug_log "Updating context '$name' from '$file'"
+  debug_log "Updating profile '$name' from '$file'"
   user_name=$(read_context_value "$file" user.name)
   email=$(read_context_value "$file" user.email)
 
@@ -1101,7 +1101,7 @@ update_context_file() {
   fi
 
   save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
-  echo "Updated context '$name'."
+  echo "Updated profile '$name'."
 }
 
 update_context() {

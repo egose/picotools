@@ -11,21 +11,22 @@ fi
 . "$LOAD_SH"
 picotools_source_modules "$SCRIPT_DIR" commands prompt table version
 
-MODEL_PROVIDER_TMPFILES=()
+MODEL_PROFILE_TMPFILES=()
 
 usage() {
   cat <<'EOF'
-Usage: model-provider <command>
+Usage: model-profile <command>
 
 Commands:
-  create    Create a saved model provider profile
-  update    Update a saved model provider profile
-  list      List saved model provider profiles
-  read      Show detailed information for a saved model provider profile
-  profiles  List saved model provider profile names
+  create    Create a saved model profile
+  update    Update a saved model profile
+  list      List saved model profiles
+  read      Show detailed information for a saved model profile
+  profiles  List saved model profile names
   models    List configured models for a profile
-  ask       Send a prompt to a model provider profile
-  delete    Delete a saved model provider profile
+  ask       Send a prompt to a model profile
+  test      Send a tiny chat request to test a model profile
+  delete    Delete a saved model profile
 
 Options:
   -h, --help, help          Show this help message
@@ -33,14 +34,18 @@ Options:
   --debug                   Print request debug steps to stderr
 
 Ask:
-  model-provider ask
-  model-provider ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
-  model-provider ask <profile> --user-message TEXT [--model MODEL] [--system-message TEXT]
-  model-provider ask <profile> --message-file PATH [--model MODEL] [--system-message-file PATH]
+  model-profile ask
+  model-profile ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
+  model-profile ask <profile> --user-message TEXT [--model MODEL] [--system-message TEXT]
+  model-profile ask <profile> --message-file PATH [--model MODEL] [--system-message-file PATH]
+
+Test:
+  model-profile test
+  model-profile test <profile> [--model MODEL]
 
 Environment:
-  MODEL_PROVIDER_DEBUG=true          Deprecated fallback for --debug
-  MODEL_PROVIDER_CURL_MAX_TIME=<s>   Set curl --max-time for ask requests
+  MODEL_PROFILE_DEBUG=true          Deprecated fallback for --debug
+  MODEL_PROFILE_CURL_MAX_TIME=<s>   Set curl --max-time for ask requests
 EOF
 }
 
@@ -55,7 +60,7 @@ enable_debug_logging() {
 }
 
 legacy_debug_enabled() {
-  [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]
+  [ "${MODEL_PROFILE_DEBUG:-false}" = 'true' ]
 }
 
 debug_enabled() {
@@ -64,18 +69,18 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[model-provider] %s\n' "$1" >&2
+    printf '[model-profile] %s\n' "$1" >&2
   fi
 }
 
 cleanup_tmpfiles() {
-  if [ "${#MODEL_PROVIDER_TMPFILES[@]}" -gt 0 ]; then
-    rm -f "${MODEL_PROVIDER_TMPFILES[@]}"
+  if [ "${#MODEL_PROFILE_TMPFILES[@]}" -gt 0 ]; then
+    rm -f "${MODEL_PROFILE_TMPFILES[@]}"
   fi
 }
 
 register_tmpfile() {
-  MODEL_PROVIDER_TMPFILES+=("$1")
+  MODEL_PROFILE_TMPFILES+=("$1")
 }
 
 args_include_debug_flag() {
@@ -92,19 +97,19 @@ args_include_debug_flag() {
 
 warn_deprecated_debug_env() {
   if legacy_debug_enabled && ! args_include_debug_flag "$@"; then
-    echo 'Warning: MODEL_PROVIDER_DEBUG is deprecated; use --debug instead.' >&2
+    echo 'Warning: MODEL_PROFILE_DEBUG is deprecated; use --debug instead.' >&2
   fi
 }
 
 curl_max_time() {
-  local value="${MODEL_PROVIDER_CURL_MAX_TIME:-}"
+  local value="${MODEL_PROFILE_CURL_MAX_TIME:-}"
 
   if [ -z "$value" ]; then
     return 1
   fi
 
   if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-    echo 'Error: MODEL_PROVIDER_CURL_MAX_TIME must be a non-negative integer' >&2
+    echo 'Error: MODEL_PROFILE_CURL_MAX_TIME must be a non-negative integer' >&2
     exit 1
   fi
 
@@ -112,11 +117,11 @@ curl_max_time() {
 }
 
 config_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/model-provider"
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/model-profile"
 }
 
 data_dir() {
-  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/model-provider"
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/model-profile"
 }
 
 ensure_storage_dirs() {
@@ -700,7 +705,7 @@ select_profile_file() {
   local names=()
 
   if ! saved_profile_files >/dev/null; then
-    echo 'No model provider profiles found.' >&2
+    echo 'No model profiles found.' >&2
     exit 1
   fi
 
@@ -803,7 +808,7 @@ create_profile() {
 
   save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
   write_token "$name" "$token"
-  echo "Saved model provider profile '$name'."
+  echo "Saved model profile '$name'."
 }
 
 list_profiles() {
@@ -812,7 +817,7 @@ list_profiles() {
   local -a rows=()
 
   if ! saved_profile_files >/dev/null; then
-    echo 'No model provider profiles found.'
+    echo 'No model profiles found.'
     return 0
   fi
 
@@ -891,7 +896,7 @@ update_profile_file() {
     write_token "$name" "$token"
   fi
 
-  echo "Updated model provider profile '$name'."
+  echo "Updated model profile '$name'."
 }
 
 delete_profile_file() {
@@ -907,7 +912,7 @@ delete_profile_file() {
 
   rm -f "$file"
   delete_token "$name"
-  echo 'Deleted model provider profile.'
+  echo 'Deleted model profile.'
 }
 
 update_profile() {
@@ -1052,6 +1057,122 @@ ask_provider() {
   ask_provider_cli "$@"
 }
 
+connection_test_system_message() {
+  printf '%s\n' 'You are a connection test. Reply with the single word OK.'
+}
+
+connection_test_user_message() {
+  printf '%s\n' 'Reply with OK.'
+}
+
+print_connection_test_result() {
+  local file="$1"
+  local model="$2"
+  local response="$3"
+  local name provider_type resource_name endpoint_url endpoint
+
+  name=$(profile_name_from_file "$file")
+  provider_type=$(read_profile_value "$file" provider.type)
+  resource_name=$(provider_resource_name_value "$file")
+  endpoint_url=$(provider_endpoint_url_value "$file")
+  endpoint=$(provider_endpoint "$provider_type" "$resource_name" "$endpoint_url")
+
+  picotools_print_two_column_table \
+    $'Profile	'"$name" \
+    $'Type	'"$(provider_type_label "$provider_type")" \
+    $'Endpoint	'"$(display_value "$endpoint")" \
+    $'Model	'"$model" \
+    $'Status	OK' \
+    $'Response	'"$response"
+}
+
+test_profile_file() {
+  local file="$1"
+  local model="$2"
+  local response
+
+  response=$(provider_chat_completion "$file" "$model" "$(connection_test_system_message)" "$(connection_test_user_message)")
+  print_connection_test_result "$file" "$model" "$response"
+}
+
+test_profile_interactive() {
+  local file model
+
+  require_ask_tools
+  if ! file=$(select_profile_file); then
+    return 0
+  fi
+  if ! model=$(select_profile_model "$file"); then
+    return 0
+  fi
+
+  test_profile_file "$file" "$model"
+}
+
+test_profile_cli() {
+  local profile_name='' file model=''
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --debug)
+      enable_debug_logging
+      shift
+      ;;
+    --model)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --model requires a value' >&2
+        exit 1
+      fi
+      model="$2"
+      shift 2
+      ;;
+    --*)
+      echo "Error: unknown test option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      if [ -z "$profile_name" ]; then
+        profile_name="$1"
+        shift
+      else
+        echo "Error: unknown test option '$1'" >&2
+        usage >&2
+        exit 1
+      fi
+      ;;
+    esac
+  done
+
+  if [ -z "$profile_name" ]; then
+    echo 'Error: test requires a profile name' >&2
+    exit 1
+  fi
+
+  require_ask_tools
+  file=$(require_existing_profile_file "$profile_name")
+
+  if [ -n "$model" ]; then
+    if ! profile_has_model "$file" "$model"; then
+      echo "Error: model not configured for profile '$profile_name': $model" >&2
+      exit 1
+    fi
+  else
+    model=$(default_profile_model "$file")
+  fi
+
+  test_profile_file "$file" "$model"
+}
+
+test_profile() {
+  if [ "$#" -eq 0 ]; then
+    test_profile_interactive
+    return 0
+  fi
+
+  test_profile_cli "$@"
+}
+
 main() {
   while [ "${1:-}" = '--debug' ]; do
     enable_debug_logging
@@ -1096,6 +1217,10 @@ main() {
   ask)
     shift
     ask_provider "$@"
+    ;;
+  test)
+    shift
+    test_profile "$@"
     ;;
   delete)
     shift
