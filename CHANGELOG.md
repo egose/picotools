@@ -1,8 +1,10 @@
+## [0.28.1](https://github.com/egose/picotools/compare/v0.28.0...v0.28.1) (2026-06-04)
+
 ## [0.28.0](https://github.com/egose/picotools/compare/v0.27.0...v0.28.0) (2026-05-28)
 
 ### Features
 
-* support optional fallback model profile ([25d390c](https://github.com/egose/picotools/commit/25d390c12cc20b4c402f23b62366567dc20b7843))
+* support optional fallback model provider ([25d390c](https://github.com/egose/picotools/commit/25d390c12cc20b4c402f23b62366567dc20b7843))
 
 ## [0.27.0](https://github.com/egose/picotools/compare/v0.26.0...v0.27.0) (2026-05-08)
 
@@ -51,7 +53,7 @@
 * add --debug flag to all tools ([de5d62f](https://github.com/egose/picotools/commit/de5d62f59b6e1ef34b16229c764faec64ef36c8f))
 * add --pr option to create pull requests via git-api ([510acc7](https://github.com/egose/picotools/commit/510acc73933766a1477e599fd35d82ddb3b75b16))
 * add configure command and token persistence to git-api ([6475567](https://github.com/egose/picotools/commit/64755677cd55a3eb834bca0dd3dac70d954454c6))
-* add debug logging and curl timeout to model-profile ([1e42874](https://github.com/egose/picotools/commit/1e4287422f9820589d5212a3f9607ae7644473cd))
+* add debug logging and curl timeout to model-provider ([1e42874](https://github.com/egose/picotools/commit/1e4287422f9820589d5212a3f9607ae7644473cd))
 * add debug logging and handle oversized diffs in git-commit ([19a2568](https://github.com/egose/picotools/commit/19a2568a225e5f09c15eaa9690a7c4d2dcc08058))
 * add git-api tool for calling GitHub REST operations by operationId ([1756049](https://github.com/egose/picotools/commit/1756049d62f397b830cebb60d9aecf59da51ce50))
 
@@ -70,7 +72,7 @@
 ### Features
 
 * add hidden prompt helper for secret values ([3dac515](https://github.com/egose/picotools/commit/3dac515c9337533796b5bb8abf86327ca71cc373))
-* hide API key input in model-profile prompts ([769995e](https://github.com/egose/picotools/commit/769995e08d92ed79d7c01af04eacec27a983655e))
+* hide API key input in model-provider prompts ([769995e](https://github.com/egose/picotools/commit/769995e08d92ed79d7c01af04eacec27a983655e))
 * prompt to run asdf install after updating tool versions ([e445491](https://github.com/egose/picotools/commit/e44549191964499d9794599d1f36f0b371f60237))
 * use jq --rawfile for chat completion prompt bodies ([3f54e37](https://github.com/egose/picotools/commit/3f54e37878781dce7fb7f91746b85c82be14f82b))
 
@@ -92,7 +94,7 @@
 ### Features
 
 * add ci to allowed commit types ([944aea2](https://github.com/egose/picotools/commit/944aea2a8f401431aca49b55bd0db5fe6770cb19))
-* support file-based message arguments in model-profile ([cf7bd47](https://github.com/egose/picotools/commit/cf7bd47e61282dfe6a775a90e093d0191b12013f))
+* support file-based message arguments in model-provider ([cf7bd47](https://github.com/egose/picotools/commit/cf7bd47e61282dfe6a775a90e093d0191b12013f))
 * use file-based messaging for git-commit LLM requests ([b1c0e70](https://github.com/egose/picotools/commit/b1c0e7056bf2a31c9a2a8249f151cdd4e889cf9e))
 
 ### Docs
@@ -156,21 +158,21 @@
 
 ### Features
 
-* add custom provider support to model-profile ([088de86](https://github.com/egose/picotools/commit/088de8644ba19224d5330cba24ee7e76c6d33f70))
+* add custom provider support to model-provider ([088de86](https://github.com/egose/picotools/commit/088de8644ba19224d5330cba24ee7e76c6d33f70))
 
 ## [0.9.0](https://github.com/egose/picotools/compare/v0.8.0...v0.9.0) (2026-04-29)
 
 ### Features
 
 * add git-commit tool ([1886558](https://github.com/egose/picotools/commit/1886558cb108f3a65361bcde0449a2c474db1a47))
-* add model-profile script ([4dd7803](https://github.com/egose/picotools/commit/4dd780316548404a803cd5787843b8ddfd75d988))
-* add profiles and models commands to model-profile ([f79257b](https://github.com/egose/picotools/commit/f79257be0df7d35743dfc52fdd3e793ab63fd339))
+* add model-provider script ([4dd7803](https://github.com/egose/picotools/commit/4dd780316548404a803cd5787843b8ddfd75d988))
+* add profiles and models commands to model-provider ([f79257b](https://github.com/egose/picotools/commit/f79257be0df7d35743dfc52fdd3e793ab63fd339))
 
 ## [0.8.0](https://github.com/egose/picotools/compare/v0.7.0...v0.8.0) (2026-04-28)
 
 ### Features
 
-* add git-profile script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
+* add git-context script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
 
 ### Refactors
 
