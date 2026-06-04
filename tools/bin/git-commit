@@ -112,26 +112,26 @@ prompt_yes_no() {
   picotools_prompt_yes_no "$@"
 }
 
-model_provider_command() {
+model_profile_command() {
   local candidate
 
-  if [ -n "${MODEL_PROVIDER_BIN:-}" ]; then
-    printf '%s\n' "$MODEL_PROVIDER_BIN"
+  if [ -n "${MODEL_PROFILE_BIN:-}" ]; then
+    printf '%s\n' "$MODEL_PROFILE_BIN"
     return 0
   fi
 
-  candidate="${SCRIPT_DIR}/model-provider"
+  candidate="${SCRIPT_DIR}/model-profile"
   if [ -x "$candidate" ]; then
     printf '%s\n' "$candidate"
     return 0
   fi
 
-  if command -v model-provider >/dev/null 2>&1; then
-    command -v model-provider
+  if command -v model-profile >/dev/null 2>&1; then
+    command -v model-profile
     return 0
   fi
 
-  echo 'Error: unable to locate model-provider' >&2
+  echo 'Error: unable to locate model-profile' >&2
   exit 1
 }
 
@@ -170,10 +170,10 @@ run_git_api() {
   "$tool" "$@"
 }
 
-run_model_provider() {
+run_model_profile() {
   local tool
 
-  tool=$(model_provider_command)
+  tool=$(model_profile_command)
   if debug_enabled; then
     "$tool" --debug "$@"
     return $?
@@ -199,7 +199,7 @@ require_dependencies() {
     fi
   done
 
-  model_provider_command >/dev/null
+  model_profile_command >/dev/null
 }
 
 require_runtime_dependencies() {
@@ -257,10 +257,10 @@ configure_tool() {
   local -a additional_profiles=()
   local candidate_profile
 
-  model_provider_command >/dev/null
-  mapfile -t profiles < <(run_model_provider profiles)
+  model_profile_command >/dev/null
+  mapfile -t profiles < <(run_model_profile profiles)
   if [ "${#profiles[@]}" -eq 0 ]; then
-    echo 'Error: no model-provider profiles found' >&2
+    echo 'Error: no model profiles found' >&2
     exit 1
   fi
 
@@ -268,7 +268,7 @@ configure_tool() {
     echo 'Cancelled.' >&2
     exit 1
   fi
-  mapfile -t models < <(run_model_provider models "$profile")
+  mapfile -t models < <(run_model_profile models "$profile")
   if [ "${#models[@]}" -eq 0 ]; then
     echo "Error: no models configured for profile '$profile'" >&2
     exit 1
@@ -292,7 +292,7 @@ configure_tool() {
     fi
 
     if [ -n "$additional_profile" ]; then
-      mapfile -t models < <(run_model_provider models "$additional_profile")
+      mapfile -t models < <(run_model_profile models "$additional_profile")
       if [ "${#models[@]}" -eq 0 ]; then
         echo "Error: no models configured for profile '$additional_profile'" >&2
         exit 1
@@ -903,8 +903,8 @@ request_commit_plan_once() {
   local stderr_file="$5"
   local output status=0
 
-  debug_log "Requesting commit plan from model-provider profile '$profile' model '$model'"
-  if output=$(run_model_provider ask "$profile" --model "$model" --system-message-file "$system_message_file" --message-file "$user_message_file" 2>"$stderr_file"); then
+  debug_log "Requesting commit plan from model-profile '$profile' model '$model'"
+  if output=$(run_model_profile ask "$profile" --model "$model" --system-message-file "$system_message_file" --message-file "$user_message_file" 2>"$stderr_file"); then
     if [ -s "$stderr_file" ]; then
       printf '%s' "$(<"$stderr_file")" >&2
     fi
@@ -1565,7 +1565,7 @@ run_commit_tool() {
   changed_file_count=$(count_nonempty_lines "$changed_files")
   debug_log "Collected $changed_file_count changed file(s) after pre-commit"
 
-  debug_log 'Loading configured model provider'
+  debug_log 'Loading configured model profile'
   config_values=$(load_configuration)
   IFS=$'\t' read -r profile model additional_profile additional_model <<<"$config_values"
   require_dependencies
@@ -1585,7 +1585,7 @@ run_commit_tool() {
   plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message")
 
   if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
-    echo 'Error: model-provider ask did not return valid commit plan JSON' >&2
+    echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
     exit 1
   fi
 

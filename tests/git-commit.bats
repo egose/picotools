@@ -122,28 +122,28 @@ models)
   esac
   ;;
 ask)
-  if [ "$debug_requested" = 'true' ] || [ "${MODEL_PROVIDER_DEBUG:-false}" = 'true' ]; then
-    printf '%s\n' '[model-provider] Stub debug enabled' >&2
+  if [ "$debug_requested" = 'true' ] || [ "${MODEL_PROFILE_DEBUG:-false}" = 'true' ]; then
+    printf '%s\n' '[model-profile] Stub debug enabled' >&2
   fi
-  if [ -n "${MODEL_PROVIDER_ASK_ARGS_LOG:-}" ]; then
+  if [ -n "${MODEL_PROFILE_ASK_ARGS_LOG:-}" ]; then
     if [ "$debug_requested" = 'true' ]; then
-      printf '%s\n' "--debug $*" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf '%s\n' "--debug $*" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
     else
-      printf '%s\n' "$*" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf '%s\n' "$*" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
     fi
     if [ -n "$system_message_file" ]; then
-      printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
     fi
     if [ -n "$message_file" ]; then
-      printf 'MESSAGE_FILE_CONTENT=%s\n' "$(<"$message_file")" >>"$MODEL_PROVIDER_ASK_ARGS_LOG"
+      printf 'MESSAGE_FILE_CONTENT=%s\n' "$(<"$message_file")" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
     fi
   fi
-  if [ -n "${MODEL_PROVIDER_ASK_FAIL_PROFILE:-}" ] && [ "$selected_profile" = "$MODEL_PROVIDER_ASK_FAIL_PROFILE" ] &&
-    [ -n "${MODEL_PROVIDER_ASK_FAIL_MODEL:-}" ] && [ "$selected_model" = "$MODEL_PROVIDER_ASK_FAIL_MODEL" ]; then
-    printf '%s\n' "${MODEL_PROVIDER_ASK_FAIL_MESSAGE:-Error: request failed}" >&2
+  if [ -n "${MODEL_PROFILE_ASK_FAIL_PROFILE:-}" ] && [ "$selected_profile" = "$MODEL_PROFILE_ASK_FAIL_PROFILE" ] &&
+    [ -n "${MODEL_PROFILE_ASK_FAIL_MODEL:-}" ] && [ "$selected_model" = "$MODEL_PROFILE_ASK_FAIL_MODEL" ]; then
+    printf '%s\n' "${MODEL_PROFILE_ASK_FAIL_MESSAGE:-Error: request failed}" >&2
     exit 1
   fi
-  printf '%s\n' "$MODEL_PROVIDER_ASK_RESPONSE"
+  printf '%s\n' "$MODEL_PROFILE_ASK_RESPONSE"
   ;;
 *)
   exit 1
@@ -309,7 +309,7 @@ run_configure_with_stub() {
 
   input_file="$TMP_HOME/configure-input.txt"
   printf '1\n1\n2\n' >"$input_file"
-  MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure <"$input_file"
+  MODEL_PROFILE_BIN="$stub_path" "$TOOL" configure <"$input_file"
 }
 
 write_git_commit_config() {
@@ -366,10 +366,10 @@ create_initial_commit() {
 @test "help and configure command" {
   local stub_path output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   create_model_provider_stub "$stub_path"
 
-  output=$(MODEL_PROVIDER_BIN="$stub_path" "$TOOL" --help)
+  output=$(MODEL_PROFILE_BIN="$stub_path" "$TOOL" --help)
   assert_contains "$output" 'Usage: git-commit [command]' 'help should describe usage'
   assert_contains "$output" 'configure  Select the model profile and model to use' 'help should list configure'
   assert_contains "$output" '--apply' 'help should list apply mode'
@@ -378,7 +378,7 @@ create_initial_commit() {
   assert_contains "$output" '--pr' 'help should list pull request mode'
   assert_contains "$output" '--pre-commit-retries <n>' 'help should list pre-commit retry option'
 
-  printf '2\n2\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
+  printf '2\n2\n2\n' | MODEL_PROFILE_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
   assert_file_exists "$(git_commit_config_file)" 'configure should create a config file'
   assert_config_value model.profile 'beta-profile' 'configure should save the selected profile'
   assert_config_value model.name 'beta-model-2' 'configure should save the selected model'
@@ -386,15 +386,15 @@ create_initial_commit() {
   assert_config_missing model.additional.name 'configure should not save an additional model when none is selected'
 }
 
-@test "configure command can save an optional additional model provider" {
+@test "configure command can save an optional additional model profile" {
   local stub_path
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   create_model_provider_stub "$stub_path"
 
-  printf '1\n1\n1\n2\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
+  printf '1\n1\n1\n2\n' | MODEL_PROFILE_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
 
-  assert_file_exists "$(git_commit_config_file)" 'configure should create a config file when additional model provider is selected'
+  assert_file_exists "$(git_commit_config_file)" 'configure should create a config file when additional model profile is selected'
   assert_config_value model.profile 'alpha-profile' 'configure should save the primary selected profile'
   assert_config_value model.name 'alpha-model' 'configure should save the primary selected model'
   assert_config_value model.additional.profile 'beta-profile' 'configure should exclude the primary profile from the additional profile list'
@@ -404,7 +404,7 @@ create_initial_commit() {
 @test "warns when configuration is missing" {
   local stub_path repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
   init_repo "$repo"
@@ -412,7 +412,7 @@ create_initial_commit() {
   git -C "$repo" checkout -q -b feat/11222
   printf '%s\n' 'change' >>"$repo/README.md"
 
-  if output=$(cd "$repo" && MODEL_PROVIDER_BIN="$stub_path" "$TOOL" 2>&1); then
+  if output=$(cd "$repo" && MODEL_PROFILE_BIN="$stub_path" "$TOOL" 2>&1); then
     fail 'git-commit should fail when configuration is missing'
   fi
 
@@ -422,7 +422,7 @@ create_initial_commit() {
 @test "fails when pre-staged changes are kept" {
   local stub_path repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
 
@@ -433,7 +433,7 @@ create_initial_commit() {
   git -C "$repo" add README.md
   write_git_commit_config alpha-profile alpha-model
 
-  if output=$(cd "$repo" && printf 'n\n' | MODEL_PROVIDER_BIN="$stub_path" "$TOOL" 2>&1); then
+  if output=$(cd "$repo" && printf 'n\n' | MODEL_PROFILE_BIN="$stub_path" "$TOOL" 2>&1); then
     fail 'git-commit should fail when staged changes already exist'
   fi
 
@@ -444,7 +444,7 @@ create_initial_commit() {
 @test "can unstage pre-staged changes and continue" {
   local stub_path jq_stub repo output staged_after head_subject
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -459,8 +459,8 @@ create_initial_commit() {
 
   output=$(cd "$repo" && printf 'y\n' |
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
       "$TOOL" 2>&1)
 
   assert_contains "$output" 'git add -A :/' 'git-commit should print a repo-root add command after unstaging staged changes'
@@ -474,10 +474,10 @@ create_initial_commit() {
 @test "creates a single conventional commit from one plan item" {
   local stub_path jq_stub repo ask_log output head_subject staged_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -492,9 +492,9 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should create a single commit successfully ($output)"
@@ -506,20 +506,20 @@ create_initial_commit() {
   assert_eq "$head_subject" 'chore(init): initial commit' 'git-commit should not create the commit automatically'
   staged_after=$(git -C "$repo" diff --cached --name-only)
   assert_eq "$staged_after" '' 'git-commit should not stage files automatically in preview mode'
-  assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should call model-provider ask with configured profile and model'
+  assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should call model-profile ask with configured profile and model'
   assert_contains "$(<"$ask_log")" '--system-message-file' 'git-commit should pass the system prompt through a temp file'
   assert_contains "$(<"$ask_log")" '--message-file' 'git-commit should pass the user prompt through a temp file'
   assert_contains "$(<"$ask_log")" 'SYSTEM_MESSAGE_FILE_CONTENT=You are an expert software engineer creating conventional commit plans.' 'git-commit should write the system prompt into the temp file'
   assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
 }
 
-@test "falls back to the additional model provider on HTTP 429" {
+@test "falls back to the additional model profile on HTTP 429" {
   local stub_path jq_stub repo ask_log output ask_payload
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -533,12 +533,12 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-      MODEL_PROVIDER_ASK_FAIL_PROFILE='alpha-profile' \
-      MODEL_PROVIDER_ASK_FAIL_MODEL='alpha-model' \
-      MODEL_PROVIDER_ASK_FAIL_MESSAGE='Error: request failed with HTTP 429' \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_FAIL_PROFILE='alpha-profile' \
+      MODEL_PROFILE_ASK_FAIL_MODEL='alpha-model' \
+      MODEL_PROFILE_ASK_FAIL_MESSAGE='Error: request failed with HTTP 429' \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should retry with the additional model after HTTP 429 ($output)"
@@ -550,13 +550,13 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after falling back to the additional model'
 }
 
-@test "falls back to the additional model provider on HTTP 503" {
+@test "falls back to the additional model profile on HTTP 503" {
   local stub_path jq_stub repo ask_log output ask_payload
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -570,12 +570,12 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-      MODEL_PROVIDER_ASK_FAIL_PROFILE='alpha-profile' \
-      MODEL_PROVIDER_ASK_FAIL_MODEL='alpha-model' \
-      MODEL_PROVIDER_ASK_FAIL_MESSAGE='Error: request failed with HTTP 503' \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_FAIL_PROFILE='alpha-profile' \
+      MODEL_PROFILE_ASK_FAIL_MODEL='alpha-model' \
+      MODEL_PROFILE_ASK_FAIL_MESSAGE='Error: request failed with HTTP 503' \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should retry with the additional model after HTTP 503 ($output)"
@@ -587,13 +587,13 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after a HTTP 503 fallback'
 }
 
-@test "omits oversized modified file diffs before calling model-provider" {
+@test "omits oversized modified file diffs before calling model-profile" {
   local stub_path jq_stub repo ask_log output ask_payload
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -608,16 +608,16 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"expand readme","files":["README.md"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"expand readme","files":["README.md"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should handle oversized modified file diffs successfully ($output)"
   fi
 
   ask_payload=$(<"$ask_log")
-  assert_contains "$ask_payload" '[Omitted diff for README.md because its diff size (' 'git-commit should omit oversized modified file diffs before calling model-provider'
+  assert_contains "$ask_payload" '[Omitted diff for README.md because its diff size (' 'git-commit should omit oversized modified file diffs before calling model-profile'
   case "$ask_payload" in
   *TAIL_SENTINEL_123*)
     fail 'git-commit should not include the omitted large modified file diff contents in the prompt'
@@ -629,10 +629,10 @@ create_initial_commit() {
 @test "omits oversized added file diffs from the planning prompt" {
   local stub_path jq_stub repo ask_log output ask_payload
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -647,9 +647,9 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add large added file","files":["large-added.txt"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add large added file","files":["large-added.txt"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should omit oversized added file diffs successfully ($output)"
@@ -668,10 +668,10 @@ create_initial_commit() {
 @test "prints progress steps when --debug is enabled" {
   local stub_path jq_stub repo ask_log output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -683,17 +683,17 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --debug 2>&1)
 
   assert_contains "$output" '[git-commit] Checking repository state' 'git-commit should print the initial debug step'
   assert_contains "$output" '[git-commit] Collecting changed files' 'git-commit should print a changed-files debug step'
-  assert_contains "$output" '[git-commit] Requesting commit plan from model-provider profile' 'git-commit should print a model-provider debug step'
-  assert_contains "$output" '[model-provider] Stub debug enabled' 'git-commit should enable model-provider debug output in debug mode'
-  assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should still call model-provider ask with the configured profile and model'
-  assert_contains "$(<"$ask_log")" '--debug' 'git-commit should forward --debug to model-provider'
+  assert_contains "$output" '[git-commit] Requesting commit plan from model-profile ' 'git-commit should print a model-profile debug step'
+  assert_contains "$output" '[model-profile] Stub debug enabled' 'git-commit should enable model-profile debug output in debug mode'
+  assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should still call model-profile ask with the configured profile and model'
+  assert_contains "$(<"$ask_log")" '--debug' 'git-commit should forward --debug to model-profile'
   assert_contains "$output" '[git-commit] Printing commit plan preview' 'git-commit should print the preview debug step'
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview in debug mode'
 }
@@ -701,7 +701,7 @@ create_initial_commit() {
 @test "creates multiple commits from grouped file plan" {
   local stub_path jq_stub repo output head_subject staged_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -719,8 +719,8 @@ create_initial_commit() {
   if ! output=$(
     cd "$repo" || return 1
     PATH="$TMP_HOME:$PATH" \
-      MODEL_PROVIDER_BIN="$stub_path" \
-      MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update application logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for application logic","files":["tests/app.txt"]}]}' \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update application logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for application logic","files":["tests/app.txt"]}]}' \
       "$TOOL" 2>&1
   ); then
     fail "git-commit should create grouped commits successfully ($output)"
@@ -741,7 +741,7 @@ create_initial_commit() {
 @test "omits scope when branch name has no slash" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -755,8 +755,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "chore: update readme"' 'git-commit should omit scope when branch name has no slash'
@@ -765,7 +765,7 @@ create_initial_commit() {
 @test "uses changed module name as scope in a monorepo when branch scope is unavailable" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -782,8 +782,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should fall back to the changed monorepo module name'
@@ -792,10 +792,10 @@ create_initial_commit() {
 @test "uses the leaf package name as scope in a node monorepo when available" {
   local stub_path jq_stub repo ask_log output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
-  ask_log="$TMP_HOME/model-provider-ask.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
 
@@ -810,9 +810,9 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_ARGS_LOG="$ask_log" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should prefer the leaf package name over the scoped package prefix'
@@ -823,7 +823,7 @@ create_initial_commit() {
 @test "omits scope when monorepo changes span multiple modules" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -842,8 +842,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update shared workspace files","files":["packages/ui/src/index.ts","packages/api/src/index.ts"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update shared workspace files","files":["packages/ui/src/index.ts","packages/api/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "chore: update shared workspace files"' 'git-commit should omit scope when multiple monorepo modules are changed'
@@ -852,7 +852,7 @@ create_initial_commit() {
 @test "uses explicit --scope override instead of branch-derived scope" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -866,8 +866,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --scope override 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should use the explicit scope override'
@@ -876,7 +876,7 @@ create_initial_commit() {
 @test "uses explicit --scope=value override instead of branch-derived scope" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -890,8 +890,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --scope=override 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should accept --scope=value'
@@ -900,7 +900,7 @@ create_initial_commit() {
 @test "strips trailing numeric branch suffix from derived ticket scope" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -914,8 +914,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "chore(CCP-4318): update readme"' 'git-commit should strip the trailing numeric branch suffix from the derived scope'
@@ -924,7 +924,7 @@ create_initial_commit() {
 @test "omits scope when --no-scope is provided" {
   local stub_path jq_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -938,8 +938,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --no-scope 2>&1)
 
   assert_contains "$output" 'git commit -m "feat: update readme"' 'git-commit should omit scope when --no-scope is provided'
@@ -948,7 +948,7 @@ create_initial_commit() {
 @test "runs pre-commit on changed files when hook exists" {
   local stub_path jq_stub pre_commit_stub repo output pre_commit_log
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   pre_commit_stub="$TMP_HOME/pre-commit"
   pre_commit_log="$TMP_HOME/pre-commit.log"
@@ -968,8 +968,8 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     PRE_COMMIT_LOG="$pre_commit_log" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should continue after successful pre-commit checks'
@@ -979,7 +979,7 @@ create_initial_commit() {
 @test "retries pre-commit up to two more times after failures" {
   local stub_path jq_stub pre_commit_stub repo output pre_commit_log pre_commit_attempts
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   pre_commit_stub="$TMP_HOME/pre-commit"
   pre_commit_log="$TMP_HOME/pre-commit.log"
@@ -1001,8 +1001,8 @@ create_initial_commit() {
     PRE_COMMIT_LOG="$pre_commit_log" \
     PRE_COMMIT_ATTEMPTS_FILE="$pre_commit_attempts" \
     PRE_COMMIT_FAIL_FIRST=2 \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should continue after pre-commit succeeds on a retry'
@@ -1013,7 +1013,7 @@ create_initial_commit() {
 @test "respects --pre-commit-retries override" {
   local stub_path jq_stub pre_commit_stub repo output pre_commit_attempts
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   pre_commit_stub="$TMP_HOME/pre-commit"
   pre_commit_attempts="$TMP_HOME/pre-commit.attempts"
@@ -1033,8 +1033,8 @@ create_initial_commit() {
   if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     PRE_COMMIT_ATTEMPTS_FILE="$pre_commit_attempts" \
     PRE_COMMIT_FAIL_FIRST=2 \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --pre-commit-retries 1 2>&1); then
     fail 'git-commit should fail after the configured pre-commit retry limit is reached'
   fi
@@ -1046,7 +1046,7 @@ create_initial_commit() {
 @test "fails early when the installed pre-commit hook rejects the staged snapshot" {
   local stub_path jq_stub pre_commit_stub repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   pre_commit_stub="$TMP_HOME/pre-commit"
   repo="$TMP_HOME/repo"
@@ -1063,8 +1063,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add script","files":["script.bash"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add script","files":["script.bash"]}]}' \
     "$TOOL" 2>&1); then
     fail 'git-commit should fail when the installed pre-commit hook rejects the staged snapshot'
   fi
@@ -1075,7 +1075,7 @@ create_initial_commit() {
 @test "applies a single planned commit with --apply" {
   local stub_path jq_stub repo output head_subject status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1090,8 +1090,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1104,7 +1104,7 @@ create_initial_commit() {
 @test "--push implies --apply" {
   local stub_path jq_stub remote repo output head_subject remote_head_subject upstream_branch status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
@@ -1121,8 +1121,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     "$TOOL" --push 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1139,7 +1139,7 @@ create_initial_commit() {
 @test "--pr implies --apply and --push" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
@@ -1159,8 +1159,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr 2>&1)
@@ -1181,7 +1181,7 @@ create_initial_commit() {
 @test "applies and pushes a single planned commit with --push" {
   local stub_path jq_stub remote repo output head_subject remote_head_subject upstream_branch status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
@@ -1198,8 +1198,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     "$TOOL" --push 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1216,7 +1216,7 @@ create_initial_commit() {
 @test "applies, pushes, and opens a pull request with --pr using the default branch from git-api" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
@@ -1236,8 +1236,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr 2>&1)
@@ -1260,7 +1260,7 @@ create_initial_commit() {
 @test "uses the explicit base branch provided to --pr" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
@@ -1279,8 +1279,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr release-1.0 2>&1)
@@ -1293,7 +1293,7 @@ create_initial_commit() {
 @test "falls back to git metadata when git-api cannot resolve the default branch" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
@@ -1312,8 +1312,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     GIT_API_REPOS_GET_FAIL=true \
@@ -1327,7 +1327,7 @@ create_initial_commit() {
 @test "applies grouped commits with --apply" {
   local stub_path jq_stub repo output head_subject previous_subject status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1343,8 +1343,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update application logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for application logic","files":["tests/app.txt"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update application logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for application logic","files":["tests/app.txt"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1360,7 +1360,7 @@ create_initial_commit() {
 @test "applies grouped commits when the model returns a unique basename for a new file" {
   local stub_path jq_stub repo output head_subject previous_subject status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1376,8 +1376,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1392,7 +1392,7 @@ create_initial_commit() {
 @test "applies grouped commits from a subdirectory using repo-root paths" {
   local stub_path jq_stub repo output head_subject previous_subject status_after
 
-  stub_path="$TMP_HOME/model-provider-stub"
+  stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1408,8 +1408,8 @@ create_initial_commit() {
   write_git_commit_config alpha-profile alpha-model
 
   output=$(cd "$repo/tools/bin" && PATH="$TMP_HOME:$PATH" \
-    MODEL_PROVIDER_BIN="$stub_path" \
-    MODEL_PROVIDER_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)

@@ -15,6 +15,7 @@
   "scripts": {
     "release": "release-it",
     "test:git-profile": "bats tests/git-profile.bats",
+    "test:model-profile": "bats tests/model-profile.bats",
     "changelog": "node changelog.mjs",
     "test": "bats tests/*.bats"
   },
