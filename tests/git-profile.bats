@@ -1006,13 +1006,15 @@ EOF
     core.fileMode true \
     core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
 
-  cat >"$stub_bin/git" <<'EOF'
+  real_git="$(command -v git)"
+
+  cat >"$stub_bin/git" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf '%s\n' "$*" >> "$GIT_LOG"
-printf '%s\n' "${GIT_SSH_COMMAND:-}" >> "$GIT_SSH_LOG"
-if [ "$1" = "config" ]; then exec git "$@"; fi
+printf '%s\n' "\$*" >> "$git_log"
+printf '%s\n' "\${GIT_SSH_COMMAND:-}" >> "$git_ssh_log"
+if [ "\$1" = "config" ]; then exec "$real_git" "\$@"; fi
 mkdir -p "picotools"
 EOF
   chmod +x "$stub_bin/git"
@@ -1046,13 +1048,15 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  cat >"$stub_bin/git" <<'EOF'
+  real_git="$(command -v git)"
+
+  cat >"$stub_bin/git" <<EOF
 #!/usr/bin/env bash
 set -euo pipefail
 
-printf '%s\n' "$*" >> "$GIT_LOG"
-printf '%s\n' "${GIT_SSH_COMMAND:-}" >> "$GIT_SSH_LOG"
-if [ "$1" = "config" ]; then exec git "$@"; fi
+printf '%s\n' "\$*" >> "$git_log"
+printf '%s\n' "\${GIT_SSH_COMMAND:-}" >> "$git_ssh_log"
+if [ "\$1" = "config" ]; then exec "$real_git" "\$@"; fi
 mkdir -p "picotools"
 EOF
   chmod +x "$stub_bin/git"
@@ -1091,7 +1095,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  if output=$("$TOOL" clone personal 2>&1); then
+  if output=$(printf '\n' | "$TOOL" clone personal 2>&1); then
     fail 'clone should fail with a non-zero exit status when URL is missing'
   fi
 
