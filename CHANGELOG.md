@@ -1,3 +1,9 @@
+## [0.29.0](https://github.com/egose/picotools/compare/v0.28.2...v0.29.0) (2026-06-04)
+
+### Features
+
+* add clone command to clone repositories using profile SSH key ([9cdb966](https://github.com/egose/picotools/commit/9cdb9664dd5d44c09be7ea3136f82ed3cdd5865f))
+
 ## [0.28.2](https://github.com/egose/picotools/compare/v0.28.1...v0.28.2) (2026-06-04)
 
 ## [0.28.1](https://github.com/egose/picotools/compare/v0.28.0...v0.28.1) (2026-06-04)
