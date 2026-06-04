@@ -14,7 +14,7 @@
   },
   "scripts": {
     "release": "release-it",
-    "test:git-context": "bats tests/git-context.bats",
+    "test:git-profile": "bats tests/git-profile.bats",
     "changelog": "node changelog.mjs",
     "test": "bats tests/*.bats"
   },

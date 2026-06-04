@@ -170,7 +170,7 @@
 
 ### Features
 
-* add git-context script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
+* add git-profile script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
 
 ### Refactors
 

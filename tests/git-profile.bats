@@ -1,14 +1,14 @@
 #!/usr/bin/env bats
 
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
-TOOL="$REPO_ROOT/tools/bin/git-context"
+TOOL="$REPO_ROOT/tools/bin/git-profile"
 
 setup() {
   TMP_HOME="$(mktemp -d)" || return 1
   export TMP_HOME
   export HOME="$TMP_HOME"
   export XDG_CONFIG_HOME="$TMP_HOME/.config"
-  export CONTEXT_DIR="$XDG_CONFIG_HOME/git-contexts"
+  export PROFILE_DIR="$XDG_CONFIG_HOME/git-profiles"
 }
 
 teardown() {
@@ -139,7 +139,7 @@ run_set_in_repo() {
 }
 
 context_file_path() {
-  printf '%s/%s.gitconfig\n' "$CONTEXT_DIR" "$1"
+  printf '%s/%s.gitconfig\n' "$PROFILE_DIR" "$1"
 }
 
 write_git_config_values() {
@@ -215,15 +215,15 @@ assert_create_fails() {
   local output version
 
   output=$(run_tool --help)
-  assert_contains "$output" 'Usage: git-context <command>' 'help should describe the command entrypoint'
-  assert_contains "$output" 'read      Show detailed information for a saved git context' 'help should list the read command'
+  assert_contains "$output" 'Usage: git-profile <command>' 'help should describe the command entrypoint'
+  assert_contains "$output" 'read      Show detailed information for a saved git profile' 'help should list the read command'
   assert_contains "$output" '--debug' 'help should list debug mode'
 
   version=$(run_tool --version)
   assert_eq "$version" "$(tr -d '[:space:]' <"$REPO_ROOT/VERSION")" 'version output should match VERSION file'
 
   output=$(run_tool list)
-  assert_contains "$output" 'No git contexts found.' 'list should explain when there are no saved contexts'
+  assert_contains "$output" 'No git profiles found.' 'list should explain when there are no saved profiles'
 }
 
 @test "list prints debug details when enabled" {
@@ -233,7 +233,7 @@ assert_create_fails() {
     run_tool create >/dev/null 2>&1
 
   output=$(run_tool --debug list 2>&1)
-  assert_contains "$output" '[git-context] Listing 1 saved context(s)' 'debug mode should describe the number of saved contexts'
+  assert_contains "$output" '[git-profile] Listing 1 saved profile(s)' 'debug mode should describe the number of saved profiles'
   assert_contains "$output" 'personal' 'debug mode should still print the context list'
 }
 
@@ -257,7 +257,7 @@ assert_create_fails() {
   assert_not_contains "$output" 'Autocrlf' 'list should not include the detailed optional settings columns'
 
   assert_not_contains "$output" 'Actions:' 'list should not prompt for follow-up actions'
-  assert_not_contains "$output" 'Select context for details' 'list should not prompt for detail selection'
+  assert_not_contains "$output" 'Select profile for details' 'list should not prompt for detail selection'
 
   printf '1\ny\n' | run_tool delete >/dev/null 2>&1
 
@@ -272,7 +272,7 @@ assert_create_fails() {
   gpg_log="$TMP_HOME/gpg.log"
   stub_bin="$TMP_HOME/bin"
 
-  mkdir -p "$CONTEXT_DIR" "$stub_bin" "$(dirname "$ssh_key_path")"
+  mkdir -p "$PROFILE_DIR" "$stub_bin" "$(dirname "$ssh_key_path")"
   touch "$ssh_key_path" "$ssh_key_path.pub"
 
   write_git_config_values "$context_file" \
@@ -299,7 +299,7 @@ EOF
       GPG_LOG="$gpg_log" \
       "$TOOL" delete 2>&1)
 
-  assert_contains "$output" 'Deleted context.' 'delete should confirm the context was deleted'
+  assert_contains "$output" 'Deleted profile.' 'delete should confirm the profile was deleted'
   assert_file_not_exists "$context_file" 'delete should remove the selected context file'
   assert_file_not_exists "$ssh_key_path" 'delete should remove the SSH private key when requested'
   assert_file_not_exists "$ssh_key_path.pub" 'delete should remove the SSH public key when requested'
@@ -346,7 +346,7 @@ EOF
   context_file="$(context_file_path work)"
   ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
 
-  mkdir -p "$CONTEXT_DIR" "$(dirname "$ssh_key_path")"
+  mkdir -p "$PROFILE_DIR" "$(dirname "$ssh_key_path")"
   touch "$ssh_key_path"
   printf '%s\n' 'ssh-ed25519 AAAATEST jane@example.com' >"$ssh_key_path.pub"
   write_git_config_values "$context_file" \
@@ -408,7 +408,7 @@ EOF
   ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
   public_key='ssh-ed25519 AAAATEST jane@example.com'
 
-  mkdir -p "$CONTEXT_DIR" "$(dirname "$ssh_key_path")"
+  mkdir -p "$PROFILE_DIR" "$(dirname "$ssh_key_path")"
   touch "$ssh_key_path"
   printf '%s\n' "$public_key" >"$ssh_key_path.pub"
   write_git_config_values "$context_file" \
@@ -625,7 +625,7 @@ EOF
   assert_contains "$output" '10. Done' 'update should offer a done option'
   assert_not_contains "$output" 'Use SSH connection?' 'update should not prompt to rewrite SSH settings'
   assert_not_contains "$output" 'Use GPG signing?' 'update should not prompt to rewrite GPG enablement'
-  assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
+  assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
   assert_git_config_file_value "$context_file" core.sshCommand 'ssh -i /tmp/work-key -o IdentitiesOnly=yes' 'update should preserve the existing SSH command'
   assert_git_config_file_value "$context_file" user.signingkey 'OLD123' 'update should preserve the existing signing key'
   assert_git_config_file_value "$context_file" gpg.program gpg2 'update should rewrite gpg.program when selected'
@@ -657,7 +657,7 @@ EOF
   output=$(printf '1\n4\ntrue\n5\ntrue\n6\ncurrent\n7\ntrue\n8\nnano\n10\n' |
     run_tool update 2>&1)
 
-  assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
+  assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
   assert_git_config_file_value "$context_file" pull.rebase true 'update should rewrite pull.rebase when selected'
   assert_git_config_file_value "$context_file" rebase.autoStash true 'update should rewrite rebase.autoStash when selected'
   assert_git_config_file_value "$context_file" push.default current 'update should rewrite push.default when selected'
@@ -683,7 +683,7 @@ EOF
   output=$(printf '1\n2\ninput\n10\n' |
     run_tool update 2>&1)
 
-  assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
+  assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
   assert_git_config_file_value "$context_file" gpg.program gpg 'update should preserve gpg.program when it is not selected'
   assert_git_config_file_value "$context_file" core.autocrlf input 'update should rewrite only the selected core.autocrlf value'
   assert_git_config_file_value "$context_file" core.fileMode true 'update should preserve core.fileMode when it is not selected'
@@ -705,8 +705,8 @@ EOF
   output=$(printf '1\n1\n2\ninput\n10\n' |
     run_tool update 2>&1)
 
-  assert_contains "$output" 'GPG Program can only be updated when GPG signing is enabled for the context.' 'update should explain why gpg.program is unavailable'
-  assert_contains "$output" "Updated context 'work'." 'update should still allow choosing another optional setting'
+  assert_contains "$output" 'GPG Program can only be updated when GPG signing is enabled for the profile.' 'update should explain why gpg.program is unavailable'
+  assert_contains "$output" "Updated profile 'work'." 'update should still allow choosing another optional setting'
   assert_git_config_file_value "$context_file" core.autocrlf input 'update should rewrite core.autocrlf after a valid retry'
   assert_git_config_file_value "$context_file" core.fileMode true 'update should preserve core.fileMode when it is not selected'
   assert_git_config_file_unset "$context_file" gpg.program 'update should not create gpg.program when GPG signing is disabled'
@@ -731,7 +731,7 @@ EOF
   output=$(printf '1\n3\nfalse\n10\n' |
     run_tool update 2>&1)
 
-  assert_contains "$output" "Updated context 'work'." 'update should confirm the selected context was updated'
+  assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
   assert_git_config_file_value "$context_file" user.name 'Jane Dev' 'update should preserve the stored user name'
   assert_git_config_file_value "$context_file" user.email 'jane@example.com' 'update should preserve the stored email'
   assert_git_config_file_value "$context_file" core.sshCommand 'ssh -i /tmp/work-key -o IdentitiesOnly=yes' 'update should preserve the stored SSH command'
@@ -750,7 +750,7 @@ EOF
   context_file="$(context_file_path work)"
   repo="$TMP_HOME/repo"
 
-  mkdir -p "$CONTEXT_DIR"
+  mkdir -p "$PROFILE_DIR"
   init_repo "$repo"
 
   write_git_config_values "$context_file" \
@@ -811,7 +811,7 @@ EOF
   context_file="$(context_file_path personal)"
   repo="$TMP_HOME/repo"
 
-  mkdir -p "$CONTEXT_DIR"
+  mkdir -p "$PROFILE_DIR"
   init_repo "$repo"
 
   write_git_config_values "$context_file" \
@@ -861,7 +861,7 @@ EOF
   context_file="$(context_file_path work)"
   repo="$TMP_HOME/repo"
 
-  mkdir -p "$CONTEXT_DIR"
+  mkdir -p "$PROFILE_DIR"
   init_repo "$repo"
 
   write_git_config_values "$context_file" \
@@ -899,7 +899,7 @@ EOF
   context_file="$(context_file_path work)"
   ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
 
-  mkdir -p "$CONTEXT_DIR" "$(dirname "$ssh_key_path")"
+  mkdir -p "$PROFILE_DIR" "$(dirname "$ssh_key_path")"
   touch "$ssh_key_path" "$ssh_key_path.pub"
   write_git_config_values "$context_file" \
     user.name 'Jane Dev' \
@@ -926,7 +926,7 @@ EOF
   work_key_path="$TMP_HOME/.ssh/id_ed25519_work"
   personal_key_path="$TMP_HOME/.ssh/id_ed25519_personal"
 
-  mkdir -p "$CONTEXT_DIR" "$(dirname "$work_key_path")"
+  mkdir -p "$PROFILE_DIR" "$(dirname "$work_key_path")"
   touch "$work_key_path" "$personal_key_path"
 
   write_git_config_values "$work_file" \
@@ -963,7 +963,7 @@ EOF
   context_file="$(context_file_path work)"
   outside_dir="$TMP_HOME/outside"
 
-  mkdir -p "$CONTEXT_DIR" "$outside_dir"
+  mkdir -p "$PROFILE_DIR" "$outside_dir"
   write_git_config_values "$context_file" \
     user.name 'Jane Dev' \
     user.email 'jane@example.com' \
