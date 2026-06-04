@@ -977,3 +977,123 @@ EOF
     bash -c "cd \"$outside_dir\" && printf '1\\n' | HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" \"$TOOL\" set" \
     --
 }
+
+@test "help lists the clone command" {
+  local output
+
+  output=$(run_tool --help)
+  assert_contains "$output" 'clone     Clone a repository using a saved git profile' 'help should list the clone command'
+}
+
+@test "clone with SSH profile uses the profile key" {
+  local context_file stub_bin git_log git_ssh_log ssh_key_path
+
+  context_file="$(context_file_path work)"
+  stub_bin="$TMP_HOME/bin"
+  git_log="$TMP_HOME/git.log"
+  git_ssh_log="$TMP_HOME/git-ssh.log"
+  ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin" "$(dirname "$ssh_key_path")"
+  touch "$ssh_key_path"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true \
+    core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
+
+  cat >"$stub_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "$GIT_LOG"
+printf '%s\n' "${GIT_SSH_COMMAND:-}" >> "$GIT_SSH_LOG"
+if [ "$1" = "config" ]; then exec git "$@"; fi
+mkdir -p "picotools"
+EOF
+  chmod +x "$stub_bin/git"
+
+  output=$(PATH="$stub_bin:$PATH" \
+    GIT_LOG="$git_log" \
+    GIT_SSH_LOG="$git_ssh_log" \
+    "$TOOL" clone work "git@github.com:egose/picotools.git" 2>&1)
+
+  assert_contains "$output" "Cloned 'git@github.com:egose/picotools.git' using profile 'work'." 'clone should confirm success'
+  assert_contains "$(<"$git_log")" 'clone git@github.com:egose/picotools.git' 'clone should pass the URL to git'
+  assert_contains "$(<"$git_log")" 'clone' 'clone should invoke git clone'
+  assert_contains "$(<"$git_ssh_log")" "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'clone should set GIT_SSH_COMMAND with the profile key'
+}
+
+@test "clone without SSH profile runs plain git clone" {
+  local context_file stub_bin git_log git_ssh_log
+
+  context_file="$(context_file_path personal)"
+  stub_bin="$TMP_HOME/bin"
+  git_log="$TMP_HOME/git.log"
+  git_ssh_log="$TMP_HOME/git-ssh.log"
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  cat >"$stub_bin/git" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$*" >> "$GIT_LOG"
+printf '%s\n' "${GIT_SSH_COMMAND:-}" >> "$GIT_SSH_LOG"
+if [ "$1" = "config" ]; then exec git "$@"; fi
+mkdir -p "picotools"
+EOF
+  chmod +x "$stub_bin/git"
+
+  output=$(PATH="$stub_bin:$PATH" \
+    GIT_LOG="$git_log" \
+    GIT_SSH_LOG="$git_ssh_log" \
+    "$TOOL" clone personal "git@github.com:egose/picotools.git" 2>&1)
+
+  assert_contains "$output" "Cloned 'git@github.com:egose/picotools.git' using profile 'personal'." 'clone should confirm success'
+  assert_contains "$(<"$git_log")" 'clone git@github.com:egose/picotools.git' 'clone should pass the URL to git'
+  assert_eq "$(<"$git_ssh_log")" '' 'clone should not set GIT_SSH_COMMAND when SSH is disabled'
+}
+
+@test "clone fails with missing profile" {
+  local output
+
+  if output=$("$TOOL" clone nonexistent "git@github.com:egose/picotools.git" 2>&1); then
+    fail 'clone should fail with a non-zero exit status for missing profile'
+  fi
+
+  assert_contains "$output" "Error: profile not found 'nonexistent'" 'clone should report the missing profile'
+}
+
+@test "clone fails with missing URL" {
+  local output context_file
+
+  context_file="$(context_file_path personal)"
+  mkdir -p "$PROFILE_DIR"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  if output=$("$TOOL" clone personal 2>&1); then
+    fail 'clone should fail with a non-zero exit status when URL is missing'
+  fi
+
+  assert_contains "$output" 'Error: git URL is required' 'clone should report that URL is required'
+}
