@@ -1,3 +1,18 @@
+## [0.30.0](https://github.com/egose/picotools/compare/v0.29.0...v0.30.0) (2026-06-09)
+
+### Features
+
+* add gh-actions-upgrade tool ([5307c70](https://github.com/egose/picotools/commit/5307c70ae686142876c50c8fbc8691d50e51b350))
+* improve git-commit error handling and execution preview ([77d9ac2](https://github.com/egose/picotools/commit/77d9ac29b3fe7a1a7e499125714a36221bc1e06e))
+
+### Bug Fixes
+
+* correct git-profile config directory path ([89c226e](https://github.com/egose/picotools/commit/89c226e557feef4c50dd0eb691f0f40ac5def780))
+
+### Refactors
+
+* pluralize config directory name ([723bc35](https://github.com/egose/picotools/commit/723bc3517a84f0a4bfe7bbdd3b0f8433037625c7))
+
 ## [0.29.0](https://github.com/egose/picotools/compare/v0.28.2...v0.29.0) (2026-06-04)
 
 ### Features
