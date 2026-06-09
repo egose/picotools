@@ -895,6 +895,23 @@ should_retry_with_additional_model() {
   return 1
 }
 
+print_error_output() {
+  local error_output="$1"
+
+  if [ -z "$error_output" ]; then
+    return 0
+  fi
+
+  printf '%s' "$error_output" >&2
+  case "$error_output" in
+  *$'\n')
+    ;;
+  *)
+    printf '\n' >&2
+    ;;
+  esac
+}
+
 request_commit_plan_once() {
   local profile="$1"
   local model="$2"
@@ -906,7 +923,7 @@ request_commit_plan_once() {
   debug_log "Requesting commit plan from model-profile '$profile' model '$model'"
   if output=$(run_model_profile ask "$profile" --model "$model" --system-message-file "$system_message_file" --message-file "$user_message_file" 2>"$stderr_file"); then
     if [ -s "$stderr_file" ]; then
-      printf '%s' "$(<"$stderr_file")" >&2
+      print_error_output "$(<"$stderr_file")"
     fi
     debug_log "Received commit plan response (${#output} chars)"
     printf '%s\n' "$output"
@@ -942,8 +959,9 @@ request_commit_plan() {
   if output=$(request_commit_plan_once "$profile" "$model" "$system_message_file" "$user_message_file" "$stderr_file"); then
     printf '%s\n' "$output"
     return 0
+  else
+    status=$?
   fi
-  status=$?
   error_output=$(<"$stderr_file")
 
   if [ -n "$additional_profile" ] && [ -n "$additional_model" ] && should_retry_with_additional_model "$error_output"; then
@@ -952,13 +970,14 @@ request_commit_plan() {
     if output=$(request_commit_plan_once "$additional_profile" "$additional_model" "$system_message_file" "$user_message_file" "$stderr_file"); then
       printf '%s\n' "$output"
       return 0
+    else
+      status=$?
     fi
-    status=$?
     error_output=$(<"$stderr_file")
   fi
 
   if [ -n "$error_output" ]; then
-    printf '%s' "$error_output" >&2
+    print_error_output "$error_output"
   fi
 
   return "$status"
@@ -1530,7 +1549,7 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count
+  local config_values profile model additional_profile additional_model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count request_status
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1582,7 +1601,10 @@ run_commit_tool() {
   diff_output=$(collect_changes_diff "$changed_files")
   system_message=$(commit_planning_system_message)
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
-  plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message")
+  plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
+    request_status=$?
+    exit "$request_status"
+  }
 
   if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
     echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
@@ -1590,6 +1612,8 @@ run_commit_tool() {
   fi
 
   debug_log 'Validated commit plan JSON'
+  debug_log 'Printing commit plan preview'
+  print_commit_plan "$plan_json" "$scope" "$changed_files"
 
   if [ "$apply_commits" = 'true' ]; then
     execute_commit_plan "$plan_json" "$scope" "$changed_files"
@@ -1602,9 +1626,6 @@ run_commit_tool() {
     fi
     return 0
   fi
-
-  debug_log 'Printing commit plan preview'
-  print_commit_plan "$plan_json" "$scope" "$changed_files"
 }
 
 main() {

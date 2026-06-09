@@ -43,6 +43,18 @@ assert_contains() {
   esac
 }
 
+assert_not_contains() {
+  local haystack="$1"
+  local needle="$2"
+  local message="$3"
+
+  case "$haystack" in
+  *"$needle"*)
+    fail "$message (unexpected '$needle')"
+    ;;
+  esac
+}
+
 assert_file_exists() {
   local path="$1"
   local message="$2"
@@ -587,6 +599,38 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after a HTTP 503 fallback'
 }
 
+@test "fails immediately on HTTP 503 when no additional model profile is configured" {
+  local stub_path jq_stub git_api_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_FAIL_PROFILE='alpha-profile' \
+    MODEL_PROFILE_ASK_FAIL_MODEL='alpha-model' \
+    MODEL_PROFILE_ASK_FAIL_MESSAGE='Error: request failed with HTTP 503' \
+    GIT_API_BIN="$git_api_stub" \
+    "$TOOL" --pr 2>&1); then
+    fail 'git-commit should fail immediately when the primary model request returns HTTP 503 and no additional model is configured'
+  fi
+
+  assert_contains "$output" 'Error: request failed with HTTP 503' 'git-commit should surface the original model request error'
+  assert_not_contains "$output" 'did not return valid commit plan JSON' 'git-commit should not continue into JSON validation after a failed model request'
+}
+
 @test "omits oversized modified file diffs before calling model-profile" {
   local stub_path jq_stub repo ask_log output ask_payload
 
@@ -1098,6 +1142,8 @@ create_initial_commit() {
   assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit in apply mode'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply mode'
+  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying a single commit'
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying it'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply mode'
 }
 
@@ -1133,6 +1179,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when push mode implies apply mode'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree when push mode implies apply mode'
+  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying when push mode is used'
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before pushing'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title when push mode implies apply mode'
 }
 
@@ -1173,6 +1221,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when PR mode implies apply and push'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree when PR mode implies apply and push'
+  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying when PR mode is used'
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before opening a PR'
   assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when PR mode implies apply and push'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch when PR mode implies apply and push'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request when PR mode implies apply and push'
@@ -1210,6 +1260,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when pushing a new branch'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply and push mode'
+  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying in apply and push mode'
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying in apply and push mode'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply and push mode'
 }
 
@@ -1250,6 +1302,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream before opening a pull request'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply, push, and PR mode'
+  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying in PR mode'
+  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying in PR mode'
   assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch through git-api'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
@@ -1353,6 +1407,12 @@ create_initial_commit() {
   assert_eq "$previous_subject" 'fix(445566): update application logic' 'git-commit should create grouped commits in order'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after grouped apply mode'
+  assert_contains "$output" 'Commit 1:' 'git-commit should print the first grouped commit plan before applying it'
+  assert_contains "$output" 'git add -- :/src/app.txt' 'git-commit should print the first grouped add command before applying it'
+  assert_contains "$output" 'git commit -m "fix(445566): update application logic"' 'git-commit should print the first grouped commit command before applying it'
+  assert_contains "$output" 'Commit 2:' 'git-commit should print the second grouped commit plan before applying it'
+  assert_contains "$output" 'git add -- :/tests/app.txt' 'git-commit should print the second grouped add command before applying it'
+  assert_contains "$output" 'git commit -m "test(445566): add coverage for application logic"' 'git-commit should print the second grouped commit command before applying it'
   assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
   assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
 }

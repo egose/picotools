@@ -60,6 +60,9 @@ jobs:
         "$PWD/tmp/install/bin/gh-repo-sync" --help >/dev/null
         test "$("$PWD/tmp/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/gh-actions-upgrade" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/gh-actions-upgrade" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/git-api" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-api" --version)" = "$(cat VERSION)"
         test -f "$PWD/tmp/install/lib/picotools/git-api/operation-id-index.json"
