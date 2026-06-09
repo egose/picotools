@@ -15,6 +15,7 @@ The following scripts are included in `tools/bin`:
 | `oc-route` | Lists, reads, and interactively applies OpenShift route manifests |
 | `oc-quota-requests` | Analyzes OpenShift namespace CPU and memory request quota usage |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
+| `gh-actions-upgrade` | Updates pinned GitHub Action refs under `.github` to the latest tag or tag commit hash |
 | `model-provider` | Stores named model provider profiles with config and token data kept separately |
 | `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
 | `git-api` | Calls GitHub REST operations by `operationId` using split OpenAPI method files |
@@ -23,6 +24,8 @@ The following scripts are included in `tools/bin`:
 | `license` | Creates or updates a LICENSE file from MIT or Apache 2.0 templates |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
+
+`gh-actions-upgrade` scans `.github/**/*.yml` and `.github/**/*.yaml` by default, updates `uses: owner/repo@ref` entries to each action repository's latest tag, prefers stable version tags over prereleases when both exist, and preserves each ref's current style unless `--ref-type tag` or `--ref-type hash` is used to force all rewritten refs to one form. It ignores local `./...` actions and `docker://...` references, requires `git` plus `sort`, and uses `GH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_PAT`, or `PAT_TOKEN` for authenticated lookups when private action repositories need access.
 
 `model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, `gemini`, and `custom` profiles with `create`, `update`, `list`, `read`, `profiles`, `models`, `ask`, and `delete`. Azure providers store a resource name, while `custom` stores an explicit OpenAI-compatible endpoint URL. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--message-file PATH` for larger prompts, `--model MODEL` to override the default first configured model, and `--system-message TEXT` or `--system-message-file PATH` to override the default system prompt. `--user-message` is accepted as an alias for `--message`. Use `--debug` to print request-phase steps to stderr. `MODEL_PROVIDER_DEBUG=true` still works as a deprecated fallback, and `MODEL_PROVIDER_CURL_MAX_TIME=<seconds>` bounds request duration.
 
@@ -88,6 +91,7 @@ pip-upgrade
 oc-route
 oc-quota-requests
 gh-repo-sync
+gh-actions-upgrade
 model-provider
 git-commit
 git-api
