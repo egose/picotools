@@ -89,7 +89,7 @@ default_gpg_program() {
 }
 
 context_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-profiles"
+  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-profile"
 }
 
 validate_context_name() {
