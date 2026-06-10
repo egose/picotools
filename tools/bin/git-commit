@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" prompt version
+picotools_source_modules "$SCRIPT_DIR" prompt version box
 
 ALLOWED_TYPES='feat fix docs refactor chore perf test ci'
 MAX_COMMIT_PLAN_CHANGED_FILES_CHARS=250000
@@ -1230,7 +1230,7 @@ create_pull_request() {
     --field "body=$body")
   pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty')
   if [ -n "$pr_url" ]; then
-    printf 'Pull request: %s\n' "$pr_url"
+    printf '\033[1;32mPull request:\033[0m %s\n' "$pr_url"
     return 0
   fi
 
@@ -1439,16 +1439,16 @@ resolve_scope() {
 
 print_git_add_command() {
   if [ "$#" -eq 0 ]; then
-    echo 'git add -A :/'
+    picotools_box_line 'git add -A :/'
     return 0
   fi
 
   local file
-  printf 'git add --'
+  local cmd='git add --'
   for file in "$@"; do
-    printf ' %q' ":/$file"
+    cmd="$cmd $(printf '%q' ":/$file")"
   done
-  printf '\n'
+  picotools_box_line "$cmd"
 }
 
 print_git_commit_command() {
@@ -1457,7 +1457,7 @@ print_git_commit_command() {
 
   escaped_title=${title//\\/\\\\}
   escaped_title=${escaped_title//"/\\"/}
-  printf 'git commit -m "%s"\n' "$escaped_title"
+  picotools_box_line "git commit -m \"$escaped_title\""
 }
 
 print_commit_plan() {
@@ -1466,12 +1466,17 @@ print_commit_plan() {
   local changed_files="$3"
   local count commit_index type message title
   local -a commit_files=()
+  local width=60
 
   count=$(plan_commit_count "$plan_json")
   if [ "$count" -gt 1 ]; then
     validate_multi_commit_plan "$plan_json" "$changed_files"
   fi
 
+  printf '\n'
+  picotools_box_top "$width"
+  picotools_box_line "commit plan" "$width"
+  picotools_box_separator "$width"
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
     type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
@@ -1493,16 +1498,19 @@ print_commit_plan() {
       print_git_add_command
     else
       mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
-      printf 'Commit %d:\n' "$((commit_index + 1))"
+      picotools_box_line "Commit $((commit_index + 1)):" "$width"
       print_git_add_command "${commit_files[@]}"
     fi
 
     print_git_commit_command "$title"
     if [ "$commit_index" -lt $((count - 1)) ]; then
-      printf '\n'
+      picotools_box_line "" "$width"
     fi
     commit_index=$((commit_index + 1))
   done
+  picotools_box_bottom "$width"
+  printf '%s\n' '─────────────────────────────────────────────────────────────'
+  printf '\n'
 }
 
 execute_commit_plan() {

@@ -43,6 +43,10 @@ assert_contains() {
   esac
 }
 
+strip_ansi() {
+  printf '%s' "$1" | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
+}
+
 assert_not_contains() {
   local haystack="$1"
   local needle="$2"
@@ -1223,7 +1227,7 @@ create_initial_commit() {
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree when PR mode implies apply and push'
   assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying when PR mode is used'
   assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before opening a PR'
-  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when PR mode implies apply and push'
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when PR mode implies apply and push'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch when PR mode implies apply and push'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request when PR mode implies apply and push'
 }
@@ -1304,7 +1308,7 @@ create_initial_commit() {
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply, push, and PR mode'
   assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying in PR mode'
   assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying in PR mode'
-  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL'
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch through git-api'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
   assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should target the main branch'
@@ -1339,7 +1343,7 @@ create_initial_commit() {
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr release-1.0 2>&1)
 
-  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when an explicit base is provided'
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when an explicit base is provided'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api when an explicit base is provided'
   assert_contains "$(<"$git_api_log")" 'base=release-1.0' 'git-commit should use the provided PR base branch'
 }
@@ -1373,7 +1377,7 @@ create_initial_commit() {
     GIT_API_REPOS_GET_FAIL=true \
     "$TOOL" --pr 2>&1)
 
-  assert_contains "$output" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create a pull request when git-api default-branch lookup fails'
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create a pull request when git-api default-branch lookup fails'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should try git-api before falling back to git metadata'
   assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should fall back to the git remote default branch'
 }
