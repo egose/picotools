@@ -1,3 +1,10 @@
+## [0.32.0](https://github.com/egose/picotools/compare/v0.31.0...v0.32.0) (2026-06-10)
+
+### Features
+
+* add dynamic width and truncation to box utility ([a462114](https://github.com/egose/picotools/commit/a462114916318a0724d3a0a8a762c5212b651729))
+* implement dynamic width commit plan display ([529f0c0](https://github.com/egose/picotools/commit/529f0c0968a581f7e108f36f5cd553175f7c52ed))
+
 ## [0.31.0](https://github.com/egose/picotools/compare/v0.30.0...v0.31.0) (2026-06-10)
 
 ### Features
