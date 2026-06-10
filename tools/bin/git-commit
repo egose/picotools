@@ -1187,6 +1187,45 @@ planned_commit_titles() {
   done
 }
 
+pull_request_title() {
+  local plan_json="$1"
+  local scope="$2"
+  local count commit_index type message first_type
+
+  count=$(plan_commit_count "$plan_json")
+
+  if [ "$count" -eq 1 ]; then
+    type=$(printf '%s' "$plan_json" | jq -r '.commits[0].type // empty')
+    message=$(printf '%s' "$plan_json" | jq -r '.commits[0].message // empty')
+    format_commit_title "$type" "$scope" "$message"
+    return 0
+  fi
+
+  first_type=$(printf '%s' "$plan_json" | jq -r '.commits[0].type // empty')
+  local -a messages=()
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
+    messages+=("$message")
+    commit_index=$((commit_index + 1))
+  done
+
+  local joined
+  if [ "${#messages[@]}" -le 3 ]; then
+    joined=$(printf '%s, ' "${messages[@]}")
+    joined=${joined%, }
+  else
+    joined=$(printf '%s, ' "${messages[@]:0:2}")
+    joined="${joined}and $((count - 2)) more"
+  fi
+
+  if [ -n "$scope" ]; then
+    printf '%s(%s): %s\n' "$first_type" "$scope" "$joined"
+  else
+    printf '%s: %s\n' "$first_type" "$joined"
+  fi
+}
+
 pull_request_body() {
   local plan_json="$1"
   local scope="$2"
@@ -1201,11 +1240,49 @@ pull_request_body() {
   printf '%s\n' "$body"
 }
 
+request_pr_title_from_ai() {
+  local plan_json="$1"
+  local scope="$2"
+  local profile="$3"
+  local model="$4"
+  local system_message user_message commit_titles output stderr_file title
+
+  commit_titles=$(planned_commit_titles "$plan_json" "$scope")
+  system_message="You are an expert software engineer creating pull request titles.
+Generate a concise, descriptive PR title that encompasses all the changes listed below.
+The title should follow conventional commit format if a type is evident.
+Return ONLY the title text, no explanations or quotes."
+
+  user_message="Create a PR title for these commits:
+$commit_titles"
+
+  stderr_file=$(mktemp)
+  register_tmpfile "$stderr_file"
+
+  debug_log "Requesting PR title from AI for $(echo "$commit_titles" | wc -l) commit(s)"
+  if output=$(run_model_profile ask "$profile" --model "$model" --system-message "$system_message" --message "$user_message" 2>"$stderr_file"); then
+    if [ -s "$stderr_file" ]; then
+      print_error_output "$(<"$stderr_file")"
+    fi
+    title=$(printf '%s' "$output" | head -1 | sed 's/^"//;s/"$//')
+    if [ -n "$title" ]; then
+      debug_log "AI generated PR title: $title"
+      printf '%s\n' "$title"
+      return 0
+    fi
+  fi
+
+  debug_log "AI PR title request failed, using fallback"
+  pull_request_title "$plan_json" "$scope"
+}
+
 create_pull_request() {
   local branch="$1"
   local plan_json="$2"
   local scope="$3"
   local requested_base_branch="$4"
+  local profile="$5"
+  local model="$6"
   local remote repo owner name title body response pr_url base_branch
 
   remote=$(resolve_push_remote "$branch")
@@ -1219,7 +1296,7 @@ create_pull_request() {
     exit 1
   fi
 
-  title=$(planned_commit_titles "$plan_json" "$scope" | sed -n '1p')
+  title=$(request_pr_title_from_ai "$plan_json" "$scope" "$profile" "$model")
   body=$(pull_request_body "$plan_json" "$scope")
 
   debug_log "Creating pull request for '$branch' into '$base_branch' on '$repo'"
@@ -1629,7 +1706,7 @@ run_commit_tool() {
       debug_log 'Pushing committed branch'
       push_current_branch "$branch"
       if [ "$create_pr" = 'true' ]; then
-        create_pull_request "$branch" "$plan_json" "$scope" "$pr_base_branch"
+        create_pull_request "$branch" "$plan_json" "$scope" "$pr_base_branch" "$profile" "$model"
       fi
     fi
     return 0
