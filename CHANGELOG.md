@@ -1,3 +1,12 @@
+## [0.31.0](https://github.com/egose/picotools/compare/v0.30.0...v0.31.0) (2026-06-10)
+
+### Features
+
+* add AI-powered pull request title generation ([c6b3f22](https://github.com/egose/picotools/commit/c6b3f22637ccf36758f6c03f0e02184c10b1e288))
+* add box drawing utility ([e44b769](https://github.com/egose/picotools/commit/e44b76933d45cdb60a9b0accfe7be77e2ee54493))
+* add colored request logging ([829b4c5](https://github.com/egose/picotools/commit/829b4c5d8a97412e2eb0261e9a23614a9fa9b013))
+* format commit plan and colorize output ([6433ccd](https://github.com/egose/picotools/commit/6433ccd4f818782cd842852593862ed2ca5f0077))
+
 ## [0.30.0](https://github.com/egose/picotools/compare/v0.29.0...v0.30.0) (2026-06-09)
 
 ### Features
