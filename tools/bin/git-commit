@@ -1516,16 +1516,16 @@ resolve_scope() {
 
 print_git_add_command() {
   if [ "$#" -eq 0 ]; then
-    picotools_box_line 'git add -A :/'
+    printf 'git add -A :/\n'
     return 0
   fi
 
   local file
-  local cmd='git add --'
+  printf 'git add --'
   for file in "$@"; do
-    cmd="$cmd $(printf '%q' ":/$file")"
+    printf ' %q' ":/$file"
   done
-  picotools_box_line "$cmd"
+  printf '\n'
 }
 
 print_git_commit_command() {
@@ -1534,26 +1534,22 @@ print_git_commit_command() {
 
   escaped_title=${title//\\/\\\\}
   escaped_title=${escaped_title//"/\\"/}
-  picotools_box_line "git commit -m \"$escaped_title\""
+  printf 'git commit -m "%s"\n' "$escaped_title"
 }
 
 print_commit_plan() {
   local plan_json="$1"
   local scope="$2"
   local changed_files="$3"
-  local count commit_index type message title
-  local -a commit_files=()
-  local width=60
+  local count commit_index type message title width
+  local -a commit_files=() lines=()
 
   count=$(plan_commit_count "$plan_json")
   if [ "$count" -gt 1 ]; then
     validate_multi_commit_plan "$plan_json" "$changed_files"
   fi
 
-  printf '\n'
-  picotools_box_top "$width"
-  picotools_box_line "commit plan" "$width"
-  picotools_box_separator "$width"
+  lines+=("commit plan")
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
     type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
@@ -1572,21 +1568,32 @@ print_commit_plan() {
     title=$(format_commit_title "$type" "$scope" "$message")
 
     if [ "$count" -eq 1 ]; then
-      print_git_add_command
+      lines+=("$(print_git_add_command)")
     else
       mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
-      picotools_box_line "Commit $((commit_index + 1)):" "$width"
-      print_git_add_command "${commit_files[@]}"
+      lines+=("Commit $((commit_index + 1)):")
+      lines+=("$(print_git_add_command "${commit_files[@]}")")
     fi
 
-    print_git_commit_command "$title"
+    lines+=("$(print_git_commit_command "$title")")
     if [ "$commit_index" -lt $((count - 1)) ]; then
-      picotools_box_line "" "$width"
+      lines+=("")
     fi
     commit_index=$((commit_index + 1))
   done
+
+  width=$(picotools_box_width_for_lines 60 "${lines[@]}")
+
+  printf '\n'
+  picotools_box_top "$width"
+  picotools_box_line "${lines[0]}" "$width"
+  picotools_box_separator "$width"
+
+  for ((commit_index = 1; commit_index < ${#lines[@]}; commit_index++)); do
+    picotools_box_line "${lines[$commit_index]}" "$width"
+  done
+
   picotools_box_bottom "$width"
-  printf '%s\n' '─────────────────────────────────────────────────────────────'
   printf '\n'
 }
 
