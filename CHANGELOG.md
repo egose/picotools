@@ -1,3 +1,9 @@
+## [0.33.1](https://github.com/egose/picotools/compare/v0.33.0...v0.33.1) (2026-06-11)
+
+### Refactors
+
+* rename config directory to git-profile ([7712477](https://github.com/egose/picotools/commit/771247774a2d248c4c661a68a121080e9275f38b))
+
 ## [0.33.0](https://github.com/egose/picotools/compare/v0.32.1...v0.33.0) (2026-06-11)
 
 ### Features
