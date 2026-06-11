@@ -1,3 +1,10 @@
+## [0.34.0](https://github.com/egose/picotools/compare/v0.33.1...v0.34.0) (2026-06-11)
+
+### Features
+
+* add named PAT token profile management ([7662c8f](https://github.com/egose/picotools/commit/7662c8fc49dfdc63a271eae576b8174178f77284))
+* support configuring and using git-api profiles for PR operations ([44ef5fb](https://github.com/egose/picotools/commit/44ef5fb8346ad0b34fd029653f00f61ee8920c7d))
+
 ## [0.33.1](https://github.com/egose/picotools/compare/v0.33.0...v0.33.1) (2026-06-11)
 
 ### Refactors
