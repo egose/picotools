@@ -1,3 +1,9 @@
+## [0.32.1](https://github.com/egose/picotools/compare/v0.32.0...v0.32.1) (2026-06-11)
+
+### Bug Fixes
+
+* correct context directory path ([33c6d17](https://github.com/egose/picotools/commit/33c6d17bddb74d90041c8a7094ba7b126fdcee0d))
+
 ## [0.32.0](https://github.com/egose/picotools/compare/v0.31.0...v0.32.0) (2026-06-10)
 
 ### Features
