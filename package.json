@@ -2,7 +2,7 @@
   "name": "picotools",
   "description": "A collection of installable bash scripts with asdf plugin support",
   "license": "Apache-2.0",
-  "version": "0.33.1",
+  "version": "0.34.0",
   "author": "Junmin Dev",
   "homepage": "https://github.com/egose/picotools",
   "repository": {
