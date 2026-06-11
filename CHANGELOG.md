@@ -1,3 +1,9 @@
+## [0.35.0](https://github.com/egose/picotools/compare/v0.34.0...v0.35.0) (2026-06-11)
+
+### Features
+
+* add optional GPG secret configuration to git-release-setup ([359712e](https://github.com/egose/picotools/commit/359712e70d5866424eeab2c11bd47656780822ce))
+
 ## [0.34.0](https://github.com/egose/picotools/compare/v0.33.1...v0.34.0) (2026-06-11)
 
 ### Features
