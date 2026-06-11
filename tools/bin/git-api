@@ -26,13 +26,17 @@ usage() {
 Usage: git-api [global-flags] <command>
 
 Commands:
-  configure                              Store a PAT token for authenticated requests
+  configure [profile]                    Store a PAT token, optionally under a named profile
   list [prefix]                          List common operationIds or filter by prefix
+  profiles                               List stored PAT token profiles
   show <operationId>                     Show operation docs and parameter info
+  use <profile>                          Select the current PAT token profile
+  delete-profile <profile>               Delete a stored PAT token profile
   <operationId> [path-args...] [flags]   Call a GitHub REST operation by operationId
 
 Options:
   --token TOKEN              Override the auth token for this invocation
+  --profile NAME             Use a named stored token profile for this invocation
   Query flags come from the operation spec and use --<param-name>
   --field KEY=VALUE          JSON body field
   --header KEY=VALUE         Extra request header
@@ -45,6 +49,10 @@ Options:
 
 Examples:
   git-api configure
+  git-api configure work
+  git-api profiles
+  git-api use work
+  git-api --profile work repos/get octocat hello-world
   git-api --token ghp_xxx repos/get octocat hello-world
   git-api list
   git-api list repos/
@@ -109,11 +117,71 @@ render_operations() {
 }
 
 configure_tool() {
+  local profile_name="${1:-}"
   local token
 
   token=$(prompt_secret_value 'PAT_TOKEN' '' true)
+
+  if [ -n "$profile_name" ]; then
+    git_api_assert_valid_profile_name "$profile_name"
+    git_api_write_profile_token "$profile_name" "$token"
+    git_api_write_current_profile "$profile_name"
+    printf "Configured git-api PAT_TOKEN profile '%s'.\n" "$profile_name"
+    return 0
+  fi
+
   git_api_write_token "$token"
   echo 'Configured git-api PAT_TOKEN.'
+}
+
+render_profiles() {
+  local current_profile
+  local profile_name
+  local -a rows=()
+
+  current_profile=$(git_api_read_current_profile)
+
+  while IFS= read -r profile_name; do
+    [ -n "$profile_name" ] || continue
+    if [ "$profile_name" = "$current_profile" ]; then
+      rows+=("$profile_name"$'\t''yes')
+    else
+      rows+=("$profile_name"$'\t')
+    fi
+  done < <(git_api_list_profiles)
+
+  if [ "${#rows[@]}" -eq 0 ]; then
+    echo 'No git-api profiles configured.'
+    return 0
+  fi
+
+  picotools_print_table $'Profile\tCurrent' "${rows[@]}"
+}
+
+use_profile() {
+  local profile_name="$1"
+
+  git_api_assert_valid_profile_name "$profile_name"
+  if ! git_api_profile_exists "$profile_name"; then
+    echo "Error: git-api profile '$profile_name' was not found" >&2
+    exit 1
+  fi
+
+  git_api_write_current_profile "$profile_name"
+  printf "Using git-api profile '%s'.\n" "$profile_name"
+}
+
+delete_profile() {
+  local profile_name="$1"
+
+  git_api_assert_valid_profile_name "$profile_name"
+  if ! git_api_profile_exists "$profile_name"; then
+    echo "Error: git-api profile '$profile_name' was not found" >&2
+    exit 1
+  fi
+
+  git_api_delete_profile "$profile_name"
+  printf "Deleted git-api profile '%s'.\n" "$profile_name"
 }
 
 show_operation() {
@@ -353,6 +421,15 @@ main() {
       export GIT_API_TOKEN_OVERRIDE="$2"
       shift 2
       ;;
+    --profile)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --profile requires a value' >&2
+        exit 1
+      }
+      git_api_assert_valid_profile_name "$2"
+      export GIT_API_PROFILE_OVERRIDE="$2"
+      shift 2
+      ;;
     --api-root)
       [ "$#" -ge 2 ] || {
         echo 'Error: --api-root requires a value' >&2
@@ -396,10 +473,13 @@ main() {
 
   case "$command" in
   configure)
-    configure_tool
+    configure_tool "${1:-}"
     ;;
   list)
     render_operations "${1:-}"
+    ;;
+  profiles)
+    render_profiles
     ;;
   show)
     [ "$#" -ge 1 ] || {
@@ -408,6 +488,22 @@ main() {
       exit 1
     }
     show_operation "$1"
+    ;;
+  use)
+    [ "$#" -ge 1 ] || {
+      echo 'Error: use requires a profile name' >&2
+      usage >&2
+      exit 1
+    }
+    use_profile "$1"
+    ;;
+  delete-profile)
+    [ "$#" -ge 1 ] || {
+      echo 'Error: delete-profile requires a profile name' >&2
+      usage >&2
+      exit 1
+    }
+    delete_profile "$1"
     ;;
   *)
     call_operation "$command" "$@"

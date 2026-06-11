@@ -23,7 +23,7 @@ usage() {
 Usage: git-commit [command]
 
 Commands:
-  configure  Select the model profile and model to use
+  configure  Select the model profile, model, and optional git-api profile to use
 
 Without a command, `git-commit` analyzes the current git workspace, asks the
 configured model for conventional commit suggestions, and creates one or more
@@ -80,6 +80,22 @@ config_file() {
 
 ensure_config_dir() {
   mkdir -p "$(config_dir)"
+}
+
+git_api_profiles_dir() {
+  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/git-api/profiles"
+}
+
+list_git_api_profiles() {
+  local profiles_dir
+  local profile_dir
+
+  profiles_dir=$(git_api_profiles_dir)
+  for profile_dir in "$profiles_dir"/*; do
+    [ -d "$profile_dir" ] || continue
+    [ -f "$profile_dir/token" ] || continue
+    basename "$profile_dir"
+  done
 }
 
 write_config_value() {
@@ -160,10 +176,20 @@ git_api_command() {
 
 run_git_api() {
   local tool
+  local configured_profile="${GIT_COMMIT_GIT_API_PROFILE:-}"
 
   tool=$(git_api_command)
   if debug_enabled; then
+    if [ -n "$configured_profile" ]; then
+      "$tool" --debug --profile "$configured_profile" "$@"
+      return $?
+    fi
     "$tool" --debug "$@"
+    return $?
+  fi
+
+  if [ -n "$configured_profile" ]; then
+    "$tool" --profile "$configured_profile" "$@"
     return $?
   fi
 
@@ -251,10 +277,11 @@ select_optional_from_list() {
 }
 
 configure_tool() {
-  local profile model additional_profile='' additional_model=''
+  local profile model additional_profile='' additional_model='' git_api_profile=''
   local -a profiles=()
   local -a models=()
   local -a additional_profiles=()
+  local -a git_api_profiles=()
   local candidate_profile
 
   model_profile_command >/dev/null
@@ -305,34 +332,58 @@ configure_tool() {
     fi
   fi
 
+  mapfile -t git_api_profiles < <(list_git_api_profiles)
+  if [ "${#git_api_profiles[@]}" -gt 0 ]; then
+    if ! git_api_profile=$(select_optional_from_list 'git-api Profile (Optional)' 'Select git-api profile' "${git_api_profiles[@]}"); then
+      echo 'Cancelled.' >&2
+      exit 1
+    fi
+  fi
+
   write_config_value model.profile "$profile"
   write_config_value model.name "$model"
+  if [ -n "$git_api_profile" ]; then
+    write_config_value git-api.profile "$git_api_profile"
+  else
+    unset_config_value git-api.profile
+  fi
   if [ -n "$additional_profile" ] && [ -n "$additional_model" ]; then
     write_config_value model.additional.profile "$additional_profile"
     write_config_value model.additional.name "$additional_model"
+    if [ -n "$git_api_profile" ]; then
+      echo "Configured git-commit with profile '$profile' and model '$model', plus additional profile '$additional_profile' and model '$additional_model', using git-api profile '$git_api_profile'."
+      return 0
+    fi
+
     echo "Configured git-commit with profile '$profile' and model '$model', plus additional profile '$additional_profile' and model '$additional_model'."
     return 0
   fi
 
   unset_config_value model.additional.profile
   unset_config_value model.additional.name
+  if [ -n "$git_api_profile" ]; then
+    echo "Configured git-commit with profile '$profile' and model '$model', using git-api profile '$git_api_profile'."
+    return 0
+  fi
+
   echo "Configured git-commit with profile '$profile' and model '$model'."
 }
 
 load_configuration() {
-  local profile model additional_profile additional_model
+  local profile model additional_profile additional_model git_api_profile
 
   profile=$(read_config_value_optional model.profile)
   model=$(read_config_value_optional model.name)
   additional_profile=$(read_config_value_optional model.additional.profile)
   additional_model=$(read_config_value_optional model.additional.name)
+  git_api_profile=$(read_config_value_optional git-api.profile)
 
   if [ -z "$profile" ] || [ -z "$model" ]; then
     echo 'Warning: git-commit is not configured. Run git-commit configure.' >&2
     exit 1
   fi
 
-  printf '%s\t%s\t%s\t%s\n' "$profile" "$model" "$additional_profile" "$additional_model"
+  printf '%s\n%s\n%s\n%s\n%s\n' "$profile" "$model" "$additional_profile" "$additional_model" "$git_api_profile"
 }
 
 ensure_changes_exist() {
@@ -1641,7 +1692,8 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count request_status
+  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count request_status
+  local -a config_lines=()
   local -a option_values=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1678,7 +1730,13 @@ run_commit_tool() {
 
   debug_log 'Loading configured model profile'
   config_values=$(load_configuration)
-  IFS=$'\t' read -r profile model additional_profile additional_model <<<"$config_values"
+  mapfile -t config_lines <<<"$config_values"
+  profile="${config_lines[0]:-}"
+  model="${config_lines[1]:-}"
+  additional_profile="${config_lines[2]:-}"
+  additional_model="${config_lines[3]:-}"
+  git_api_profile="${config_lines[4]:-}"
+  GIT_COMMIT_GIT_API_PROFILE="$git_api_profile"
   require_dependencies
   if [ "$create_pr" = 'true' ]; then
     git_api_command >/dev/null

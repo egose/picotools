@@ -16,8 +16,48 @@ git_api_token_file() {
   printf '%s/pat-token\n' "$(git_api_data_dir)"
 }
 
+git_api_profiles_dir() {
+  printf '%s/profiles\n' "$(git_api_data_dir)"
+}
+
+git_api_current_profile_file() {
+  printf '%s/current-profile\n' "$(git_api_data_dir)"
+}
+
+git_api_assert_valid_profile_name() {
+  local profile_name="$1"
+
+  case "$profile_name" in
+  '')
+    echo 'Error: profile name is required' >&2
+    exit 1
+    ;;
+  *[!A-Za-z0-9._-]*)
+    echo "Error: invalid profile name '$profile_name' (use letters, digits, ., _, or -)" >&2
+    exit 1
+    ;;
+  esac
+}
+
+git_api_profile_dir() {
+  local profile_name="$1"
+
+  git_api_assert_valid_profile_name "$profile_name"
+  printf '%s/%s\n' "$(git_api_profiles_dir)" "$profile_name"
+}
+
+git_api_profile_token_file() {
+  local profile_name="$1"
+
+  printf '%s/token\n' "$(git_api_profile_dir "$profile_name")"
+}
+
 git_api_ensure_data_dir() {
   mkdir -p "$(git_api_data_dir)"
+}
+
+git_api_ensure_profiles_dir() {
+  mkdir -p "$(git_api_profiles_dir)"
 }
 
 git_api_write_token() {
@@ -26,6 +66,18 @@ git_api_write_token() {
 
   token_file=$(git_api_token_file)
   git_api_ensure_data_dir
+  umask 077
+  printf '%s\n' "$token" >"$token_file"
+}
+
+git_api_write_profile_token() {
+  local profile_name="$1"
+  local token="$2"
+  local token_file
+
+  token_file=$(git_api_profile_token_file "$profile_name")
+  git_api_ensure_profiles_dir
+  mkdir -p "$(dirname "$token_file")"
   umask 077
   printf '%s\n' "$token" >"$token_file"
 }
@@ -40,6 +92,91 @@ git_api_read_token() {
   fi
 
   printf '%s\n' ''
+}
+
+git_api_read_profile_token() {
+  local profile_name="$1"
+  local token_file
+
+  token_file=$(git_api_profile_token_file "$profile_name")
+  if [ -f "$token_file" ]; then
+    printf '%s\n' "$(<"$token_file")"
+    return 0
+  fi
+
+  printf '%s\n' ''
+}
+
+git_api_write_current_profile() {
+  local profile_name="$1"
+  local current_profile_file
+
+  git_api_assert_valid_profile_name "$profile_name"
+  current_profile_file=$(git_api_current_profile_file)
+  git_api_ensure_data_dir
+  umask 077
+  printf '%s\n' "$profile_name" >"$current_profile_file"
+}
+
+git_api_clear_current_profile() {
+  rm -f "$(git_api_current_profile_file)"
+}
+
+git_api_read_current_profile() {
+  local current_profile_file
+
+  current_profile_file=$(git_api_current_profile_file)
+  if [ -f "$current_profile_file" ]; then
+    printf '%s\n' "$(<"$current_profile_file")"
+    return 0
+  fi
+
+  printf '%s\n' ''
+}
+
+git_api_profile_exists() {
+  local profile_name="$1"
+
+  [ -f "$(git_api_profile_token_file "$profile_name")" ]
+}
+
+git_api_delete_profile() {
+  local profile_name="$1"
+  local current_profile=''
+
+  git_api_assert_valid_profile_name "$profile_name"
+  rm -f "$(git_api_profile_token_file "$profile_name")"
+  rmdir "$(git_api_profile_dir "$profile_name")" 2>/dev/null || true
+  current_profile=$(git_api_read_current_profile)
+  if [ "$current_profile" = "$profile_name" ]; then
+    git_api_clear_current_profile
+  fi
+}
+
+git_api_list_profiles() {
+  local profiles_dir
+  local profile_dir
+
+  profiles_dir=$(git_api_profiles_dir)
+  for profile_dir in "$profiles_dir"/*; do
+    [ -d "$profile_dir" ] || continue
+    [ -f "$profile_dir/token" ] || continue
+    basename "$profile_dir"
+  done
+}
+
+git_api_selected_profile() {
+  if [ -n "${GIT_API_PROFILE_OVERRIDE:-}" ]; then
+    printf '%s\n' "$GIT_API_PROFILE_OVERRIDE"
+    return 0
+  fi
+
+  if [ -n "${GIT_API_PROFILE:-}" ]; then
+    printf '%s\n' "$GIT_API_PROFILE"
+    return 0
+  fi
+
+  git_api_read_current_profile
 }
 
 git_api_reference_root() {
@@ -118,9 +255,22 @@ git_api_urlencode_path_value() {
 }
 
 git_api_token() {
+  local profile_name=''
+  local profile_token=''
+
   if [ -n "${GIT_API_TOKEN_OVERRIDE:-}" ]; then
     printf '%s\n' "$GIT_API_TOKEN_OVERRIDE"
     return 0
+  fi
+
+  profile_name=$(git_api_selected_profile)
+  if [ -n "$profile_name" ]; then
+    git_api_assert_valid_profile_name "$profile_name"
+    profile_token=$(git_api_read_profile_token "$profile_name")
+    if [ -n "$profile_token" ]; then
+      printf '%s\n' "$profile_token"
+      return 0
+    fi
   fi
 
   if [ -n "${PAT_TOKEN:-}" ]; then

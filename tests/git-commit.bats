@@ -238,9 +238,19 @@ if [ -n "${GIT_API_ARGS_LOG:-}" ]; then
   printf '%s\n' "$*" >>"$GIT_API_ARGS_LOG"
 fi
 
-if [ "${1:-}" = '--debug' ]; then
-  shift
-fi
+while [ "$#" -gt 0 ]; do
+  case "${1:-}" in
+  --debug)
+    shift
+    ;;
+  --profile)
+    shift 2
+    ;;
+  *)
+    break
+    ;;
+  esac
+done
 
 case "${1:-}" in
 repos/get)
@@ -333,6 +343,7 @@ write_git_commit_config() {
   local model="$2"
   local additional_profile="${3:-}"
   local additional_model="${4:-}"
+  local git_api_profile="${5:-}"
   local file
 
   mkdir -p "$GIT_COMMIT_CONFIG_DIR"
@@ -340,6 +351,9 @@ write_git_commit_config() {
   printf '[model]\n\tprofile = %s\n\tname = %s\n' "$profile" "$model" >"$file"
   if [ -n "$additional_profile" ] && [ -n "$additional_model" ]; then
     printf '[model "additional"]\n\tprofile = %s\n\tname = %s\n' "$additional_profile" "$additional_model" >>"$file"
+  fi
+  if [ -n "$git_api_profile" ]; then
+    printf '[git-api]\n\tprofile = %s\n' "$git_api_profile" >>"$file"
   fi
 }
 
@@ -387,7 +401,7 @@ create_initial_commit() {
 
   output=$(MODEL_PROFILE_BIN="$stub_path" "$TOOL" --help)
   assert_contains "$output" 'Usage: git-commit [command]' 'help should describe usage'
-  assert_contains "$output" 'configure  Select the model profile and model to use' 'help should list configure'
+  assert_contains "$output" 'configure  Select the model profile, model, and optional git-api profile to use' 'help should list configure'
   assert_contains "$output" '--apply' 'help should list apply mode'
   assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '--push' 'help should list push mode'
@@ -400,6 +414,7 @@ create_initial_commit() {
   assert_config_value model.name 'beta-model-2' 'configure should save the selected model'
   assert_config_missing model.additional.profile 'configure should not save an additional profile when none is selected'
   assert_config_missing model.additional.name 'configure should not save an additional model when none is selected'
+  assert_config_missing git-api.profile 'configure should not save a git-api profile when none are configured'
 }
 
 @test "configure command can save an optional additional model profile" {
@@ -415,6 +430,22 @@ create_initial_commit() {
   assert_config_value model.name 'alpha-model' 'configure should save the primary selected model'
   assert_config_value model.additional.profile 'beta-profile' 'configure should exclude the primary profile from the additional profile list'
   assert_config_value model.additional.name 'beta-model-2' 'configure should save the selected additional model'
+}
+
+@test "configure command can save an optional git-api profile" {
+  local stub_path
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  create_model_provider_stub "$stub_path"
+  mkdir -p "$TMP_HOME/.local/share/git-api/profiles/work"
+  printf '%s\n' 'work-token' >"$TMP_HOME/.local/share/git-api/profiles/work/token"
+
+  printf '1\n1\n2\n1\n' | MODEL_PROFILE_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
+
+  assert_file_exists "$(git_commit_config_file)" 'configure should create a config file when a git-api profile is selected'
+  assert_config_value model.profile 'alpha-profile' 'configure should save the selected model profile'
+  assert_config_value model.name 'alpha-model' 'configure should save the selected model'
+  assert_config_value git-api.profile 'work' 'configure should save the selected git-api profile'
 }
 
 @test "warns when configuration is missing" {
@@ -1313,6 +1344,39 @@ create_initial_commit() {
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
   assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should target the main branch'
   assert_contains "$(<"$git_api_log")" 'head=feat/11222' 'git-commit should use the current branch as the PR head'
+}
+
+@test "uses the configured git-api profile for pull request operations" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model '' '' work
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request with a configured git-api profile'
+  assert_contains "$(<"$git_api_log")" '--profile work repos/get octo demo' 'git-commit should pass the configured git-api profile when resolving the default branch'
+  assert_contains "$(<"$git_api_log")" '--profile work pulls/create octo demo' 'git-commit should pass the configured git-api profile when creating the pull request'
 }
 
 @test "uses the explicit base branch provided to --pr" {
