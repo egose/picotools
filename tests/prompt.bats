@@ -35,8 +35,14 @@ assert_eq_either() {
   local expected_a="$2"
   local expected_b="$3"
   local message="$4"
+  local normalized_actual="${actual%$'\n'}"
+  local normalized_actual_with_trimmed_prompt_space
 
-  if [ "$actual" != "$expected_a" ] && [ "$actual" != "$expected_b" ]; then
+  normalized_actual_with_trimmed_prompt_space="${normalized_actual//$': \n'/$':\n'}"
+
+  if [ "$actual" != "$expected_a" ] && [ "$actual" != "$expected_b" ] &&
+    [ "$normalized_actual" != "$expected_a" ] && [ "$normalized_actual" != "$expected_b" ] &&
+    [ "$normalized_actual_with_trimmed_prompt_space" != "$expected_a" ] && [ "$normalized_actual_with_trimmed_prompt_space" != "$expected_b" ]; then
     fail "$message (expected '$expected_a' or '$expected_b', got '$actual')"
   fi
 }
