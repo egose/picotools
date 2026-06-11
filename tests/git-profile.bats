@@ -8,7 +8,7 @@ setup() {
   export TMP_HOME
   export HOME="$TMP_HOME"
   export XDG_CONFIG_HOME="$TMP_HOME/.config"
-  export PROFILE_DIR="$XDG_CONFIG_HOME/git-profiles"
+  export PROFILE_DIR="$XDG_CONFIG_HOME/git-profile"
 }
 
 teardown() {
