@@ -136,6 +136,8 @@ assert_contains() {
 
   [ "$status" -eq 0 ] || fail 'help should succeed'
   assert_contains "$output" 'configure' 'help should list configure'
+  assert_contains "$output" 'profiles' 'help should list stored profile management'
+  assert_contains "$output" '--profile NAME' 'help should document profile selection'
   assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '<operationId> [path-args...] [flags]' 'help should document operationId commands'
   assert_contains "$output" 'git-api repos/get octocat hello-world' 'help should show an operationId example'
@@ -162,6 +164,73 @@ assert_contains() {
 
   [ "$status" -eq 0 ] || fail 'repos/get should succeed with token override'
   assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer override-pat' 'token flag should override the stored token'
+}
+
+@test "configure profile stores a named PAT token and selects it" {
+  run bash -lc "printf 'work-pat\n' | '$TOOL' configure work"
+
+  [ "$status" -eq 0 ] || fail 'configure work should succeed'
+  assert_contains "$output" "Configured git-api PAT_TOKEN profile 'work'." 'configure should confirm the saved named profile'
+  assert_eq "$(<"$XDG_DATA_HOME/git-api/profiles/work/token")" 'work-pat' 'configure should store the named PAT token'
+  assert_eq "$(<"$XDG_DATA_HOME/git-api/current-profile")" 'work' 'configure should select the named profile'
+
+  run "$TOOL" repos/get octo demo
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with current profile auth'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer work-pat' 'current profile token should be sent as a bearer header'
+}
+
+@test "profile flag overrides the current profile" {
+  mkdir -p "$XDG_DATA_HOME/git-api/profiles/work" "$XDG_DATA_HOME/git-api/profiles/personal"
+  printf '%s\n' 'work-pat' >"$XDG_DATA_HOME/git-api/profiles/work/token"
+  printf '%s\n' 'personal-pat' >"$XDG_DATA_HOME/git-api/profiles/personal/token"
+  printf '%s\n' 'work' >"$XDG_DATA_HOME/git-api/current-profile"
+
+  run "$TOOL" --profile personal repos/get octo demo
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with a profile override'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer personal-pat' 'profile flag should override the current profile token'
+}
+
+@test "profiles lists stored profiles and marks the current one" {
+  mkdir -p "$XDG_DATA_HOME/git-api/profiles/work" "$XDG_DATA_HOME/git-api/profiles/personal"
+  printf '%s\n' 'work-pat' >"$XDG_DATA_HOME/git-api/profiles/work/token"
+  printf '%s\n' 'personal-pat' >"$XDG_DATA_HOME/git-api/profiles/personal/token"
+  printf '%s\n' 'personal' >"$XDG_DATA_HOME/git-api/current-profile"
+
+  run "$TOOL" profiles
+
+  [ "$status" -eq 0 ] || fail 'profiles should succeed'
+  assert_contains "$output" '| Profile ' 'profiles should render a table header'
+  assert_contains "$output" 'personal' 'profiles should include the current profile'
+  assert_contains "$output" 'work' 'profiles should include stored profiles'
+  assert_contains "$output" 'yes' 'profiles should mark the current profile'
+}
+
+@test "use switches the current profile" {
+  mkdir -p "$XDG_DATA_HOME/git-api/profiles/work" "$XDG_DATA_HOME/git-api/profiles/personal"
+  printf '%s\n' 'work-pat' >"$XDG_DATA_HOME/git-api/profiles/work/token"
+  printf '%s\n' 'personal-pat' >"$XDG_DATA_HOME/git-api/profiles/personal/token"
+  printf '%s\n' 'work' >"$XDG_DATA_HOME/git-api/current-profile"
+
+  run "$TOOL" use personal
+
+  [ "$status" -eq 0 ] || fail 'use should succeed'
+  assert_contains "$output" "Using git-api profile 'personal'." 'use should confirm the selected profile'
+  assert_eq "$(<"$XDG_DATA_HOME/git-api/current-profile")" 'personal' 'use should update the current profile file'
+}
+
+@test "delete-profile removes the stored profile and clears current selection" {
+  mkdir -p "$XDG_DATA_HOME/git-api/profiles/work"
+  printf '%s\n' 'work-pat' >"$XDG_DATA_HOME/git-api/profiles/work/token"
+  printf '%s\n' 'work' >"$XDG_DATA_HOME/git-api/current-profile"
+
+  run "$TOOL" delete-profile work
+
+  [ "$status" -eq 0 ] || fail 'delete-profile should succeed'
+  assert_contains "$output" "Deleted git-api profile 'work'." 'delete-profile should confirm removal'
+  [ ! -e "$XDG_DATA_HOME/git-api/profiles/work/token" ] || fail 'delete-profile should remove the profile token file'
+  [ ! -e "$XDG_DATA_HOME/git-api/current-profile" ] || fail 'delete-profile should clear the current profile selection when deleting it'
 }
 
 @test "api root and version can be passed as global flags" {
