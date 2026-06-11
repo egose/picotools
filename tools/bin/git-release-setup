@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands version
+picotools_source_modules "$SCRIPT_DIR" commands prompt version
 
 GIT_RELEASE_SETUP_TMPDIR=''
 debug_mode=false
@@ -21,7 +21,9 @@ Usage: git-release-setup [options] <owner/repo>
 
 Generate a repository SSH deploy key, store the private key as an Actions
 secret, add the public key as a writable deploy key, and enable workflow write
-permissions plus pull request review approvals for GitHub Actions.
+permissions plus pull request review approvals for GitHub Actions. After the
+SSH setup, the tool can also optionally upload a release GPG private key,
+passphrase, and email as repository secrets.
 
 Options:
   --key-name NAME            Secret and deploy key name (default: SSH_KEY)
@@ -30,7 +32,7 @@ Options:
   -v, --version, version     Show the tool version
 
 Dependencies:
-  git-api, jq, python3, ssh-keygen, and python3 with PyNaCl installed
+  git-api, jq, python3, ssh-keygen, gpg, and python3 with PyNaCl installed
 
 Fine-grained PAT:
   Choose repository access for the target repository.
@@ -53,6 +55,33 @@ debug_log() {
   if debug_enabled; then
     printf '[git-release-setup] %s\n' "$1" >&2
   fi
+}
+
+prompt_yes_no() {
+  picotools_prompt_yes_no "$@"
+}
+
+prompt_secret_value() {
+  picotools_prompt_secret_value "$@"
+}
+
+select_from_list() {
+  local header="$1"
+  local prompt="$2"
+  shift 2
+  local -a items=("$@")
+  local selection
+
+  if [ "${#items[@]}" -eq 0 ]; then
+    echo "Error: no options available for $header" >&2
+    exit 1
+  fi
+
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" 1 false "${items[@]}"); then
+    return 1
+  fi
+
+  printf '%s\n' "$selection"
 }
 
 cleanup_tmpdir() {
@@ -188,6 +217,105 @@ write_json_file() {
   printf '%s\n' "$file"
 }
 
+write_secret_file() {
+  local name="$1"
+  local content="$2"
+  local file="$GIT_RELEASE_SETUP_TMPDIR/$name"
+
+  printf '%s' "$content" >"$file"
+  printf '%s\n' "$file"
+}
+
+extract_email_from_uid() {
+  local uid="$1"
+  local email
+
+  case "$uid" in
+  *'<'*'>')
+    email="${uid##*<}"
+    email="${email%%>*}"
+    printf '%s\n' "$email"
+    return 0
+    ;;
+  esac
+
+  printf '%s\n' ''
+}
+
+format_gpg_key_label() {
+  local fingerprint="$1"
+  local uid="$2"
+  local key_id="$3"
+  local label
+
+  if [ -n "$uid" ]; then
+    label="$uid"
+  else
+    label="$fingerprint"
+  fi
+
+  if [ -n "$key_id" ]; then
+    label+=" [$key_id]"
+  fi
+
+  printf '%s\n' "$label"
+}
+
+list_gpg_secret_keys() {
+  local current_fingerprint='' current_uid='' current_email='' current_key_id=''
+  local type value
+  local -a fields=()
+
+  while IFS=: read -r -a fields; do
+    type="${fields[0]:-}"
+    value="${fields[9]:-}"
+
+    case "$type" in
+    sec*)
+      if [ -n "$current_fingerprint" ]; then
+        printf '%s\t%s\t%s\t%s\n' "$current_fingerprint" "$current_email" "$current_uid" "$current_key_id"
+      fi
+      current_key_id="${fields[4]:-}"
+      current_fingerprint=''
+      current_uid=''
+      current_email=''
+      ;;
+    fpr)
+      if [ -z "$current_fingerprint" ]; then
+        current_fingerprint="$value"
+      fi
+      ;;
+    uid)
+      if [ -z "$current_uid" ]; then
+        current_uid="$value"
+        current_email=$(extract_email_from_uid "$value")
+      fi
+      ;;
+    esac
+  done < <(gpg --batch --with-colons --list-secret-keys --fingerprint)
+
+  if [ -n "$current_fingerprint" ]; then
+    printf '%s\t%s\t%s\t%s\n' "$current_fingerprint" "$current_email" "$current_uid" "$current_key_id"
+  fi
+}
+
+export_gpg_private_key() {
+  local fingerprint="$1"
+  local passphrase="$2"
+  local output_file="$3"
+
+  debug_log "Exporting release GPG private key '$fingerprint'"
+  if ! gpg --batch --yes --pinentry-mode loopback --passphrase "$passphrase" --armor --export-secret-keys "$fingerprint" >"$output_file" 2>/dev/null; then
+    echo 'Error: invalid GPG passphrase for the selected release key' >&2
+    exit 1
+  fi
+
+  if [ ! -s "$output_file" ]; then
+    echo 'Error: selected GPG key did not export any private key data' >&2
+    exit 1
+  fi
+}
+
 delete_matching_deploy_keys() {
   local owner="$1"
   local repo="$2"
@@ -269,6 +397,55 @@ configure_repository() {
   configure_workflow_permissions "$owner" "$repo"
 }
 
+configure_release_gpg_secrets() {
+  local owner="$1"
+  local repo="$2"
+  local use_gpg selection passphrase record fingerprint email uid key_id label
+  local private_key_file passphrase_file email_file
+  local -a key_records=()
+  local -a key_labels=()
+
+  use_gpg=$(prompt_yes_no 'Use a release GPG key?' no)
+  if [ "$use_gpg" != 'yes' ]; then
+    return 0
+  fi
+
+  picotools_require_command gpg
+  mapfile -t key_records < <(list_gpg_secret_keys)
+  if [ "${#key_records[@]}" -eq 0 ]; then
+    echo 'Error: no GPG secret keys were found on this system' >&2
+    exit 1
+  fi
+
+  for record in "${key_records[@]}"; do
+    IFS=$'\t' read -r fingerprint email uid key_id <<<"$record"
+    label=$(format_gpg_key_label "$fingerprint" "$uid" "$key_id")
+    key_labels+=("$label")
+  done
+
+  if ! selection=$(select_from_list 'Release GPG Keys' 'Select GPG key' "${key_labels[@]}"); then
+    echo 'Cancelled.' >&2
+    exit 1
+  fi
+
+  record="${key_records[$((selection - 1))]}"
+  IFS=$'\t' read -r fingerprint email uid key_id <<<"$record"
+  if [ -z "$email" ]; then
+    echo 'Error: the selected GPG key does not include an email address in its primary user ID' >&2
+    exit 1
+  fi
+
+  passphrase=$(prompt_secret_value 'Release GPG key passphrase' '' false)
+  private_key_file="$GIT_RELEASE_SETUP_TMPDIR/release-gpg-private-key.asc"
+  export_gpg_private_key "$fingerprint" "$passphrase" "$private_key_file"
+  passphrase_file=$(write_secret_file release-gpg-passphrase.txt "$passphrase")
+  email_file=$(write_secret_file release-user-email.txt "$email")
+
+  upload_secret "$owner" "$repo" RELEASE_GPG_PRIVATE_KEY "$private_key_file"
+  upload_secret "$owner" "$repo" RELEASE_GPG_PASSPHRASE "$passphrase_file"
+  upload_secret "$owner" "$repo" RELEASE_USER_EMAIL "$email_file"
+}
+
 main() {
   local key_name='SSH_KEY'
   local -a positionals=()
@@ -339,6 +516,7 @@ main() {
   trap cleanup_tmpdir EXIT
 
   configure_repository "$owner" "$repo" "$key_name"
+  configure_release_gpg_secrets "$owner" "$repo"
 
   printf 'Configured release-tag dispatch access for %s/%s.\n' "$owner" "$repo"
   printf 'Stored Actions secret: %s\n' "$key_name"
