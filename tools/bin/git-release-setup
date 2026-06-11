@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands version
+
+GIT_RELEASE_SETUP_TMPDIR=''
+debug_mode=false
+
+usage() {
+  cat <<'EOF'
+Usage: git-release-setup [options] <owner/repo>
+       git-release-setup [options] <owner> <repo>
+
+Generate a repository SSH deploy key, store the private key as an Actions
+secret, add the public key as a writable deploy key, and enable workflow write
+permissions plus pull request review approvals for GitHub Actions.
+
+Options:
+  --key-name NAME            Secret and deploy key name (default: SSH_KEY)
+  --debug                    Print progress steps to stderr
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
+
+Dependencies:
+  git-api, jq, python3, ssh-keygen, and python3 with PyNaCl installed
+
+Fine-grained PAT:
+  Choose repository access for the target repository.
+  Under Repository permissions, include:
+    Secrets: Read and write
+    Administration: Write
+  The Account permissions list is not used by this tool.
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[git-release-setup] %s\n' "$1" >&2
+  fi
+}
+
+cleanup_tmpdir() {
+  if [ -n "$GIT_RELEASE_SETUP_TMPDIR" ] && [ -d "$GIT_RELEASE_SETUP_TMPDIR" ]; then
+    rm -rf "$GIT_RELEASE_SETUP_TMPDIR"
+  fi
+}
+
+git_api_command() {
+  local candidate
+
+  if [ -n "${GIT_API_BIN:-}" ]; then
+    printf '%s\n' "$GIT_API_BIN"
+    return 0
+  fi
+
+  candidate="${SCRIPT_DIR}/git-api"
+  if [ -x "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if command -v git-api >/dev/null 2>&1; then
+    command -v git-api
+    return 0
+  fi
+
+  echo 'Error: unable to locate git-api' >&2
+  exit 1
+}
+
+run_git_api() {
+  local tool
+
+  tool=$(git_api_command)
+  if debug_enabled; then
+    "$tool" --debug "$@"
+    return $?
+  fi
+
+  "$tool" "$@"
+}
+
+require_pynacl() {
+  if ! python3 -c 'from nacl.public import PublicKey, SealedBox' >/dev/null 2>&1; then
+    echo 'Error: python3 with PyNaCl is required to encrypt GitHub Actions secrets' >&2
+    echo 'Install it with: pip3 install pynacl' >&2
+    exit 1
+  fi
+}
+
+validate_key_name() {
+  local key_name="$1"
+
+  if [[ ! "$key_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+    echo 'Error: --key-name must start with a letter or underscore and contain only letters, numbers, and underscores' >&2
+    exit 1
+  fi
+
+  if [[ "${key_name^^}" == GITHUB_* ]]; then
+    echo 'Error: --key-name must not start with the reserved GITHUB_ prefix' >&2
+    exit 1
+  fi
+}
+
+parse_repo_args() {
+  local arg_count="$#"
+
+  case "$arg_count" in
+  1)
+    if [[ "$1" != */* ]]; then
+      echo "Error: repository must be provided as <owner/repo> when using a single argument" >&2
+      exit 1
+    fi
+    printf '%s\n%s\n' "${1%%/*}" "${1#*/}"
+    ;;
+  2)
+    printf '%s\n%s\n' "$1" "$2"
+    ;;
+  0)
+    echo 'Error: missing required repository argument <owner/repo>' >&2
+    usage >&2
+    exit 1
+    ;;
+  *)
+    echo 'Error: expected either <owner/repo> or <owner> <repo>' >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+generate_keypair() {
+  local private_key_file="$1"
+
+  debug_log "Generating SSH keypair at '$private_key_file'"
+  ssh-keygen -t ed25519 -f "$private_key_file" -N '' -q -C ''
+}
+
+encrypt_secret() {
+  local public_key_json="$1"
+  local secret_file="$2"
+
+  PUBLIC_KEY_JSON="$public_key_json" python3 - "$secret_file" <<'PY'
+import base64
+import json
+import os
+import sys
+
+from nacl.public import PublicKey, SealedBox
+
+payload = json.loads(os.environ["PUBLIC_KEY_JSON"])
+
+with open(sys.argv[1], "rb") as handle:
+    plaintext = handle.read()
+
+public_key = PublicKey(base64.b64decode(payload["key"]))
+encrypted = SealedBox(public_key).encrypt(plaintext)
+
+print(json.dumps({
+    "encrypted_value": base64.b64encode(encrypted).decode("utf-8"),
+    "key_id": payload["key_id"],
+}))
+PY
+}
+
+write_json_file() {
+  local name="$1"
+  local content="$2"
+  local file="$GIT_RELEASE_SETUP_TMPDIR/$name"
+
+  printf '%s\n' "$content" >"$file"
+  printf '%s\n' "$file"
+}
+
+delete_matching_deploy_keys() {
+  local owner="$1"
+  local repo="$2"
+  local key_name="$3"
+  local deploy_keys_json key_id
+  local -a matching_ids=()
+
+  debug_log "Checking for existing deploy keys named '$key_name'"
+  deploy_keys_json=$(run_git_api repos/list-deploy-keys "$owner" "$repo" --per-page 100)
+  mapfile -t matching_ids < <(printf '%s' "$deploy_keys_json" | jq -r --arg title "$key_name" '.[] | select(.title == $title) | .id')
+
+  if [ "${#matching_ids[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  debug_log "Removing ${#matching_ids[@]} existing deploy key(s) named '$key_name'"
+  for key_id in "${matching_ids[@]}"; do
+    run_git_api repos/delete-deploy-key "$owner" "$repo" "$key_id" >/dev/null
+  done
+}
+
+create_deploy_key() {
+  local owner="$1"
+  local repo="$2"
+  local key_name="$3"
+  local public_key_file="$4"
+  local deploy_body public_key
+
+  delete_matching_deploy_keys "$owner" "$repo" "$key_name"
+  public_key=$(<"$public_key_file")
+  deploy_body=$(write_json_file deploy-key.json "$(jq -cn --arg title "$key_name" --arg key "$public_key" '{title: $title, key: $key, read_only: false}')")
+
+  debug_log "Creating deploy key '$key_name' with write access"
+  run_git_api repos/create-deploy-key "$owner" "$repo" --body-file "$deploy_body" >/dev/null
+}
+
+upload_secret() {
+  local owner="$1"
+  local repo="$2"
+  local key_name="$3"
+  local private_key_file="$4"
+  local repo_public_key_json secret_payload encrypted_value key_id secret_body
+
+  debug_log "Fetching Actions public key for '$owner/$repo'"
+  repo_public_key_json=$(run_git_api actions/get-repo-public-key "$owner" "$repo")
+
+  debug_log "Encrypting repository secret '$key_name'"
+  secret_payload=$(encrypt_secret "$repo_public_key_json" "$private_key_file")
+  encrypted_value=$(printf '%s' "$secret_payload" | jq -r '.encrypted_value')
+  key_id=$(printf '%s' "$secret_payload" | jq -r '.key_id')
+  secret_body=$(write_json_file repo-secret.json "$(jq -cn --arg encrypted_value "$encrypted_value" --arg key_id "$key_id" '{encrypted_value: $encrypted_value, key_id: $key_id}')")
+
+  debug_log "Uploading repository secret '$key_name'"
+  run_git_api actions/create-or-update-repo-secret "$owner" "$repo" "$key_name" --body-file "$secret_body" >/dev/null
+}
+
+configure_workflow_permissions() {
+  local owner="$1"
+  local repo="$2"
+  local permissions_body
+
+  permissions_body=$(write_json_file workflow-permissions.json "$(jq -cn '{default_workflow_permissions: "write", can_approve_pull_request_reviews: true}')")
+
+  debug_log "Enabling workflow write permissions and PR review approvals"
+  run_git_api actions/set-github-actions-default-workflow-permissions-repository "$owner" "$repo" --body-file "$permissions_body" >/dev/null
+}
+
+configure_repository() {
+  local owner="$1"
+  local repo="$2"
+  local key_name="$3"
+  local private_key_file="$GIT_RELEASE_SETUP_TMPDIR/id_ed25519"
+  local public_key_file="$private_key_file.pub"
+
+  generate_keypair "$private_key_file"
+
+  create_deploy_key "$owner" "$repo" "$key_name" "$public_key_file"
+  upload_secret "$owner" "$repo" "$key_name" "$private_key_file"
+  configure_workflow_permissions "$owner" "$repo"
+}
+
+main() {
+  local key_name='SSH_KEY'
+  local -a positionals=()
+  local -a repo_parts=()
+  local owner repo
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    --key-name)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --key-name requires a value' >&2
+        exit 1
+      fi
+      key_name="$2"
+      shift 2
+      ;;
+    --key-name=*)
+      key_name="${1#*=}"
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --)
+      shift
+      while [ "$#" -gt 0 ]; do
+        positionals+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      echo "Error: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+    esac
+  done
+
+  if [ -z "$key_name" ]; then
+    echo 'Error: --key-name must not be empty' >&2
+    exit 1
+  fi
+
+  validate_key_name "$key_name"
+
+  mapfile -t repo_parts < <(parse_repo_args "${positionals[@]}")
+  owner="${repo_parts[0]}"
+  repo="${repo_parts[1]}"
+
+  picotools_require_commands jq python3 ssh-keygen
+  git_api_command >/dev/null
+  require_pynacl
+
+  GIT_RELEASE_SETUP_TMPDIR=$(mktemp -d)
+  trap cleanup_tmpdir EXIT
+
+  configure_repository "$owner" "$repo" "$key_name"
+
+  printf 'Configured release-tag dispatch access for %s/%s.\n' "$owner" "$repo"
+  printf 'Stored Actions secret: %s\n' "$key_name"
+  printf 'Created writable deploy key: %s\n' "$key_name"
+  printf '%s\n' 'Enabled workflow write permissions and pull request review approvals.'
+}
+
+main "$@"

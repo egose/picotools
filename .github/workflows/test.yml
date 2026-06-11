@@ -68,6 +68,9 @@ jobs:
         test -f "$PWD/tmp/install/lib/picotools/git-api/operation-id-index.json"
         test -f "$PWD/tmp/install/lib/picotools/git-api/github-rest-path-tree/repos/{owner}/{repo}/get.json"
 
+        "$PWD/tmp/install/bin/git-release-setup" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/git-release-setup" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"
 
