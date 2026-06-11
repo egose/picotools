@@ -1,3 +1,13 @@
+## [0.33.0](https://github.com/egose/picotools/compare/v0.32.1...v0.33.0) (2026-06-11)
+
+### Features
+
+* add git-release-setup tool for release workflow repository setup ([1a93809](https://github.com/egose/picotools/commit/1a93809a9a743ce1b790e170378f89f9b8ffb6f7))
+
+### Bug Fixes
+
+* rename context directory to git-profiles ([58da171](https://github.com/egose/picotools/commit/58da1716b0e1be89cd77dee4613918f33dff5671))
+
 ## [0.32.1](https://github.com/egose/picotools/compare/v0.32.0...v0.32.1) (2026-06-11)
 
 ### Bug Fixes
