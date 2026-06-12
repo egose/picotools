@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands prompt version
+picotools_source_modules "$SCRIPT_DIR" box commands debug prompt ui version
 
 debug_mode=false
 
@@ -45,7 +45,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[license] %s\n' "$1" >&2
+    picotools_debug_log 'license' "$1"
   fi
 }
 
@@ -102,17 +102,17 @@ license_label() {
 prompt_license_type() {
   local selection
 
-  if ! selection=$(picotools_prompt_select_index 'Licenses' 'Select license' '' false \
+  if ! selection=$(picotools_prompt_select_value 'Licenses' 'Select license' 1 \
     'MIT License' \
     'Apache License 2.0'); then
     return 1
   fi
 
   case "$selection" in
-  1)
+  'MIT License')
     printf '%s\n' 'mit'
     ;;
-  2)
+  'Apache License 2.0')
     printf '%s\n' 'apache-2.0'
     ;;
   *)
@@ -512,19 +512,19 @@ apache_year_range_value() {
     return 0
   fi
 
-  years_selection=$(picotools_prompt_select_index 'Copyright Years' 'Select years source' 1 false \
+  years_selection=$(picotools_prompt_select_value 'Copyright Years' 'Select years source' 1 \
     'No years' \
     'Use git history' \
     'Enter manually')
 
   case "$years_selection" in
-  1)
+  'No years')
     return 0
     ;;
-  2)
+  'Use git history')
     git_year_range
     ;;
-  3)
+  'Enter manually')
     picotools_prompt_value 'Copyright years' '' true
     ;;
   *)
@@ -588,7 +588,7 @@ confirm_overwrite() {
     return 0
   fi
 
-  echo 'Cancelled.' >&2
+  picotools_cancel
   exit 1
 }
 
@@ -691,7 +691,7 @@ main() {
   if [ -z "$license_type" ]; then
     debug_log 'Prompting for license selection'
     if ! license_type=$(prompt_license_type); then
-      echo 'Cancelled.' >&2
+      picotools_cancel
       exit 1
     fi
   fi
@@ -722,6 +722,11 @@ main() {
     update_package_json_license "$package_json" "$license_value"
     printf "Updated '%s' license field to '%s'.\n" "$package_json" "$license_value"
   fi
+
+  picotools_ui_summary 'License Written' \
+    "Type: $(license_label "$license_type")" \
+    "Path: ${output_path}" \
+    "package.json: $([ -n "$package_json" ] && printf 'updated' || printf 'not found')"
 
   printf "Wrote %s to '%s'.\n" "$(license_label "$license_type")" "$output_path"
 }

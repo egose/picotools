@@ -897,6 +897,7 @@ create_initial_commit() {
   assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should prefer the leaf package name over the scoped package prefix'
   assert_contains "$(<"$ask_log")" $'Derived scope:\nui' 'git-commit should send the leaf package name as the derived scope in the planning prompt'
   assert_contains "$(<"$ask_log")" 'do not repeat that scope value or its parent package/org prefix' 'git-commit should tell the model to avoid repeating monorepo scope names in the message'
+  assert_contains "$(<"$ask_log")" 'The final commit header, including the type/scope prefix, must not exceed 100 characters.' 'git-commit should tell the model about the commit header length limit'
 }
 
 @test "omits scope when monorepo changes span multiple modules" {
@@ -974,6 +975,35 @@ create_initial_commit() {
     "$TOOL" --scope=override 2>&1)
 
   assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should accept --scope=value'
+}
+
+@test "truncates generated commit headers to 100 characters" {
+  local stub_path jq_stub repo output commit_command header
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222_2
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"refresh git, model, release, license, asdf, API, and route tools to use shared helpers and improved flows","files":["README.md"]}]}' \
+    "$TOOL" 2>&1)
+
+  commit_command=$(printf '%s\n' "$output" | grep 'git commit -m ' | head -n 1)
+  header=$(printf '%s\n' "$commit_command" | sed 's/.*git commit -m "//; s/".*//')
+
+  if [ "${#header}" -gt 100 ]; then
+    fail "git-commit should cap commit headers at 100 characters (got ${#header}: $header)"
+  fi
 }
 
 @test "strips trailing numeric branch suffix from derived ticket scope" {
