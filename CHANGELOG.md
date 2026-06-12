@@ -1,3 +1,10 @@
+## [0.36.0](https://github.com/egose/picotools/compare/v0.35.0...v0.36.0) (2026-06-12)
+
+### Features
+
+* add shared UI, prompt, and command resolution helpers for interactive tools ([24aa42b](https://github.com/egose/picotools/commit/24aa42b380a20b14ed65bc396153ea4e4c6b09e0))
+* improve shared CLI UX and enforce commit header length ([f88f22a](https://github.com/egose/picotools/commit/f88f22a52f0558f5d0e21316e37bfc33a91bc97e))
+
 ## [0.35.0](https://github.com/egose/picotools/compare/v0.34.0...v0.35.0) (2026-06-11)
 
 ### Features
