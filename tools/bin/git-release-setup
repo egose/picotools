@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands prompt version
+picotools_source_modules "$SCRIPT_DIR" box commands debug prompt ui version
 
 GIT_RELEASE_SETUP_TMPDIR=''
 debug_mode=false
@@ -53,35 +53,8 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[git-release-setup] %s\n' "$1" >&2
+    picotools_debug_log 'git-release-setup' "$1"
   fi
-}
-
-prompt_yes_no() {
-  picotools_prompt_yes_no "$@"
-}
-
-prompt_secret_value() {
-  picotools_prompt_secret_value "$@"
-}
-
-select_from_list() {
-  local header="$1"
-  local prompt="$2"
-  shift 2
-  local -a items=("$@")
-  local selection
-
-  if [ "${#items[@]}" -eq 0 ]; then
-    echo "Error: no options available for $header" >&2
-    exit 1
-  fi
-
-  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" 1 false "${items[@]}"); then
-    return 1
-  fi
-
-  printf '%s\n' "$selection"
 }
 
 cleanup_tmpdir() {
@@ -91,26 +64,7 @@ cleanup_tmpdir() {
 }
 
 git_api_command() {
-  local candidate
-
-  if [ -n "${GIT_API_BIN:-}" ]; then
-    printf '%s\n' "$GIT_API_BIN"
-    return 0
-  fi
-
-  candidate="${SCRIPT_DIR}/git-api"
-  if [ -x "$candidate" ]; then
-    printf '%s\n' "$candidate"
-    return 0
-  fi
-
-  if command -v git-api >/dev/null 2>&1; then
-    command -v git-api
-    return 0
-  fi
-
-  echo 'Error: unable to locate git-api' >&2
-  exit 1
+  picotools_resolve_tool_command "$SCRIPT_DIR" GIT_API_BIN git-api
 }
 
 run_git_api() {
@@ -178,7 +132,7 @@ generate_keypair() {
   local private_key_file="$1"
 
   debug_log "Generating SSH keypair at '$private_key_file'"
-  ssh-keygen -t ed25519 -f "$private_key_file" -N '' -q -C ''
+  picotools_ui_run_with_progress 'Generating SSH deploy key' ssh-keygen -t ed25519 -f "$private_key_file" -N '' -q -C ''
 }
 
 encrypt_secret() {
@@ -349,7 +303,7 @@ create_deploy_key() {
   deploy_body=$(write_json_file deploy-key.json "$(jq -cn --arg title "$key_name" --arg key "$public_key" '{title: $title, key: $key, read_only: false}')")
 
   debug_log "Creating deploy key '$key_name' with write access"
-  run_git_api repos/create-deploy-key "$owner" "$repo" --body-file "$deploy_body" >/dev/null
+  picotools_ui_run_with_progress 'Creating writable deploy key' run_git_api repos/create-deploy-key "$owner" "$repo" --body-file "$deploy_body" >/dev/null
 }
 
 upload_secret() {
@@ -369,7 +323,7 @@ upload_secret() {
   secret_body=$(write_json_file repo-secret.json "$(jq -cn --arg encrypted_value "$encrypted_value" --arg key_id "$key_id" '{encrypted_value: $encrypted_value, key_id: $key_id}')")
 
   debug_log "Uploading repository secret '$key_name'"
-  run_git_api actions/create-or-update-repo-secret "$owner" "$repo" "$key_name" --body-file "$secret_body" >/dev/null
+  picotools_ui_run_with_progress "Uploading secret ${key_name}" run_git_api actions/create-or-update-repo-secret "$owner" "$repo" "$key_name" --body-file "$secret_body" >/dev/null
 }
 
 configure_workflow_permissions() {
@@ -380,7 +334,7 @@ configure_workflow_permissions() {
   permissions_body=$(write_json_file workflow-permissions.json "$(jq -cn '{default_workflow_permissions: "write", can_approve_pull_request_reviews: true}')")
 
   debug_log "Enabling workflow write permissions and PR review approvals"
-  run_git_api actions/set-github-actions-default-workflow-permissions-repository "$owner" "$repo" --body-file "$permissions_body" >/dev/null
+  picotools_ui_run_with_progress 'Updating workflow permissions' run_git_api actions/set-github-actions-default-workflow-permissions-repository "$owner" "$repo" --body-file "$permissions_body" >/dev/null
 }
 
 configure_repository() {
@@ -390,6 +344,13 @@ configure_repository() {
   local private_key_file="$GIT_RELEASE_SETUP_TMPDIR/id_ed25519"
   local public_key_file="$private_key_file.pub"
 
+  picotools_ui_section 'SSH Release Access'
+  picotools_ui_step 1 2 'Create deploy key and Actions secret'
+  picotools_ui_status info "Configuring deploy access for ${owner}/${repo}"
+  picotools_ui_summary 'Review Release Access Setup' \
+    "Repo: ${owner}/${repo}" \
+    "Secret name: ${key_name}" \
+    "Deploy key title: ${key_name}"
   generate_keypair "$private_key_file"
 
   create_deploy_key "$owner" "$repo" "$key_name" "$public_key_file"
@@ -405,10 +366,14 @@ configure_release_gpg_secrets() {
   local -a key_records=()
   local -a key_labels=()
 
-  use_gpg=$(prompt_yes_no 'Use a release GPG key?' no)
+  use_gpg=$(picotools_prompt_yes_no 'Use a release GPG key?' no)
   if [ "$use_gpg" != 'yes' ]; then
+    picotools_ui_status info 'Skipping optional release GPG secret setup'
     return 0
   fi
+
+  picotools_ui_section 'Release GPG Secrets'
+  picotools_ui_step 2 2 'Configure optional GPG secrets'
 
   picotools_require_command gpg
   mapfile -t key_records < <(list_gpg_secret_keys)
@@ -423,20 +388,36 @@ configure_release_gpg_secrets() {
     key_labels+=("$label")
   done
 
-  if ! selection=$(select_from_list 'Release GPG Keys' 'Select GPG key' "${key_labels[@]}"); then
-    echo 'Cancelled.' >&2
+  if ! selection=$(picotools_prompt_select_value 'Release GPG Keys' 'Select GPG key' 1 "${key_labels[@]}"); then
+    picotools_cancel
     exit 1
   fi
 
-  record="${key_records[$((selection - 1))]}"
+  record=''
+  for i in "${!key_labels[@]}"; do
+    if [ "${key_labels[$i]}" = "$selection" ]; then
+      record="${key_records[$i]}"
+      break
+    fi
+  done
+
+  if [ -z "$record" ]; then
+    echo "Error: unable to resolve the selected GPG key '$selection'" >&2
+    exit 1
+  fi
+
   IFS=$'\t' read -r fingerprint email uid key_id <<<"$record"
   if [ -z "$email" ]; then
     echo 'Error: the selected GPG key does not include an email address in its primary user ID' >&2
     exit 1
   fi
 
-  passphrase=$(prompt_secret_value 'Release GPG key passphrase' '' false)
+  passphrase=$(picotools_prompt_secret_value 'Release GPG key passphrase' '' false)
   private_key_file="$GIT_RELEASE_SETUP_TMPDIR/release-gpg-private-key.asc"
+  picotools_ui_summary 'Review Release GPG Secrets' \
+    "Repo: ${owner}/${repo}" \
+    "Key: ${selection}" \
+    "Email: ${email}"
   export_gpg_private_key "$fingerprint" "$passphrase" "$private_key_file"
   passphrase_file=$(write_secret_file release-gpg-passphrase.txt "$passphrase")
   email_file=$(write_secret_file release-user-email.txt "$email")
@@ -444,6 +425,7 @@ configure_release_gpg_secrets() {
   upload_secret "$owner" "$repo" RELEASE_GPG_PRIVATE_KEY "$private_key_file"
   upload_secret "$owner" "$repo" RELEASE_GPG_PASSPHRASE "$passphrase_file"
   upload_secret "$owner" "$repo" RELEASE_USER_EMAIL "$email_file"
+  picotools_ui_status ok 'Release GPG secrets uploaded'
 }
 
 main() {
@@ -515,8 +497,15 @@ main() {
   GIT_RELEASE_SETUP_TMPDIR=$(mktemp -d)
   trap cleanup_tmpdir EXIT
 
+  picotools_ui_section 'Release Setup'
   configure_repository "$owner" "$repo" "$key_name"
   configure_release_gpg_secrets "$owner" "$repo"
+
+  picotools_ui_summary 'Release Setup Complete' \
+    "Repo: ${owner}/${repo}" \
+    "Actions secret: ${key_name}" \
+    "Deploy key: ${key_name}" \
+    'Workflow permissions: enabled'
 
   printf 'Configured release-tag dispatch access for %s/%s.\n' "$owner" "$repo"
   printf 'Stored Actions secret: %s\n' "$key_name"

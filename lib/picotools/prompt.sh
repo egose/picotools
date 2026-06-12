@@ -537,6 +537,109 @@ picotools_prompt_select_multiple_indexes() {
   done
 }
 
+picotools_prompt_select_value() {
+  local header="$1"
+  local prompt="$2"
+  local default_index="${3:-}"
+  shift 3
+  local selection
+  local -a options=("$@")
+
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" "$default_index" false "${options[@]}"); then
+    return $?
+  fi
+
+  printf '%s\n' "${options[$((selection - 1))]}"
+}
+
+picotools_prompt_select_optional_value() {
+  local header="$1"
+  local prompt="$2"
+  local none_label="${3:-None}"
+  local default_index="${4:-1}"
+  shift 4
+  local selection
+  local -a options=("$@")
+
+  options+=("$none_label")
+
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" "$default_index" false "${options[@]}"); then
+    return $?
+  fi
+
+  if [ "$selection" -eq "${#options[@]}" ]; then
+    printf '\n'
+    return 0
+  fi
+
+  printf '%s\n' "${options[$((selection - 1))]}"
+}
+
+picotools_prompt_select_mapped_value() {
+  local header="$1"
+  local prompt="$2"
+  local default_index="${3:-}"
+  local empty_message="$4"
+  local labels_name="$5"
+  local values_name="$6"
+  local selection
+  local -n labels_ref="$labels_name"
+  local -n values_ref="$values_name"
+
+  if [ "${#labels_ref[@]}" -eq 0 ]; then
+    if [ -n "$empty_message" ]; then
+      printf '%s\n' "$empty_message" >&2
+      exit 1
+    fi
+
+    echo "Error: no options available for $header" >&2
+    exit 1
+  fi
+
+  if [ "${#labels_ref[@]}" -ne "${#values_ref[@]}" ]; then
+    echo "Error: label/value option count mismatch for $header" >&2
+    exit 1
+  fi
+
+  if ! selection=$(picotools_prompt_select_index "$header" "$prompt" "$default_index" false "${labels_ref[@]}"); then
+    return $?
+  fi
+
+  printf '%s\n' "${values_ref[$((selection - 1))]}"
+}
+
+picotools_prompt_multiline_value() {
+  local label="$1"
+  local required="${2:-false}"
+  local terminator="${3:-END}"
+  local line
+  local value
+
+  while true; do
+    value=''
+    printf '%s (paste content, finish with a blank line or a line containing %s):\n' "$label" "$terminator" >&2
+
+    while IFS= read -r line; do
+      if [ -z "$line" ] || [ "$line" = "$terminator" ]; then
+        break
+      fi
+
+      if [ -n "$value" ]; then
+        value+=$'\n'
+      fi
+      value+="$line"
+    done || true
+
+    if [ "$required" = true ] && [ -z "$value" ]; then
+      echo 'Value is required.' >&2
+      continue
+    fi
+
+    printf '%s' "$value"
+    return 0
+  done
+}
+
 picotools_confirm_action() {
   local prompt="$1"
 
@@ -544,6 +647,10 @@ picotools_confirm_action() {
     return 0
   fi
 
-  echo 'Cancelled.' >&2
+  picotools_cancel
   return 1
+}
+
+picotools_cancel() {
+  echo 'Cancelled.' >&2
 }

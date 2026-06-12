@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands prompt table version
+picotools_source_modules "$SCRIPT_DIR" box commands config debug prompt table ui version
 
 MODEL_PROFILE_TMPFILES=()
 
@@ -69,7 +69,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[model-profile] %s\n' "$1" >&2
+    picotools_debug_log 'model-profile' "$1"
   fi
 }
 
@@ -248,7 +248,7 @@ write_profile_value() {
   local value="$3"
 
   picotools_require_command git
-  git config -f "$file" "$key" "$value"
+  picotools_git_config_set "$file" "$key" "$value"
 }
 
 unset_profile_value() {
@@ -256,7 +256,7 @@ unset_profile_value() {
   local key="$2"
 
   picotools_require_command git
-  git config -f "$file" --unset-all "$key" 2>/dev/null || true
+  picotools_git_config_unset_all "$file" "$key"
 }
 
 read_profile_value() {
@@ -264,7 +264,7 @@ read_profile_value() {
   local key="$2"
 
   picotools_require_command git
-  git config -f "$file" --get "$key"
+  picotools_git_config_get "$file" "$key"
 }
 
 read_profile_value_optional() {
@@ -272,17 +272,11 @@ read_profile_value_optional() {
   local key="$2"
 
   picotools_require_command git
-  git config -f "$file" --get "$key" 2>/dev/null || true
+  picotools_git_config_get_optional "$file" "$key"
 }
 
 display_value() {
-  local value="${1:-}"
-
-  if [ -n "$value" ]; then
-    printf '%s\n' "$value"
-  else
-    printf '%s\n' '-'
-  fi
+  picotools_display_value_or_dash "$1"
 }
 
 normalize_models_value() {
@@ -457,7 +451,7 @@ select_profile_model() {
     exit 1
   fi
 
-  if ! selection=$(prompt_select_index 'Models' 'Select model' 1 false "${model_items[@]}"); then
+  if ! selection=$(picotools_prompt_select_index 'Models' 'Select model' 1 false "${model_items[@]}"); then
     return 1
   fi
 
@@ -553,7 +547,7 @@ provider_chat_completion() {
 
   debug_log 'Starting HTTP request'
 
-  http_code=$(curl "${curl_args[@]}" "${base_url}chat/completions") || {
+  http_code=$(picotools_ui_run_with_progress "Requesting model response from ${name}" curl "${curl_args[@]}" "${base_url}chat/completions") || {
     exit 1
   }
 
@@ -606,22 +600,6 @@ delete_token() {
   rm -f "$(token_file "$name")"
 }
 
-prompt_value() {
-  picotools_prompt_value "$@"
-}
-
-prompt_secret_value() {
-  picotools_prompt_secret_value "$@"
-}
-
-prompt_yes_no() {
-  picotools_prompt_yes_no "$@"
-}
-
-prompt_select_index() {
-  picotools_prompt_select_index "$@"
-}
-
 prompt_provider_type() {
   local current_value="${1:-}"
   local selection default_selection provider_type
@@ -635,7 +613,7 @@ prompt_provider_type() {
   default_selection=$(provider_type_default_selection "$current_value")
 
   while true; do
-    if selection=$(prompt_select_index 'Provider types' 'Select provider type' "$default_selection" false "${labels[@]}"); then
+    if selection=$(picotools_prompt_select_value 'Provider types' 'Select provider type' "$default_selection" "${labels[@]}"); then
       :
     else
       if [ "$?" -eq 2 ]; then
@@ -646,7 +624,25 @@ prompt_provider_type() {
       continue
     fi
 
-    if provider_type=$(provider_type_from_selection "$selection"); then
+    case "$selection" in
+    'Azure OpenAI')
+      provider_type='azure-openai'
+      ;;
+    'Azure Cognitive Services')
+      provider_type='azure-cognitive-services'
+      ;;
+    'Gemini')
+      provider_type='gemini'
+      ;;
+    'Custom')
+      provider_type='custom'
+      ;;
+    *)
+      provider_type=''
+      ;;
+    esac
+
+    if [ -n "$provider_type" ]; then
       printf '%s\n' "$provider_type"
       return 0
     fi
@@ -663,15 +659,15 @@ prompt_profile_fields() {
   local resource_name='' endpoint_url='' models=''
 
   if provider_has_resource_name "$provider_type"; then
-    resource_name=$(prompt_value 'Resource name' "$current_resource_name" true)
+    resource_name=$(picotools_prompt_value 'Resource name' "$current_resource_name" true)
   fi
 
   if provider_has_endpoint_url "$provider_type"; then
-    endpoint_url=$(prompt_value 'Endpoint URL' "$current_endpoint_url" true)
+    endpoint_url=$(picotools_prompt_value 'Endpoint URL' "$current_endpoint_url" true)
     endpoint_url=$(normalize_endpoint_url_value "$endpoint_url")
   fi
 
-  models=$(prompt_value 'Models (comma-separated)' "$current_models" true)
+  models=$(picotools_prompt_value 'Models (comma-separated)' "$current_models" true)
   models=$(normalize_models_value "$models")
 
   printf '%s\001%s\001%s\n' "$resource_name" "$endpoint_url" "$models"
@@ -701,26 +697,17 @@ save_profile() {
 }
 
 select_profile_file() {
-  local selection file name
+  local file name
   local files=()
   local names=()
-
-  if ! saved_profile_files >/dev/null; then
-    echo 'No model profiles found.' >&2
-    exit 1
-  fi
 
   while IFS= read -r file; do
     files+=("$file")
     name=$(profile_name_from_file "$file")
     names+=("$name")
-  done < <(saved_profile_files)
+  done < <(saved_profile_files || true)
 
-  if ! selection=$(prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
-    return 1
-  fi
-
-  printf '%s\n' "${files[$((selection - 1))]}"
+  picotools_prompt_select_mapped_value 'Profiles' 'Select profile' '' 'No model profiles found.' names files
 }
 
 format_profile_summary_row() {
@@ -786,29 +773,41 @@ print_profile_detail() {
 create_profile() {
   local name file overwrite provider_type token resource_name endpoint_url models selected_fields
 
-  name=$(prompt_value 'Profile name' '' true)
+  picotools_ui_section 'Create Model Profile'
+  picotools_ui_step 1 3 'Name the profile'
+  name=$(picotools_prompt_value 'Profile name' '' true)
   validate_profile_name "$name"
   ensure_storage_dirs
   file=$(profile_file "$name")
 
   if [ -f "$file" ]; then
-    overwrite=$(prompt_yes_no "Profile '$name' already exists. Overwrite?" no)
+    overwrite=$(picotools_prompt_yes_no "Profile '$name' already exists. Overwrite?" no)
     if [ "$overwrite" != 'yes' ]; then
-      echo 'Cancelled.' >&2
+      picotools_cancel
       exit 1
     fi
   fi
 
   if ! provider_type=$(prompt_provider_type); then
-    echo 'Cancelled.' >&2
+    picotools_cancel
     exit 1
   fi
+  picotools_ui_step 2 3 'Choose provider and models'
   selected_fields=$(prompt_profile_fields "$provider_type")
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
-  token=$(prompt_secret_value 'API key' '' true)
+  token=$(picotools_prompt_secret_value 'API key' '' true)
 
+  picotools_ui_step 3 3 'Save profile credentials'
+  picotools_ui_summary 'Review Model Profile' \
+    "Profile: ${name}" \
+    "Provider: $(provider_type_label "$provider_type")" \
+    "Models: ${models}"
   save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
   write_token "$name" "$token"
+  picotools_ui_summary 'Model Profile Saved' \
+    "Profile: ${name}" \
+    "Provider: $(provider_type_label "$provider_type")" \
+    "Models: ${models}"
   echo "Saved model profile '$name'."
 }
 
@@ -877,13 +876,15 @@ update_profile_file() {
   local update_token token
 
   name=$(profile_name_from_file "$file")
+  picotools_ui_section 'Update Model Profile'
+  picotools_ui_step 1 2 'Choose provider settings'
   provider_type=$(read_profile_value "$file" provider.type)
   resource_name=$(provider_resource_name_value "$file")
   endpoint_url=$(provider_endpoint_url_value "$file")
   models=$(provider_models_value "$file")
 
   if ! provider_type=$(prompt_provider_type "$provider_type"); then
-    echo 'Cancelled.' >&2
+    picotools_cancel
     exit 1
   fi
   selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$endpoint_url" "$models")
@@ -891,12 +892,23 @@ update_profile_file() {
 
   save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
 
-  update_token=$(prompt_yes_no 'Update API key?' no)
+  picotools_ui_step 2 2 'Review and save token changes'
+  update_token=$(picotools_prompt_yes_no 'Update API key?' no)
   if [ "$update_token" = 'yes' ]; then
-    token=$(prompt_secret_value 'API key' '' true)
+    token=$(picotools_prompt_secret_value 'API key' '' true)
     write_token "$name" "$token"
   fi
 
+  picotools_ui_summary 'Review Updated Model Profile' \
+    "Profile: ${name}" \
+    "Provider: $(provider_type_label "$provider_type")" \
+    "Models: ${models}" \
+    "Token updated: ${update_token}"
+
+  picotools_ui_summary 'Model Profile Updated' \
+    "Profile: ${name}" \
+    "Provider: $(provider_type_label "$provider_type")" \
+    "Models: ${models}"
   echo "Updated model profile '$name'."
 }
 
@@ -905,14 +917,19 @@ delete_profile_file() {
   local name confirm
 
   name=$(profile_name_from_file "$file")
-  confirm=$(prompt_yes_no "Delete '$name'?" no)
+  confirm=$(picotools_prompt_yes_no "Delete '$name'?" no)
   if [ "$confirm" != 'yes' ]; then
-    echo 'Cancelled.' >&2
+    picotools_cancel
     exit 1
   fi
 
+  picotools_ui_summary 'Review Model Profile Deletion' \
+    "Profile: ${name}" \
+    'Token file: will be removed'
+
   rm -f "$file"
   delete_token "$name"
+  picotools_ui_status ok "Deleted model profile '${name}'"
   echo 'Deleted model profile.'
 }
 
@@ -938,14 +955,17 @@ ask_provider_interactive() {
   local file model system_message user_message
 
   require_ask_tools
+  picotools_ui_section 'Ask Model'
+  picotools_ui_step 1 2 'Choose profile and model'
   if ! file=$(select_profile_file); then
     return 0
   fi
   if ! model=$(select_profile_model "$file"); then
     return 0
   fi
-  system_message=$(prompt_value 'System message' 'You are a helpful assistant.')
-  user_message=$(prompt_value 'User message' '' true)
+  picotools_ui_step 2 2 'Enter prompt content'
+  system_message=$(picotools_prompt_value 'System message' 'You are a helpful assistant.')
+  user_message=$(picotools_prompt_value 'User message' '' true)
   provider_chat_completion "$file" "$model" "$system_message" "$user_message"
 }
 

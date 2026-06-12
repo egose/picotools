@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands openshift prompt version
+picotools_source_modules "$SCRIPT_DIR" commands debug openshift prompt version
 
 OC_ROUTE_NAMESPACE=""
 OC_ROUTE_INTERACTIVE=false
@@ -89,7 +89,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[oc-route] %s\n' "$1" >&2
+    picotools_debug_log 'oc-route' "$1"
   fi
 }
 
@@ -147,53 +147,6 @@ cleanup_tmpfile() {
   if [ -n "${OC_ROUTE_TMPFILE:-}" ] && [ -f "$OC_ROUTE_TMPFILE" ]; then
     rm -f "$OC_ROUTE_TMPFILE"
   fi
-}
-
-prompt_value() {
-  picotools_prompt_value "$@"
-}
-
-prompt_yes_no() {
-  if [ "$(picotools_prompt_yes_no "$@")" = 'yes' ]; then
-    printf 'true\n'
-  else
-    printf 'false\n'
-  fi
-}
-
-prompt_select_index() {
-  picotools_prompt_select_index "$@"
-}
-
-prompt_multiline_value() {
-  local label="$1"
-  local required="${2:-false}"
-  local line
-  local value
-
-  while true; do
-    value=""
-    printf '%s (paste content, finish with a blank line or a line containing END):\n' "$label" >&2
-
-    while IFS= read -r line; do
-      if [ -z "$line" ] || [ "$line" = "END" ]; then
-        break
-      fi
-
-      if [ -n "$value" ]; then
-        value+=$'\n'
-      fi
-      value+="$line"
-    done || true
-
-    if [ "$required" = true ] && [ -z "$value" ]; then
-      echo "Value is required." >&2
-      continue
-    fi
-
-    printf '%s' "$value"
-    return 0
-  done
 }
 
 print_yaml_field() {
@@ -258,7 +211,7 @@ select_resource_name() {
     fi
 
     echo "No existing ${resource_label}s found. Enter a new ${resource_label} name." >&2
-    prompt_value "${resource_label^} name" "$default_value" true
+    picotools_prompt_value "${resource_label^} name" "$default_value" true
     return 0
   fi
 
@@ -281,11 +234,11 @@ select_resource_name() {
       fi
     fi
 
-    if ! selection=$(prompt_select_index "Select a ${resource_label}" "Choose ${resource_label}" "$default_index" false "${selection_options[@]}"); then
+    if ! selection=$(picotools_prompt_select_index "Select a ${resource_label}" "Choose ${resource_label}" "$default_index" false "${selection_options[@]}"); then
       return 1
     fi
     if [ "$allow_new" = true ] && [ "$selection" -eq "${#selection_options[@]}" ]; then
-      prompt_value "${resource_label^} name" "$default_value" true
+      picotools_prompt_value "${resource_label^} name" "$default_value" true
       return 0
     fi
 
@@ -299,7 +252,7 @@ select_resource_name() {
   done
 
   while true; do
-    selection=$(prompt_value "${resource_label^} number or name" "$default_value" true)
+    selection=$(picotools_prompt_value "${resource_label^} number or name" "$default_value" true)
 
     if [[ "$selection" =~ ^[0-9]+$ ]]; then
       if [ "$selection" -ge 1 ] && [ "$selection" -le "${#resource_names[@]}" ]; then
@@ -448,27 +401,27 @@ update_route_interactive() {
   reset_update_values
 
   if ! UPDATE_ROUTE_NAME=$(select_or_enter_route_name "$default_name"); then
-    echo 'Cancelled.' >&2
+    picotools_cancel
     return 1
   fi
-  UPDATE_ROUTE_HOST=$(prompt_value "Host" "" true)
-  UPDATE_ROUTE_PATH=$(prompt_value "Path (leave blank to omit)" "")
-  UPDATE_ROUTE_TARGET_PORT=$(prompt_value "Target port" "http" true)
+  UPDATE_ROUTE_HOST=$(picotools_prompt_value "Host" "" true)
+  UPDATE_ROUTE_PATH=$(picotools_prompt_value "Path (leave blank to omit)" "")
+  UPDATE_ROUTE_TARGET_PORT=$(picotools_prompt_value "Target port" "http" true)
   if ! UPDATE_ROUTE_SERVICE_NAME=$(select_service_name); then
-    echo 'Cancelled.' >&2
+    picotools_cancel
     return 1
   fi
-  UPDATE_ROUTE_BALANCE=$(prompt_value "Annotation haproxy.router.openshift.io/balance (optional)" "roundrobin")
-  UPDATE_ROUTE_DISABLE_COOKIES=$(prompt_value "Annotation haproxy.router.openshift.io/disable_cookies (optional)" "true")
-  UPDATE_ROUTE_TIMEOUT=$(prompt_value "Annotation haproxy.router.openshift.io/timeout (optional)" "600s")
-  UPDATE_ROUTE_TERMINATION=$(prompt_value "TLS termination" "edge" true)
-  UPDATE_ROUTE_INSECURE_POLICY=$(prompt_value "Insecure edge termination policy" "Redirect" true)
+  UPDATE_ROUTE_BALANCE=$(picotools_prompt_value "Annotation haproxy.router.openshift.io/balance (optional)" "roundrobin")
+  UPDATE_ROUTE_DISABLE_COOKIES=$(picotools_prompt_value "Annotation haproxy.router.openshift.io/disable_cookies (optional)" "true")
+  UPDATE_ROUTE_TIMEOUT=$(picotools_prompt_value "Annotation haproxy.router.openshift.io/timeout (optional)" "600s")
+  UPDATE_ROUTE_TERMINATION=$(picotools_prompt_value "TLS termination" "edge" true)
+  UPDATE_ROUTE_INSECURE_POLICY=$(picotools_prompt_value "Insecure edge termination policy" "Redirect" true)
 
-  if [ "$(prompt_yes_no "Provide certificate and key for this route" "y")" = "true" ]; then
+  if [ "$(picotools_prompt_yes_no "Provide certificate and key for this route" "y")" = 'yes' ]; then
     UPDATE_ROUTE_SECURE=true
-    UPDATE_ROUTE_CERTIFICATE=$(prompt_multiline_value "certificate" true)
-    UPDATE_ROUTE_KEY=$(prompt_multiline_value "key" true)
-    UPDATE_ROUTE_CA_CERTIFICATE=$(prompt_multiline_value "caCertificate (leave empty to omit)" false)
+    UPDATE_ROUTE_CERTIFICATE=$(picotools_prompt_multiline_value "certificate" true)
+    UPDATE_ROUTE_KEY=$(picotools_prompt_multiline_value "key" true)
+    UPDATE_ROUTE_CA_CERTIFICATE=$(picotools_prompt_multiline_value "caCertificate (leave empty to omit)" false)
   fi
 
   apply_route_manifest
@@ -662,7 +615,7 @@ handle_read_command() {
     fi
 
     if ! selected_route=$(select_route_name); then
-      echo 'Cancelled.' >&2
+      picotools_cancel
       return 0
     fi
 

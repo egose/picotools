@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands prompt table version
+picotools_source_modules "$SCRIPT_DIR" commands debug prompt table version
 
 # shellcheck source=git-api.d/common.sh
 # shellcheck disable=SC1091
@@ -91,7 +91,7 @@ git_api_debug_enabled() {
 
 git_api_debug_log() {
   if git_api_debug_enabled; then
-    printf '[git-api] %s\n' "$1" >&2
+    picotools_debug_log 'git-api' "$1"
   fi
 }
 

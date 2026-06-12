@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" prompt table version
+picotools_source_modules "$SCRIPT_DIR" box config debug prompt table ui version
 
 usage() {
   cat <<'EOF'
@@ -44,7 +44,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[git-profile] %s\n' "$1" >&2
+    picotools_debug_log 'git-profile' "$1"
   fi
 }
 
@@ -110,18 +110,6 @@ ensure_context_dir() {
   mkdir -p "$(context_dir)"
 }
 
-prompt_value() {
-  picotools_prompt_value "$@"
-}
-
-prompt_yes_no() {
-  picotools_prompt_yes_no "$@"
-}
-
-prompt_select_index() {
-  picotools_prompt_select_index "$@"
-}
-
 prompt_update_field() {
   local allow_gpg_program="$1"
   local allow_ssh_add_on_start="$2"
@@ -163,7 +151,7 @@ prompt_update_field() {
       'Done'
     )
 
-    if ! selection=$(prompt_select_index 'Optional settings' 'Select setting' '' false "${options[@]}"); then
+    if ! selection=$(picotools_prompt_select_index 'Optional settings' 'Select setting' '' false "${options[@]}"); then
       return 1
     fi
 
@@ -225,21 +213,21 @@ write_context_value() {
   local key="$2"
   local value="$3"
 
-  git config -f "$file" "$key" "$value"
+  picotools_git_config_set "$file" "$key" "$value"
 }
 
 read_context_value() {
   local file="$1"
   local key="$2"
 
-  git config -f "$file" --get "$key"
+  picotools_git_config_get "$file" "$key"
 }
 
 read_context_value_optional() {
   local file="$1"
   local key="$2"
 
-  git config -f "$file" --get "$key" 2>/dev/null || true
+  picotools_git_config_get_optional "$file" "$key"
 }
 
 read_context_value_with_default() {
@@ -248,12 +236,7 @@ read_context_value_with_default() {
   local default_value="$3"
   local value
 
-  value=$(read_context_value_optional "$file" "$key")
-  if [ -n "$value" ]; then
-    printf '%s\n' "$value"
-  else
-    printf '%s\n' "$default_value"
-  fi
+  picotools_git_config_get_default "$file" "$key" "$default_value"
 }
 
 read_managed_context_value() {
@@ -347,13 +330,7 @@ saved_context_files() {
 }
 
 display_context_value() {
-  local value="${1:-}"
-
-  if [ -n "$value" ]; then
-    printf '%s\n' "$value"
-  else
-    printf '%s\n' '-'
-  fi
+  picotools_display_value_or_dash "$1"
 }
 
 format_context_summary_row() {
@@ -437,7 +414,7 @@ print_context_detail() {
   public_key_path=$(public_ssh_key_path "$ssh_key_path")
 
   if [ "$prompt_public_key" = 'yes' ] && [ -n "$public_key_path" ]; then
-    show_public_key=$(prompt_yes_no 'Display public SSH key?' no)
+    show_public_key=$(picotools_prompt_yes_no 'Display public SSH key?' no)
     if [ "$show_public_key" = 'yes' ]; then
       print_public_ssh_key "$public_key_path"
     fi
@@ -609,7 +586,7 @@ resolve_ssh_command() {
     label="$label [current: $current_path]"
   fi
 
-  ssh_key_path=$(prompt_value "$label")
+  ssh_key_path=$(picotools_prompt_value "$label")
   if [ -n "$ssh_key_path" ]; then
     require_existing_file "$ssh_key_path" 'SSH private key path'
   else
@@ -680,7 +657,7 @@ resolve_signing_key() {
     label="$label [current: $current_key]"
   fi
 
-  signing_key=$(prompt_value "$label")
+  signing_key=$(picotools_prompt_value "$label")
   if [ -z "$signing_key" ]; then
     if ! signing_key=$(generate_signing_key "$user_name" "$email"); then
       return 1
@@ -743,29 +720,32 @@ create_context() {
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
   local ssh_command='' signing_key='' gpg_program='' ssh_add_on_start
 
-  name=$(prompt_value 'Context name')
+  picotools_ui_section 'Create Git Profile'
+  picotools_ui_step 1 3 'Choose profile identity'
+  name=$(picotools_prompt_value 'Context name')
   validate_context_name "$name"
   file=$(context_file "$name")
   ensure_context_dir
   debug_log "Creating profile '$name' at '$file'"
 
   if [ -f "$file" ]; then
-    overwrite=$(prompt_yes_no "Context '$name' already exists. Overwrite?" no)
+    overwrite=$(picotools_prompt_yes_no "Context '$name' already exists. Overwrite?" no)
     if [ "$overwrite" != 'yes' ]; then
-      echo 'Cancelled.' >&2
+      picotools_cancel
       exit 1
     fi
   fi
 
-  user_name=$(prompt_value 'Git user name')
-  email=$(prompt_value 'Git email')
-  use_ssh=$(prompt_yes_no 'Use SSH connection?' no)
+  user_name=$(picotools_prompt_value 'Git user name')
+  email=$(picotools_prompt_value 'Git email')
+  picotools_ui_step 2 3 'Configure SSH and signing'
+  use_ssh=$(picotools_prompt_yes_no 'Use SSH connection?' no)
 
   if [ "$use_ssh" = 'yes' ]; then
     if ! ssh_command=$(resolve_ssh_command "$email" "$name"); then
       exit 1
     fi
-    if [ "$(prompt_yes_no 'Add SSH key to agent on shell start?' no)" = 'yes' ]; then
+    if [ "$(picotools_prompt_yes_no 'Add SSH key to agent on shell start?' no)" = 'yes' ]; then
       ssh_add_on_start=true
     else
       ssh_add_on_start=false
@@ -774,7 +754,7 @@ create_context() {
     ssh_add_on_start=false
   fi
 
-  use_gpg=$(prompt_yes_no 'Use GPG signing?' no)
+  use_gpg=$(picotools_prompt_yes_no 'Use GPG signing?' no)
 
   if [ "$use_gpg" = 'yes' ]; then
     if ! signing_key=$(resolve_signing_key '' "$user_name" "$email"); then
@@ -790,8 +770,22 @@ create_context() {
   push_default=$(default_push_default)
   push_autosetupremote=$(default_push_autosetupremote)
   core_editor=$(default_core_editor)
+  picotools_ui_step 3 3 'Save profile settings'
+  picotools_ui_summary 'Review Git Profile' \
+    "Profile: ${name}" \
+    "User: ${user_name}" \
+    "Email: ${email}" \
+    "SSH: ${use_ssh}" \
+    "GPG: ${use_gpg}"
 
   save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
+
+  picotools_ui_summary 'Git Profile Saved' \
+    "Profile: ${name}" \
+    "User: ${user_name}" \
+    "Email: ${email}" \
+    "SSH: ${use_ssh}" \
+    "GPG: ${use_gpg}"
 
   echo "Saved profile '$name'."
 }
@@ -882,33 +876,24 @@ print_context_public_key() {
 }
 
 select_context_file() {
-  local selection file name
+  local file name
   local files=()
   local names=()
-
-  if ! saved_context_files >/dev/null; then
-    echo 'No git profiles found.' >&2
-    exit 1
-  fi
 
   while IFS= read -r file; do
     files+=("$file")
     name=$(context_name_from_file "$file")
     names+=("$name")
-  done < <(saved_context_files)
+  done < <(saved_context_files || true)
 
-  if ! selection=$(prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
-    return 1
-  fi
-
-  printf '%s\n' "${files[$((selection - 1))]}"
+  picotools_prompt_select_mapped_value 'Profiles' 'Select profile' '' 'No git profiles found.' names files
 }
 
 delete_context_file() {
   local file="$1"
   local confirm delete_ssh delete_gpg ssh_key_path signing_key gpg_program
 
-  confirm=$(prompt_yes_no "Delete '$(context_name_from_file "$file")'?" no)
+  confirm=$(picotools_prompt_yes_no "Delete '$(context_name_from_file "$file")'?" no)
   if [ "$confirm" != 'yes' ]; then
     echo 'Cancelled.' >&2
     exit 1
@@ -921,7 +906,7 @@ delete_context_file() {
   fi
 
   if [ -n "$signing_key" ]; then
-    delete_gpg=$(prompt_yes_no "Delete GPG signing key '$signing_key'?" no)
+    delete_gpg=$(picotools_prompt_yes_no "Delete GPG signing key '$signing_key'?" no)
     if [ "$delete_gpg" = 'yes' ]; then
       delete_gpg_key "$signing_key" "$gpg_program"
     fi
@@ -929,14 +914,20 @@ delete_context_file() {
 
   ssh_key_path=$(extract_ssh_key_path "$(read_context_value_optional "$file" core.sshCommand)")
   if [ -n "$ssh_key_path" ]; then
-    delete_ssh=$(prompt_yes_no "Delete SSH key files '$ssh_key_path' and '$ssh_key_path.pub'?" no)
+    delete_ssh=$(picotools_prompt_yes_no "Delete SSH key files '$ssh_key_path' and '$ssh_key_path.pub'?" no)
     if [ "$delete_ssh" = 'yes' ]; then
       delete_ssh_key_files "$ssh_key_path"
     fi
   fi
 
+  picotools_ui_summary 'Review Profile Deletion' \
+    "Profile: $(context_name_from_file "$file")" \
+    "Delete SSH material: ${delete_ssh:-no}" \
+    "Delete GPG material: ${delete_gpg:-no}"
+
   debug_log "Deleting profile file '$file'"
   rm -f "$file"
+  picotools_ui_status ok "Deleted profile '$(context_name_from_file "$file")'"
   echo 'Deleted profile.'
 }
 
@@ -1025,6 +1016,8 @@ update_context_file() {
   local selected_field
 
   name=$(context_name_from_file "$file")
+  picotools_ui_section 'Update Git Profile'
+  picotools_ui_step 1 2 'Select fields to update'
   debug_log "Updating profile '$name' from '$file'"
   user_name=$(read_context_value "$file" user.name)
   email=$(read_context_value "$file" user.email)
@@ -1056,40 +1049,40 @@ update_context_file() {
 
   while true; do
     if ! selected_field=$(prompt_update_field "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"); then
-      echo 'Cancelled.' >&2
+      picotools_cancel
       exit 1
     fi
 
     case "$selected_field" in
     gpg_program)
-      gpg_program=$(prompt_value 'gpg.program' "$gpg_program")
+      gpg_program=$(picotools_prompt_value 'gpg.program' "$gpg_program")
       if [ -z "$gpg_program" ]; then
         gpg_program=$(default_gpg_program)
       fi
       ;;
     autocrlf)
-      autocrlf=$(prompt_value 'core.autocrlf' "$autocrlf")
+      autocrlf=$(picotools_prompt_value 'core.autocrlf' "$autocrlf")
       ;;
     file_mode)
-      file_mode=$(prompt_value 'core.fileMode' "$file_mode")
+      file_mode=$(picotools_prompt_value 'core.fileMode' "$file_mode")
       ;;
     pull_rebase)
-      pull_rebase=$(prompt_value 'pull.rebase' "$pull_rebase")
+      pull_rebase=$(picotools_prompt_value 'pull.rebase' "$pull_rebase")
       ;;
     rebase_autostash)
-      rebase_autostash=$(prompt_value 'rebase.autoStash' "$rebase_autostash")
+      rebase_autostash=$(picotools_prompt_value 'rebase.autoStash' "$rebase_autostash")
       ;;
     push_default)
-      push_default=$(prompt_value 'push.default' "$push_default")
+      push_default=$(picotools_prompt_value 'push.default' "$push_default")
       ;;
     push_autosetupremote)
-      push_autosetupremote=$(prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
+      push_autosetupremote=$(picotools_prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
       ;;
     core_editor)
-      core_editor=$(prompt_value 'core.editor' "$core_editor")
+      core_editor=$(picotools_prompt_value 'core.editor' "$core_editor")
       ;;
     ssh_add_on_start)
-      ssh_add_on_start=$(prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
+      ssh_add_on_start=$(picotools_prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
       ;;
     done)
       break
@@ -1101,7 +1094,21 @@ update_context_file() {
     gpg_program=$(default_gpg_program)
   fi
 
+  picotools_ui_summary 'Review Updated Profile' \
+    "Profile: ${name}" \
+    "User: ${user_name}" \
+    "Email: ${email}" \
+    "SSH: ${use_ssh}" \
+    "GPG: ${use_gpg}"
+
   save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
+  picotools_ui_step 2 2 'Save updated settings'
+  picotools_ui_summary 'Git Profile Updated' \
+    "Profile: ${name}" \
+    "User: ${user_name}" \
+    "Email: ${email}" \
+    "SSH: ${use_ssh}" \
+    "GPG: ${use_gpg}"
   echo "Updated profile '$name'."
 }
 
@@ -1121,7 +1128,7 @@ clone_profile_interactive() {
     return 0
   fi
 
-  url=$(prompt_value 'Git URL')
+  url=$(picotools_prompt_value 'Git URL')
   if [ -z "$url" ]; then
     echo 'Error: git URL is required' >&2
     exit 1
@@ -1174,7 +1181,7 @@ clone_profile_cli() {
   fi
 
   if [ -z "$url" ]; then
-    url=$(prompt_value 'Git URL')
+    url=$(picotools_prompt_value 'Git URL')
     if [ -z "$url" ]; then
       echo 'Error: git URL is required' >&2
       exit 1

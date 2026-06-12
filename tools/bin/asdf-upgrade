@@ -9,7 +9,7 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" commands prompt string table version
+picotools_source_modules "$SCRIPT_DIR" box commands debug prompt string table ui version
 
 ASDF_UPGRADE_TMP_DIR=""
 
@@ -41,7 +41,7 @@ debug_enabled() {
 
 debug_log() {
   if debug_enabled; then
-    printf '[asdf-upgrade] %s\n' "$1" >&2
+    picotools_debug_log 'asdf-upgrade' "$1"
   fi
 }
 
@@ -291,7 +291,7 @@ maybe_run_asdf_install() {
 
   if [ "$run_install" = 'yes' ]; then
     debug_log 'Running asdf install for selected upgrades'
-    asdf install
+    picotools_ui_run_with_progress 'Running asdf install' asdf install
     return 0
   fi
 
@@ -364,6 +364,11 @@ main() {
   debug_log "Applying ${#selected_indexes[@]} selected upgrade(s)"
   apply_selected_upgrades "$upgrades_file" "${selected_indexes[@]}"
   maybe_run_asdf_install "$assume_yes"
+
+  picotools_ui_summary 'asdf Upgrade Complete' \
+    "Selected tools: ${#selected_indexes[@]}" \
+    "Mode: $([ "$assume_yes" = true ] && printf 'automatic' || printf 'interactive')" \
+    'Next step: run asdf current to review versions'
 }
 
 main "$@"
