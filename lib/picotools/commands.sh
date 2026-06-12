@@ -29,3 +29,30 @@ picotools_require_commands() {
     exit 1
   fi
 }
+
+picotools_resolve_tool_command() {
+  local script_dir="$1"
+  local env_var_name="$2"
+  local tool_name="$3"
+  local env_value="${!env_var_name:-}"
+  local candidate
+
+  if [ -n "$env_value" ]; then
+    printf '%s\n' "$env_value"
+    return 0
+  fi
+
+  candidate="${script_dir}/${tool_name}"
+  if [ -x "$candidate" ]; then
+    printf '%s\n' "$candidate"
+    return 0
+  fi
+
+  if command -v "$tool_name" >/dev/null 2>&1; then
+    command -v "$tool_name"
+    return 0
+  fi
+
+  echo "Error: unable to locate ${tool_name}" >&2
+  exit 1
+}

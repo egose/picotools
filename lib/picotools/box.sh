@@ -5,31 +5,73 @@ if [ "${PICOTOOLS_BOX_SH_LOADED:-0}" -eq 1 ]; then
 fi
 PICOTOOLS_BOX_SH_LOADED=1
 
+picotools_box_use_unicode() {
+  [ "${PICOTOOLS_BOX_ASCII:-0}" -ne 1 ] || return 1
+  [ "${TERM:-}" != 'dumb' ] || return 1
+  return 0
+}
+
+picotools_box_chars() {
+  local part="$1"
+
+  if picotools_box_use_unicode; then
+    case "$part" in
+    top_left) printf '%s' '┌' ;;
+    top_right) printf '%s' '┐' ;;
+    bottom_left) printf '%s' '└' ;;
+    bottom_right) printf '%s' '┘' ;;
+    separator_left) printf '%s' '├' ;;
+    separator_right) printf '%s' '┤' ;;
+    vertical) printf '%s' '│' ;;
+    horizontal) printf '%s' '─' ;;
+    esac
+    return 0
+  fi
+
+  case "$part" in
+  top_left | top_right | bottom_left | bottom_right | separator_left | separator_right)
+    printf '%s' '+'
+    ;;
+  vertical)
+    printf '%s' '|'
+    ;;
+  horizontal)
+    printf '%s' '-'
+    ;;
+  esac
+}
+
 picotools_box_top() {
   local width="${1:-60}"
   local rule
+  local horizontal
 
   printf -v rule '%*s' "$((width - 2))" ''
-  rule=${rule// /─}
-  printf '┌%s┐\n' "$rule"
+  horizontal=$(picotools_box_chars horizontal)
+  rule=${rule// /$horizontal}
+  printf '%s%s%s\n' "$(picotools_box_chars top_left)" "$rule" "$(picotools_box_chars top_right)"
 }
 
 picotools_box_bottom() {
   local width="${1:-60}"
   local rule
+  local horizontal
 
   printf -v rule '%*s' "$((width - 2))" ''
-  rule=${rule// /─}
-  printf '└%s┘\n' "$rule"
+  horizontal=$(picotools_box_chars horizontal)
+  rule=${rule// /$horizontal}
+  printf '%s%s%s\n' "$(picotools_box_chars bottom_left)" "$rule" "$(picotools_box_chars bottom_right)"
 }
 
 picotools_box_separator() {
   local width="${1:-60}"
   local rule
+  local horizontal
 
   printf -v rule '%*s' "$((width - 2))" ''
-  rule=${rule// /─}
-  printf '├%s┤\n' "$rule"
+  horizontal=$(picotools_box_chars horizontal)
+  rule=${rule// /$horizontal}
+  printf '%s%s%s\n' "$(picotools_box_chars separator_left)" "$rule" "$(picotools_box_chars separator_right)"
 }
 
 picotools_box_width_for_lines() {
@@ -57,6 +99,7 @@ picotools_box_line() {
   local width="${2:-60}"
   local inner_width=$((width - 4))
   local padding
+  local vertical
 
   if [ "${#content}" -gt "$inner_width" ]; then
     if [ "$inner_width" -gt 3 ]; then
@@ -67,5 +110,6 @@ picotools_box_line() {
   fi
 
   padding=$((inner_width - ${#content}))
-  printf '│ %s%*s │\n' "$content" "$padding" ""
+  vertical=$(picotools_box_chars vertical)
+  printf '%s %s%*s %s\n' "$vertical" "$content" "$padding" "" "$vertical"
 }

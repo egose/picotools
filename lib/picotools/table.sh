@@ -5,6 +5,22 @@ if [ "${PICOTOOLS_TABLE_SH_LOADED:-0}" -eq 1 ]; then
 fi
 PICOTOOLS_TABLE_SH_LOADED=1
 
+picotools_table_stderr_is_pretty() {
+  [ -t 2 ] || return 1
+  [ "${TERM:-}" != 'dumb' ] || return 1
+}
+
+picotools_table_header_value() {
+  local value="$1"
+
+  if picotools_table_stderr_is_pretty; then
+    printf '\033[1;36m%s\033[0m' "$value"
+    return 0
+  fi
+
+  printf '%s' "$value"
+}
+
 picotools_print_table_separator() {
   local -n widths_ref="$1"
   local index
@@ -69,6 +85,7 @@ picotools_print_table() {
 
   for index in "${!headers[@]}"; do
     widths[index]="$(picotools_visible_text_length "${headers[index]}")"
+    headers[index]="$(picotools_table_header_value "${headers[index]}")"
   done
 
   for row in "${rows[@]}"; do
