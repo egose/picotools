@@ -38,6 +38,10 @@ picotools_ui_green() {
   picotools_ui_color '32'
 }
 
+picotools_ui_red() {
+  picotools_ui_color '31'
+}
+
 picotools_ui_yellow() {
   picotools_ui_color '33'
 }

@@ -36,6 +36,10 @@ assert_contains() {
   esac
 }
 
+strip_ansi() {
+  printf '%s' "$1" | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g; s/\r//g'
+}
+
 assert_eq() {
   local actual="$1"
   local expected="$2"
@@ -67,6 +71,12 @@ current)
     printf 'erlang 26.0.2 %s/.tool-versions false\n' "$WORKSPACE_DIR"
     printf 'poetry latest %s/.tool-versions true\n' "$WORKSPACE_DIR"
     ;;
+  color)
+    printf 'Name Version Source Installed\n'
+    printf 'nodejs 20.10.0 %s/.tool-versions true\n' "$WORKSPACE_DIR"
+    printf 'python 3.11.7 %s/apps/api/.tool-versions true\n' "$WORKSPACE_DIR"
+    printf 'helm 4.2.0 %s/.tool-versions true\n' "$WORKSPACE_DIR"
+    ;;
   none)
     printf 'Name Version Source Installed\n'
     printf 'nodejs 20.11.1 %s/.tool-versions true\n' "$WORKSPACE_DIR"
@@ -89,6 +99,9 @@ list)
     ;;
   python)
     printf '%s\n' 3.11.7 3.11.9 3.12.0b1 ref:system
+    ;;
+  helm)
+    printf '%s\n' 4.2.0 4.5.9 5.0.1 latest
     ;;
   *)
     exit 1
@@ -167,6 +180,29 @@ EOF
   assert_contains "$output" 'Checking nodejs 20.11.1' 'should print progress for eligible tools even when no upgrade exists'
   assert_contains "$output" 'Checked 1 tool(s).' 'should print the count of checked tools when no upgrades exist'
   assert_contains "$output" 'No upgrades found.' 'should report when no strict-semver upgrades are available'
+}
+
+@test "interactive selector color-codes semver upgrade segments" {
+  local cleaned_output
+
+  write_asdf_stub
+  mkdir -p "$WORKSPACE_DIR/apps/api"
+
+  printf '%s\n' 'nodejs 20.10.0' 'helm 4.2.0' >"$WORKSPACE_DIR/.tool-versions"
+  printf '%s\n' 'python 3.11.7' >"$WORKSPACE_DIR/apps/api/.tool-versions"
+
+  run bash -lc 'script -qec "cd \"$1\" && TERM=xterm ASDF_STUB_SCENARIO=color bash \"$2\"" /dev/null < <(printf "q\n")' bash "$WORKSPACE_DIR" "$TOOL"
+
+  [ "$status" -eq 0 ] || fail 'script should capture the interactive selector output successfully'
+  assert_contains "$output" 'Cancelled.' 'interactive selector should report cancellation after q is entered'
+  assert_contains "$output" $'helm: 4.2.0 -> \033[31m5.0.1\033[0m' 'should color the full latest version red for major upgrades'
+  assert_contains "$output" $'nodejs: 20.10.0 -> 20.\033[32m11.1\033[0m' 'should color the changed minor-and-patch suffix green for minor upgrades'
+  assert_contains "$output" $'python: 3.11.7 -> 3.11.\033[33m9\033[0m' 'should color only the changed patch segment yellow for patch upgrades'
+
+  cleaned_output=$(strip_ansi "$output")
+  assert_contains "$cleaned_output" 'helm: 4.2.0 -> 5.0.1' 'major upgrade text should remain readable after stripping ANSI sequences'
+  assert_contains "$cleaned_output" 'nodejs: 20.10.0 -> 20.11.1' 'minor upgrade text should remain readable after stripping ANSI sequences'
+  assert_contains "$cleaned_output" 'python: 3.11.7 -> 3.11.9' 'patch upgrade text should remain readable after stripping ANSI sequences'
 }
 
 @test "help documents debug mode" {
