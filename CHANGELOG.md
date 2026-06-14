@@ -1,3 +1,10 @@
+## [0.37.0](https://github.com/egose/picotools/compare/v0.36.0...v0.37.0) (2026-06-14)
+
+### Features
+
+* add red color utility to UI library ([35b5391](https://github.com/egose/picotools/commit/35b5391e491460e4659dffe10f22388bd027c419))
+* color-code semver segments in upgrade list ([375e33c](https://github.com/egose/picotools/commit/375e33cef78b316f2b924e3dedda7f724c451f13))
+
 ## [0.36.0](https://github.com/egose/picotools/compare/v0.35.0...v0.36.0) (2026-06-12)
 
 ### Features
