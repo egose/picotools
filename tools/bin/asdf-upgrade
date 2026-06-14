@@ -116,6 +116,55 @@ latest_stable_version() {
   printf '%s\n' "$latest"
 }
 
+format_colored_upgrade_version() {
+  local current_version="$1"
+  local latest_version="$2"
+  local current_major current_minor current_patch
+  local latest_major latest_minor latest_patch
+  local color_start=''
+  local reset=''
+
+  if ! picotools_ui_stderr_is_pretty || ! is_strict_semver "$current_version" || ! is_strict_semver "$latest_version"; then
+    printf '%s\n' "$latest_version"
+    return 0
+  fi
+
+  IFS=. read -r current_major current_minor current_patch <<<"$current_version"
+  IFS=. read -r latest_major latest_minor latest_patch <<<"$latest_version"
+  reset=$(picotools_ui_reset)
+
+  if [ "$latest_major" != "$current_major" ]; then
+    color_start=$(picotools_ui_red)
+    printf '%s%s%s\n' "$color_start" "$latest_version" "$reset"
+    return 0
+  fi
+
+  if [ "$latest_minor" != "$current_minor" ]; then
+    color_start=$(picotools_ui_green)
+    printf '%s.%s%s%s\n' "$latest_major" "$color_start" "${latest_minor}.${latest_patch}" "$reset"
+    return 0
+  fi
+
+  if [ "$latest_patch" != "$current_patch" ]; then
+    color_start=$(picotools_ui_yellow)
+    printf '%s.%s.%s%s%s\n' "$latest_major" "$latest_minor" "$color_start" "$latest_patch" "$reset"
+    return 0
+  fi
+
+  printf '%s\n' "$latest_version"
+}
+
+format_upgrade_description() {
+  local tool="$1"
+  local current_version="$2"
+  local latest_version="$3"
+  local source="$4"
+  local display_latest_version
+
+  display_latest_version=$(format_colored_upgrade_version "$current_version" "$latest_version")
+  printf '%s: %s -> %s (%s)\n' "$tool" "$current_version" "$display_latest_version" "$source"
+}
+
 collect_upgrade_rows() {
   local output_file="$1"
   local line tool current_version source installed latest_version resolved_source
@@ -170,10 +219,20 @@ collect_upgrade_rows() {
 
 print_upgrade_table() {
   local upgrades_file="$1"
+  local row tool current_version latest_version source
+  local display_latest_version
   local -a rows=()
+  local -a display_rows=()
 
   mapfile -t rows <"$upgrades_file"
-  picotools_print_table $'Tool\tCurrent\tLatest\tSource' "${rows[@]}"
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r tool current_version latest_version source <<<"$row"
+    display_latest_version=$(format_colored_upgrade_version "$current_version" "$latest_version")
+    display_rows+=("${tool}"$'\t'"${current_version}"$'\t'"${display_latest_version}"$'\t'"${source}")
+  done
+
+  picotools_print_table $'Tool\tCurrent\tLatest\tSource' "${display_rows[@]}"
 }
 
 select_upgrade_indexes() {
@@ -196,7 +255,7 @@ select_upgrade_indexes() {
 
   for row in "${rows[@]}"; do
     IFS=$'\t' read -r tool current_version latest_version source <<<"$row"
-    options+=("${tool}: ${current_version} -> ${latest_version} (${source})")
+    options+=("$(format_upgrade_description "$tool" "$current_version" "$latest_version" "$source")")
   done
 
   picotools_prompt_select_multiple_indexes 'Upgradeable asdf tools' 'Select tools to upgrade' false "${options[@]}"
