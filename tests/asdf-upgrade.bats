@@ -195,9 +195,10 @@ EOF
 
   [ "$status" -eq 0 ] || fail 'script should capture the interactive selector output successfully'
   assert_contains "$output" 'Cancelled.' 'interactive selector should report cancellation after q is entered'
-  assert_contains "$output" $'helm: 4.2.0 -> \033[31m5.0.1\033[0m' 'should color the full latest version red for major upgrades'
-  assert_contains "$output" $'nodejs: 20.10.0 -> 20.\033[32m11.1\033[0m' 'should color the changed minor-and-patch suffix green for minor upgrades'
-  assert_contains "$output" $'python: 3.11.7 -> 3.11.\033[33m9\033[0m' 'should color only the changed patch segment yellow for patch upgrades'
+  assert_contains "$output" $'> \033[1;36m[ ] nodejs:\033[0m 20.10.0 -> 20.\033[32m11.1\033[0m' 'selected row highlight should stop after the tool name so the version diff colors remain visible'
+  assert_contains "$output" $'helm:\033[0m 4.2.0 -> \033[31m5.0.1\033[0m' 'should color the full latest version red for major upgrades'
+  assert_contains "$output" $'nodejs:\033[0m 20.10.0 -> 20.\033[32m11.1\033[0m' 'should color the changed minor-and-patch suffix green for minor upgrades'
+  assert_contains "$output" $'python:\033[0m 3.11.7 -> 3.11.\033[33m9\033[0m' 'should color only the changed patch segment yellow for patch upgrades'
 
   cleaned_output=$(strip_ansi "$output")
   assert_contains "$cleaned_output" 'helm: 4.2.0 -> 5.0.1' 'major upgrade text should remain readable after stripping ANSI sequences'
