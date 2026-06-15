@@ -1278,7 +1278,7 @@ create_pull_request() {
   local requested_base_branch="$4"
   local profile="$5"
   local model="$6"
-  local remote repo owner name title body response pr_url base_branch
+  local remote repo owner name title body response pr_url base_branch existing_pr_url
 
   remote=$(resolve_push_remote "$branch")
   repo=$(github_repo_from_remote "$remote")
@@ -1289,6 +1289,13 @@ create_pull_request() {
   if [ "$branch" = "$base_branch" ]; then
     echo "Error: --pr requires a branch different from the base branch '$base_branch'" >&2
     exit 1
+  fi
+
+  existing_pr_url=$(find_existing_pull_request_url "$owner" "$name" "$branch" "$base_branch" || true)
+  if [ -n "$existing_pr_url" ]; then
+    debug_log "Reusing existing pull request for '$branch' into '$base_branch': $existing_pr_url"
+    printf '\033[1;33mPull request already exists:\033[0m %s\n' "$existing_pr_url"
+    return 0
   fi
 
   title=$(request_pr_title_from_ai "$plan_json" "$scope" "$profile" "$model")
@@ -1308,6 +1315,29 @@ create_pull_request() {
 
   echo 'Error: git-api did not return a pull request URL' >&2
   exit 1
+}
+
+find_existing_pull_request_url() {
+  local owner="$1"
+  local repo_name="$2"
+  local branch="$3"
+  local base_branch="$4"
+  local response pr_url
+
+  response=$(run_git_api pulls/list "$owner" "$repo_name" \
+    --state open \
+    --head "$owner:$branch" \
+    --base "$base_branch" 2>/dev/null || true)
+  if [ -z "$response" ]; then
+    return 1
+  fi
+
+  pr_url=$(printf '%s' "$response" | jq -r '.[0].html_url // empty' 2>/dev/null || true)
+  if [ -z "$pr_url" ]; then
+    return 1
+  fi
+
+  printf '%s\n' "$pr_url"
 }
 
 default_branch_from_git_api() {

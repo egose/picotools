@@ -218,6 +218,15 @@ if args[0] == '-r' and len(args) >= 2:
         print(data.get('html_url', ''))
         sys.exit(0)
 
+    if expr == '.[0].html_url // empty':
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                print(first.get('html_url', ''))
+                sys.exit(0)
+        print('')
+        sys.exit(0)
+
     if expr == '.default_branch // empty':
         print(data.get('default_branch', ''))
         sys.exit(0)
@@ -258,6 +267,9 @@ repos/get)
     exit 1
   fi
   printf '%s\n' "${GIT_API_REPOS_GET_RESPONSE:-{\"default_branch\":\"main\"}}"
+  ;;
+pulls/list)
+  printf '%s\n' "${GIT_API_PULLS_LIST_RESPONSE:-[]}"
   ;;
 pulls/create)
   printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
@@ -1374,6 +1386,52 @@ create_initial_commit() {
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
   assert_contains "$(<"$git_api_log")" 'base=main' 'git-commit should target the main branch'
   assert_contains "$(<"$git_api_log")" 'head=feat/11222' 'git-commit should use the current branch as the PR head'
+}
+
+@test "reuses an existing pull request when one is already open" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_PULLS_LIST_RESPONSE='[{"html_url":"https://github.com/octo/demo/pull/77"}]' \
+    "$TOOL" --pr 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should still create the planned commit before checking for an existing pull request'
+  remote_head_subject=$(git -C "$remote" log -1 --pretty=%s refs/heads/feat/11222)
+  assert_eq "$remote_head_subject" 'feat(11222): add repository notes' 'git-commit should still push the created commit before reusing an existing pull request'
+  upstream_branch=$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
+  assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should still set upstream before reusing an existing pull request'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after reusing an existing pull request'
+  assert_contains "$(strip_ansi "$output")" 'Pull request already exists: https://github.com/octo/demo/pull/77' 'git-commit should report the existing pull request URL instead of creating a new one'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should still resolve the default branch before checking for an existing pull request'
+  assert_contains "$(<"$git_api_log")" 'pulls/list octo demo' 'git-commit should query open pull requests for the branch'
+  assert_contains "$(<"$git_api_log")" '--head octo:feat/11222' 'git-commit should look up existing pull requests by owner-qualified head branch'
+  assert_contains "$(<"$git_api_log")" '--base main' 'git-commit should look up existing pull requests against the resolved base branch'
+  assert_not_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should not create a new pull request when one already exists'
 }
 
 @test "uses the configured git-api profile for pull request operations" {
