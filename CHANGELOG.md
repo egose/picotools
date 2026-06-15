@@ -1,3 +1,9 @@
+## [0.38.0](https://github.com/egose/picotools/compare/v0.37.0...v0.38.0) (2026-06-15)
+
+### Features
+
+* reuse existing pull request if one is already open ([f5bccd5](https://github.com/egose/picotools/commit/f5bccd59e663e312505a50074307bf503c33cd40))
+
 ## [0.37.0](https://github.com/egose/picotools/compare/v0.36.0...v0.37.0) (2026-06-14)
 
 ### Features
