@@ -133,6 +133,12 @@ EOF
   [ "$status" -eq 0 ] || fail 'gh-actions-upgrade should succeed for default ref preservation'
   assert_contains "$output" '[gh-actions-upgrade] Updated' 'debug mode should log updated action refs'
   assert_contains "$output" 'Updated 3 action reference(s) across 2 file(s).' 'tool should report the number of updated refs and files'
+  assert_contains "$output" 'Updated actions:' 'tool should print a detailed updated actions section'
+  assert_contains "$output" "  $workflow_file" 'tool should group top-level workflow updates under their source file'
+  assert_contains "$output" '    actions/checkout: v4.1.0 -> v6.0.2' 'tool should list updated tag-based actions under the workflow file'
+  assert_contains "$output" '    actions/upload-artifact: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -> bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'tool should list updated hash-based actions under the workflow file'
+  assert_contains "$output" "  $nested_action_file" 'tool should group nested action updates under their source file'
+  assert_contains "$output" '    softprops/action-gh-release: 1234512345123451234512345123451234512345 -> 9999999999999999999999999999999999999999' 'tool should list updated nested actions under the nested action file'
   assert_eq "$(<"$workflow_file")" $'name: Test\njobs:\n  test:\n    steps:\n    - uses: actions/checkout@v6.0.2\n    - uses: actions/upload-artifact@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n    - uses: ./.github/actions/local-setup' 'default mode should keep tag refs as tags and hash refs as hashes'
   assert_eq "$(<"$nested_action_file")" $'runs:\n  using: composite\n  steps:\n  - uses: softprops/action-gh-release@9999999999999999999999999999999999999999' 'default mode should also update nested action files under .github'
   assert_contains "$(<"$log_file")" 'ls-remote --tags https://github.com/actions/checkout.git' 'tool should query action tags from git ls-remote'
@@ -175,6 +181,9 @@ EOF
 
   [ "$status" -eq 0 ] || fail 'gh-actions-upgrade should succeed when forcing tag refs'
   assert_contains "$output" 'Updated 2 action reference(s) across 1 file(s).' 'tool should report forced tag updates'
+  assert_contains "$output" "  $workflow_file" 'tool should group forced tag updates under the workflow file'
+  assert_contains "$output" '    actions/checkout: 1111111111111111111111111111111111111111 -> v6.0.2' 'tool should list forced tag updates in the summary'
+  assert_contains "$output" '    actions/upload-artifact: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -> v4.6.2' 'tool should list each forced tag update in the summary'
   assert_eq "$(<"$workflow_file")" $'jobs:\n  test:\n    steps:\n    - uses: actions/checkout@v6.0.2\n    - uses: actions/upload-artifact@v4.6.2' 'forced tag mode should rewrite all refs to latest tags'
 }
 
@@ -196,6 +205,9 @@ EOF
 
   [ "$status" -eq 0 ] || fail 'gh-actions-upgrade should succeed when forcing commit-hash refs'
   assert_contains "$output" 'Updated 2 action reference(s) across 1 file(s).' 'tool should report forced hash updates'
+  assert_contains "$output" "  $workflow_file" 'tool should group forced hash updates under the workflow file'
+  assert_contains "$output" '    actions/checkout: v4.1.0 -> 6666666666666666666666666666666666666666' 'tool should list forced hash updates in the summary'
+  assert_contains "$output" '    actions/upload-artifact: v4.0.0 -> bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'tool should list each forced hash update in the summary'
   assert_eq "$(<"$workflow_file")" $'jobs:\n  test:\n    steps:\n    - uses: actions/checkout@6666666666666666666666666666666666666666\n    - uses: actions/upload-artifact@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'forced hash mode should rewrite all refs to latest tag commit hashes'
 }
 

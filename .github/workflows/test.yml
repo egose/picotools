@@ -57,6 +57,9 @@ jobs:
         "$PWD/tmp/install/bin/pip-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pip-upgrade" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/npm-publish-package" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/npm-publish-package" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/gh-repo-sync" --help >/dev/null
         test "$("$PWD/tmp/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
 

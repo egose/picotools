@@ -15,6 +15,7 @@ debug_mode=false
 target_dir='.github'
 forced_ref_type=''
 GH_ACTIONS_UPGRADE_TMPDIR=''
+GH_ACTIONS_UPGRADE_CHANGES_FILE=''
 
 declare -A GH_ACTIONS_UPGRADE_LATEST_TAGS=()
 declare -A GH_ACTIONS_UPGRADE_LATEST_HASHES=()
@@ -67,6 +68,8 @@ ensure_tmpdir() {
   fi
 
   GH_ACTIONS_UPGRADE_TMPDIR=$(mktemp -d)
+  GH_ACTIONS_UPGRADE_CHANGES_FILE="$GH_ACTIONS_UPGRADE_TMPDIR/changes.txt"
+  : >"$GH_ACTIONS_UPGRADE_CHANGES_FILE"
   trap 'cleanup_tmpdir' EXIT
 }
 
@@ -263,6 +266,7 @@ update_workflow_file() {
               trailing_comment="$comment"
               printf '%s%s%s%s\n' "$prefix" "$quote" "$new_target" "$quote$trailing_comment" >>"$tmpfile"
               debug_log "Updated '$repo' in '$file' from '$current_ref' to '$new_ref'"
+              printf '%s\t%s: %s -> %s\n' "$file" "$repo" "$current_ref" "$new_ref" >>"$GH_ACTIONS_UPGRADE_CHANGES_FILE"
               updated=true
               updated_count=$((updated_count + 1))
               continue
@@ -353,6 +357,7 @@ main() {
   fi
 
   picotools_require_commands git sort
+  ensure_tmpdir
   mapfile -t yaml_files < <(collect_yaml_files "$target_dir")
   if [ "${#yaml_files[@]}" -eq 0 ]; then
     echo "No YAML files found under $target_dir."
@@ -374,6 +379,20 @@ main() {
   fi
 
   echo "Updated ${updated_ref_count} action reference(s) across ${updated_file_count} file(s)."
+  if [ -f "$GH_ACTIONS_UPGRADE_CHANGES_FILE" ] && [ -s "$GH_ACTIONS_UPGRADE_CHANGES_FILE" ]; then
+    local current_file='' line change_file change_text
+    printf 'Updated actions:\n'
+    while IFS= read -r line; do
+      [ -n "$line" ] || continue
+      change_file=${line%%$'\t'*}
+      change_text=${line#*$'\t'}
+      if [ "$change_file" != "$current_file" ]; then
+        current_file="$change_file"
+        printf '  %s\n' "$current_file"
+      fi
+      printf '    %s\n' "$change_text"
+    done <"$GH_ACTIONS_UPGRADE_CHANGES_FILE"
+  fi
 }
 
 main "$@"

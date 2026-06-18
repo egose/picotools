@@ -12,6 +12,7 @@ The following scripts are included in `tools/bin`:
 | `asdf-upgrade` | Finds newer stable strict-semver asdf versions and updates selected `.tool-versions` entries |
 | `asdf-clean-unused` | Scans workspace `.tool-versions` files and removes unused asdf plugins or versions |
 | `pip-upgrade` | Updates exact requirement pins in `requirements.txt` within a selected version scope |
+| `npm-publish-package` | Bundles a package, rewrites publish metadata, and publishes one or more package names from a publish directory |
 | `oc-route` | Lists, reads, and interactively applies OpenShift route manifests |
 | `oc-quota-requests` | Analyzes OpenShift namespace CPU and memory request quota usage |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
@@ -43,6 +44,8 @@ The following scripts are included in `tools/bin`:
 `asdf-upgrade` inspects `asdf current` in the current directory, keeps only installed tools whose active version and available upgrades are strict stable `<major>.<minor>.<patch>` releases, shows the tools with newer versions in a table, and lets you multi-select which entries to rewrite across one or more `.tool-versions` files together. After rewriting the selected entries, it can also run `asdf install` for you. Use `asdf-upgrade --yes` to update every listed tool without prompting.
 
 `pip-upgrade` updates exact `==` requirement pins and supports `--scope major`, `--scope minor`, and `--scope patch` to control how far upgrades may move from the currently pinned version. It prompts before writing changes by default; use `--yes` to skip the confirmation.
+
+`npm-publish-package` reads the current `package.json`, runs `pnpm bundle` by default, writes a publish-ready `package.json` into `dist`, copies `LICENSE`, `README.md`, and `CHANGELOG.md` when present, and publishes once for the main package name plus any `additionalNames`. It requires `jq` and `npm`, and the default bundle step also expects `pnpm` unless you override it with `--bundle-command` or skip it with `--skip-bundle`. `--workspace-root` lets you run the tool from a subdirectory, and when `./.npm-publish-package.json` exists in that workspace root, the tool reads JSON config defaults from it before applying CLI overrides. Explicit `--config PATH` values are resolved from the caller's current directory. Supported config keys mirror the long flags in camelCase, including `publishDir`, `packageJson`, `bundleCommand`, `skipBundle`, `includeFiles`, `ignoreMissingIncludeFile`, `defaultFiles`, `tolerateExistingPackageJson`, `access`, `tag`, `registry`, `otp`, `provenance`, and `dryRun`. See `./.npm-publish-package.json.example` for a template. `--publish-dir` must stay relative to the workspace root and cannot be `.` so published entrypoint paths can be rewritten safely, and the tool fails fast if the bundle step does not produce that directory. Explicit `--include-file` entries fail when missing unless `--ignore-missing-include-file` is set, and an existing publish-dir `package.json` is protected unless `--tolerate-existing-package-json` is passed. Use `--access` to override the npm access level, `--tag` to publish under a specific dist-tag, `--registry` to target a non-default registry, `--otp` for npm 2FA, `--provenance` to request provenance attestation, and `--dry-run` to prepare the publish artifacts without calling `npm publish`.
 
 `oc-route` requires `oc`. It supports `list`, `read`, and `update`. `read --interactive` shows the existing route list and prompts for a selection. `update --interactive` shows existing routes so you can pick one to update or type a new route name to create, prompts for the target `Service`, and always includes a `tls` block with `termination` and `insecureEdgeTerminationPolicy`. Certificate inputs are only collected when you choose to provide them. Without `--interactive`, `update` requires route values to be passed as flags and supports certificate inputs via `--certificate`, `--key`, `--ca-certificate`, or the corresponding `*-file` flags.
 
@@ -91,6 +94,7 @@ asdf-install
 asdf-upgrade
 asdf-clean-unused
 pip-upgrade
+npm-publish-package
 oc-route
 oc-quota-requests
 gh-repo-sync

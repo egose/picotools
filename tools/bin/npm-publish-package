@@ -1,0 +1,664 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands debug version
+
+NPM_PUBLISH_PACKAGE_TMP_DIR=""
+PACKAGE_JSON_KEYS_JSON='["version","description","keywords","files","homepage","bugs","license","author","sideEffects","repository","dependencies","peerDependencies","publishConfig","release","engines","main","module","types","exports"]'
+DEFAULT_CONFIG_FILE='.npm-publish-package.json'
+
+debug_mode=false
+
+usage() {
+  cat <<'EOF'
+Usage: npm-publish-package [options]
+
+Bundles the current package, writes a publish-ready package.json into the
+publish directory, copies common project files, and publishes one or more
+package names from that directory.
+
+Options:
+  --workspace-root DIR        Workspace root to operate from (default: current directory)
+  --config PATH               JSON config file path (default: ./.npm-publish-package.json if present)
+  --publish-dir DIR           Directory to publish from (default: dist)
+  --package-json PATH         Source package.json path (default: ./package.json)
+  --bundle-command CMD        Command used to prepare the publish dir
+                              (default: pnpm bundle)
+  --skip-bundle               Skip the bundle step
+  --include-file PATH         Copy an extra file into the publish dir; repeatable
+  --ignore-missing-include-file
+                              Ignore missing files passed through --include-file
+  --no-default-files          Do not copy default files: LICENSE README.md CHANGELOG.md
+  --tolerate-existing-package-json
+                              Allow overwriting an existing publish-dir package.json
+  --access LEVEL              npm publish access level (default: public)
+  --tag TAG                   npm dist-tag to publish with (default: none)
+  --registry URL              npm registry URL to publish to (default: npm default)
+  --otp CODE                  One-time password for two-factor npm publish
+  --provenance                Request npm provenance attestation during publish
+  --dry-run                   Prepare publish artifacts without calling npm publish
+  --debug                     Print progress details to stderr
+  -h, --help, help            Show this help message
+  -v, --version, version      Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    picotools_debug_log 'npm-publish-package' "$1"
+  fi
+}
+
+cleanup_tmp_dir() {
+  if [ -n "${NPM_PUBLISH_PACKAGE_TMP_DIR:-}" ]; then
+    rm -rf "$NPM_PUBLISH_PACKAGE_TMP_DIR"
+  fi
+}
+
+config_file_exists() {
+  local path="$1"
+
+  [ -n "$path" ] && [ -f "$path" ]
+}
+
+config_read_value_optional() {
+  local config_file="$1"
+  local key="$2"
+
+  if ! config_file_exists "$config_file"; then
+    return 0
+  fi
+
+  jq -r --arg key "$key" 'if has($key) then .[$key] else empty end' "$config_file"
+}
+
+config_read_array_values() {
+  local config_file="$1"
+  local key="$2"
+
+  if ! config_file_exists "$config_file"; then
+    return 0
+  fi
+
+  jq -r --arg key "$key" '.[$key][]?' "$config_file"
+}
+
+change_workspace_root() {
+  local workspace_root="$1"
+
+  if [ ! -d "$workspace_root" ]; then
+    echo "Error: workspace root not found: $workspace_root" >&2
+    exit 1
+  fi
+
+  cd "$workspace_root"
+}
+
+resolve_input_path() {
+  local base_dir="$1"
+  local path="$2"
+
+  case "$path" in
+  /*)
+    printf '%s\n' "$path"
+    ;;
+  *)
+    printf '%s/%s\n' "$base_dir" "$path"
+    ;;
+  esac
+}
+
+normalize_publish_dir() {
+  local dir="$1"
+
+  case "$dir" in
+  /*)
+    echo "Error: --publish-dir must be a relative path: $dir" >&2
+    exit 1
+    ;;
+  esac
+
+  dir="${dir%/}"
+  dir="${dir#./}"
+  if [ -z "$dir" ] || [ "$dir" = '.' ]; then
+    echo 'Error: --publish-dir must not be the workspace root' >&2
+    exit 1
+  fi
+
+  printf '%s\n' "$dir"
+}
+
+copy_publish_file() {
+  local source_file="$1"
+  local publish_dir="$2"
+  local required="$3"
+  local destination_file
+
+  if [ ! -f "$source_file" ]; then
+    if [ "$required" = 'true' ]; then
+      echo "Error: include file not found: $source_file" >&2
+      exit 1
+    fi
+    debug_log "Skipping missing file '$source_file'"
+    return 0
+  fi
+
+  destination_file="$publish_dir/$(basename "$source_file")"
+  cp "$source_file" "$destination_file"
+  debug_log "Copied '$source_file' to '$destination_file'"
+}
+
+run_bundle_command() {
+  local bundle_command="$1"
+
+  debug_log "Running bundle command: $bundle_command"
+  bash -lc "$bundle_command"
+}
+
+load_config_defaults() {
+  local config_file="$1"
+  local value
+
+  value=$(config_read_value_optional "$config_file" 'publishDir')
+  if [ -n "$value" ]; then
+    publish_dir="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'packageJson')
+  if [ -n "$value" ]; then
+    package_json_path="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'bundleCommand')
+  if [ -n "$value" ]; then
+    bundle_command="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'skipBundle')
+  if [ -n "$value" ]; then
+    skip_bundle="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'defaultFiles')
+  if [ -n "$value" ]; then
+    use_default_files="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'ignoreMissingIncludeFile')
+  if [ -n "$value" ]; then
+    ignore_missing_include_file="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'tolerateExistingPackageJson')
+  if [ -n "$value" ]; then
+    tolerate_existing_package_json="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'access')
+  if [ -n "$value" ]; then
+    access_level="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'tag')
+  if [ -n "$value" ]; then
+    npm_tag="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'registry')
+  if [ -n "$value" ]; then
+    registry_url="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'otp')
+  if [ -n "$value" ]; then
+    otp_code="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'provenance')
+  if [ -n "$value" ]; then
+    provenance_enabled="$value"
+  fi
+
+  value=$(config_read_value_optional "$config_file" 'dryRun')
+  if [ -n "$value" ]; then
+    dry_run="$value"
+  fi
+
+  while IFS= read -r value; do
+    [ -n "$value" ] || continue
+    explicit_include_files+=("$value")
+  done < <(config_read_array_values "$config_file" 'includeFiles')
+}
+
+write_publish_package_json() {
+  local source_package_json="$1"
+  local target_package_json="$2"
+  local publish_name="$3"
+  local publish_dir_key="$4"
+  local tmpfile
+
+  tmpfile="$NPM_PUBLISH_PACKAGE_TMP_DIR/package.json.tmp"
+
+  jq \
+    --arg publish_name "$publish_name" \
+    --arg publish_dir "$publish_dir_key" \
+    --argjson package_keys "$PACKAGE_JSON_KEYS_JSON" \
+    '
+      def pick_keys($keys):
+        with_entries(select(.key as $key | $keys | index($key)));
+
+      def rewrite_path($value):
+        if ($value | type) != "string" then
+          $value
+        elif $value == $publish_dir or $value == ("./" + $publish_dir) then
+          "./"
+        elif ($value | startswith("./" + $publish_dir + "/")) then
+          "./" + ($value[(($publish_dir | length) + 3):])
+        elif ($value | startswith($publish_dir + "/")) then
+          "./" + ($value[(($publish_dir | length) + 1):])
+        else
+          $value
+        end;
+
+      def rewrite_value($value):
+        if ($value | type) == "string" then
+          rewrite_path($value)
+        elif ($value | type) == "array" then
+          $value | map(rewrite_value(.))
+        elif ($value | type) == "object" then
+          with_entries(.value |= rewrite_value(.))
+        else
+          $value
+        end;
+
+      . as $package
+      | ($package | pick_keys($package_keys)) as $publish
+      | $publish + {
+          name: $publish_name,
+          files: ["**/*", "!**/*.map"],
+          main: (rewrite_path($publish.main) // "./index.cjs"),
+          module: (rewrite_path($publish.module) // "./index.js"),
+          types: (rewrite_path($publish.types) // "./index.d.ts"),
+          exports: (
+            if ($publish.exports | type) == "object" then
+              rewrite_value($publish.exports)
+            else
+              {
+                ".": {
+                  require: "./index.cjs",
+                  import: "./index.js",
+                  types: "./index.d.ts"
+                }
+              }
+            end
+          )
+        }
+    ' "$source_package_json" >"$tmpfile"
+
+  mv "$tmpfile" "$target_package_json"
+}
+
+publish_package_name() {
+  local publish_dir="$1"
+  local package_name="$2"
+  local access_level="$3"
+  local npm_tag="$4"
+  local registry_url="$5"
+  local otp_code="$6"
+  local provenance_enabled="$7"
+  local dry_run="$8"
+  local -a command=(npm publish --access "$access_level")
+
+  if [ -n "$npm_tag" ]; then
+    command+=(--tag "$npm_tag")
+  fi
+
+  if [ -n "$registry_url" ]; then
+    command+=(--registry "$registry_url")
+  fi
+
+  if [ -n "$otp_code" ]; then
+    command+=(--otp "$otp_code")
+  fi
+
+  if [ "$provenance_enabled" = 'true' ]; then
+    command+=(--provenance)
+  fi
+
+  if [ "$dry_run" = 'true' ]; then
+    printf 'Prepared package %s in %s (dry run).\n' "$package_name" "$publish_dir"
+    return 0
+  fi
+
+  debug_log "Publishing '$package_name' from '$publish_dir'"
+  (
+    cd "$publish_dir"
+    "${command[@]}"
+  )
+  printf 'Published package %s from %s.\n' "$package_name" "$publish_dir"
+}
+
+main() {
+  local original_workspace="$PWD"
+  local workspace_root='.'
+  local config_path=''
+  local detected_config_path=''
+  local publish_dir='dist'
+  local package_json_path='package.json'
+  local bundle_command='pnpm bundle'
+  local skip_bundle=false
+  local use_default_files=true
+  local ignore_missing_include_file=false
+  local tolerate_existing_package_json=false
+  local access_level='public'
+  local npm_tag=''
+  local registry_url=''
+  local otp_code=''
+  local provenance_enabled=false
+  local dry_run=false
+  local publish_dir_key
+  local target_package_json
+  local package_name
+  local include_file
+  local index=0
+  local arg
+  local required_include=true
+  local -a args=("$@")
+  local -a default_include_files=(LICENSE README.md CHANGELOG.md)
+  local -a explicit_include_files=()
+  local -a package_names=()
+
+  for arg in "${args[@]}"; do
+    case "$arg" in
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --debug)
+      debug_mode=true
+      ;;
+    esac
+  done
+
+  while [ "$index" -lt "${#args[@]}" ]; do
+    arg="${args[$index]}"
+    case "$arg" in
+    --workspace-root)
+      if [ $((index + 1)) -ge "${#args[@]}" ] || [ -z "${args[$((index + 1))]}" ]; then
+        echo 'Error: --workspace-root requires a value' >&2
+        exit 1
+      fi
+      workspace_root="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    --workspace-root=*)
+      workspace_root="${arg#--workspace-root=}"
+      if [ -z "$workspace_root" ]; then
+        echo 'Error: --workspace-root requires a value' >&2
+        exit 1
+      fi
+      index=$((index + 1))
+      ;;
+    --config)
+      if [ $((index + 1)) -ge "${#args[@]}" ] || [ -z "${args[$((index + 1))]}" ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+      config_path="${args[$((index + 1))]}"
+      index=$((index + 2))
+      ;;
+    --config=*)
+      config_path="${arg#--config=}"
+      if [ -z "$config_path" ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+      index=$((index + 1))
+      ;;
+    *)
+      index=$((index + 1))
+      ;;
+    esac
+  done
+
+  change_workspace_root "$workspace_root"
+  picotools_require_command jq
+
+  if [ -n "$config_path" ]; then
+    config_path=$(resolve_input_path "$original_workspace" "$config_path")
+    if [ ! -f "$config_path" ]; then
+      echo "Error: config file not found: $config_path" >&2
+      exit 1
+    fi
+    detected_config_path="$config_path"
+  elif [ -f "$DEFAULT_CONFIG_FILE" ]; then
+    detected_config_path="$DEFAULT_CONFIG_FILE"
+  fi
+
+  if [ -n "$detected_config_path" ]; then
+    debug_log "Loading config from '$detected_config_path'"
+    load_config_defaults "$detected_config_path"
+  fi
+
+  while [ $# -gt 0 ]; do
+    case "$1" in
+    --workspace-root)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --workspace-root requires a value' >&2
+        exit 1
+      fi
+      workspace_root="$2"
+      shift 2
+      ;;
+    --workspace-root=*)
+      workspace_root="${1#--workspace-root=}"
+      if [ -z "$workspace_root" ]; then
+        echo 'Error: --workspace-root requires a value' >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --config)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+      config_path="$2"
+      shift 2
+      ;;
+    --config=*)
+      config_path="${1#--config=}"
+      if [ -z "$config_path" ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --publish-dir)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --publish-dir requires a value' >&2
+        exit 1
+      fi
+      publish_dir="$2"
+      shift 2
+      ;;
+    --package-json)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --package-json requires a value' >&2
+        exit 1
+      fi
+      package_json_path="$2"
+      shift 2
+      ;;
+    --bundle-command)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --bundle-command requires a value' >&2
+        exit 1
+      fi
+      bundle_command="$2"
+      shift 2
+      ;;
+    --skip-bundle)
+      skip_bundle=true
+      shift
+      ;;
+    --include-file)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --include-file requires a value' >&2
+        exit 1
+      fi
+      explicit_include_files+=("$2")
+      shift 2
+      ;;
+    --ignore-missing-include-file)
+      ignore_missing_include_file=true
+      shift
+      ;;
+    --no-default-files)
+      use_default_files=false
+      shift
+      ;;
+    --tolerate-existing-package-json)
+      tolerate_existing_package_json=true
+      shift
+      ;;
+    --access)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --access requires a value' >&2
+        exit 1
+      fi
+      access_level="$2"
+      shift 2
+      ;;
+    --tag)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --tag requires a value' >&2
+        exit 1
+      fi
+      npm_tag="$2"
+      shift 2
+      ;;
+    --registry)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --registry requires a value' >&2
+        exit 1
+      fi
+      registry_url="$2"
+      shift 2
+      ;;
+    --otp)
+      if [ $# -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --otp requires a value' >&2
+        exit 1
+      fi
+      otp_code="$2"
+      shift 2
+      ;;
+    --provenance)
+      provenance_enabled=true
+      shift
+      ;;
+    --dry-run)
+      dry_run=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    *)
+      echo "Error: unexpected argument: $1" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  if [ ! -f "$package_json_path" ]; then
+    echo "Error: package.json not found: $package_json_path" >&2
+    exit 1
+  fi
+
+  picotools_require_command jq
+
+  publish_dir=$(normalize_publish_dir "$publish_dir")
+  publish_dir_key="$publish_dir"
+  target_package_json="$publish_dir/package.json"
+
+  while IFS= read -r package_name; do
+    [ -n "$package_name" ] || continue
+    package_names+=("$package_name")
+  done < <(jq -r '.name // empty, (if (.additionalNames | type) == "array" then .additionalNames[] else empty end)' "$package_json_path")
+
+  if [ "${#package_names[@]}" -eq 0 ]; then
+    debug_log "No package names found in '$package_json_path'"
+    exit 0
+  fi
+
+  if [ "$dry_run" = false ]; then
+    picotools_require_command npm
+  fi
+
+  if [ "$skip_bundle" = false ]; then
+    run_bundle_command "$bundle_command"
+    if [ ! -d "$publish_dir" ]; then
+      echo "Error: bundle command did not create publish directory '$publish_dir'" >&2
+      exit 1
+    fi
+  else
+    debug_log 'Skipping bundle step'
+  fi
+
+  mkdir -p "$publish_dir"
+
+  if [ -f "$target_package_json" ] && [ "$tolerate_existing_package_json" != 'true' ]; then
+    echo "Error: publish-dir package.json already exists: $target_package_json" >&2
+    echo 'Pass --tolerate-existing-package-json to overwrite it.' >&2
+    exit 1
+  fi
+
+  NPM_PUBLISH_PACKAGE_TMP_DIR=$(mktemp -d)
+  trap 'cleanup_tmp_dir' EXIT
+
+  if [ "$use_default_files" = true ]; then
+    for include_file in "${default_include_files[@]}"; do
+      copy_publish_file "$include_file" "$publish_dir" false
+    done
+  fi
+
+  if [ "$ignore_missing_include_file" = true ]; then
+    required_include=false
+  fi
+
+  for include_file in "${explicit_include_files[@]}"; do
+    copy_publish_file "$include_file" "$publish_dir" "$required_include"
+  done
+
+  for package_name in "${package_names[@]}"; do
+    write_publish_package_json "$package_json_path" "$target_package_json" "$package_name" "$publish_dir_key"
+    publish_package_name "$publish_dir" "$package_name" "$access_level" "$npm_tag" "$registry_url" "$otp_code" "$provenance_enabled" "$dry_run"
+  done
+}
+
+main "$@"

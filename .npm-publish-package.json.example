@@ -1,0 +1,18 @@
+{
+  "publishDir": "dist",
+  "packageJson": "package.json",
+  "bundleCommand": "pnpm bundle",
+  "skipBundle": false,
+  "includeFiles": [
+    "NOTICE.md"
+  ],
+  "ignoreMissingIncludeFile": false,
+  "defaultFiles": true,
+  "tolerateExistingPackageJson": false,
+  "access": "public",
+  "tag": "next",
+  "registry": "https://registry.npmjs.org/",
+  "otp": "123456",
+  "provenance": false,
+  "dryRun": true
+}
