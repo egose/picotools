@@ -83,6 +83,10 @@ assert_eq() {
   [ "$status" -eq 0 ] || fail 'pip-upgrade should succeed for a valid requirements file'
   assert_contains "$output" '[pip-upgrade] Fetching PyPI metadata for' 'should log package lookups in debug mode'
   assert_contains "$output" 'requirements.txt updated.' 'should report that the requirements file changed'
+  assert_contains "$output" 'Updated packages (scope: minor):' 'should print a detailed updated packages section with the applied scope'
+  assert_contains "$output" "  $requirements_file" 'should group package updates under the requirements file path'
+  assert_contains "$output" '    requests: 2.31.0 -> 2.32.0' 'should list the updated requests version in the summary'
+  assert_contains "$output" '    urllib3: 1.26.18 -> 1.26.20' 'should list the updated urllib3 version in the summary'
   assert_eq "$(<"$requirements_file")" $'# app requirements\nrequests==2.32.0\nurllib3===1.26.20 ; python_version >= "3.9"\neditable @ git+https://example.com/repo.git' 'should update only eligible exact pins and preserve other lines'
 }
 
