@@ -1,3 +1,15 @@
+## [0.39.0](https://github.com/egose/picotools/compare/v0.38.0...v0.39.0) (2026-06-18)
+
+### Features
+
+* add npm-publish-package tool ([9b645a8](https://github.com/egose/picotools/commit/9b645a832557d9670785ad90ef5e00c467f9140d))
+* report detailed updates in gh-actions-upgrade ([2d44f39](https://github.com/egose/picotools/commit/2d44f39494936729d59e753834c35bc255d395c9))
+* report detailed updates in pip-upgrade ([13dc36c](https://github.com/egose/picotools/commit/13dc36cf9e253890f7f2254835d20d0e892380f1))
+
+### Bug Fixes
+
+* reset highlight after tool name in interactive selector ([81a286f](https://github.com/egose/picotools/commit/81a286faf8ee4b9d892f01859df5b8c08c4b4a9f))
+
 ## [0.38.0](https://github.com/egose/picotools/compare/v0.37.0...v0.38.0) (2026-06-15)
 
 ### Features
