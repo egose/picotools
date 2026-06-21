@@ -113,3 +113,26 @@ picotools_box_line() {
   vertical=$(picotools_box_chars vertical)
   printf '%s %s%*s %s\n' "$vertical" "$content" "$padding" "" "$vertical"
 }
+
+picotools_box_wrap_line() {
+  local content="$1"
+  local width="${2:-60}"
+  local inner_width=$((width - 4))
+  local vertical
+
+  vertical=$(picotools_box_chars vertical)
+
+  if [ "${#content}" -le "$inner_width" ]; then
+    local padding=$((inner_width - ${#content}))
+    printf '%s %s%*s %s\n' "$vertical" "$content" "$padding" "" "$vertical"
+    return 0
+  fi
+
+  local remaining="$content"
+  while [ "${#remaining}" -gt 0 ]; do
+    local chunk="${remaining:0:$inner_width}"
+    remaining="${remaining:$inner_width}"
+    local padding=$((inner_width - ${#chunk}))
+    printf '%s %s%*s %s\n' "$vertical" "$chunk" "$padding" "" "$vertical"
+  done
+}
