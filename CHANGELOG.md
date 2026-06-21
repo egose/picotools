@@ -1,3 +1,10 @@
+## [0.40.0](https://github.com/egose/picotools/compare/v0.39.0...v0.40.0) (2026-06-21)
+
+### Features
+
+* add line wrapping capability to box library ([3be6d54](https://github.com/egose/picotools/commit/3be6d54c46c64158ca85f1dd4f341cf76e1acb8e))
+* wrap long lines in commit plan output ([0adcc15](https://github.com/egose/picotools/commit/0adcc152c9d4bdecf682a8ecef8437b7015441d4))
+
 ## [0.39.0](https://github.com/egose/picotools/compare/v0.38.0...v0.39.0) (2026-06-18)
 
 ### Features
