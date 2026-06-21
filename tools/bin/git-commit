@@ -1608,6 +1608,9 @@ print_commit_plan() {
   done
 
   width=$(picotools_box_width_for_lines 60 "${lines[@]}")
+  if [ "$width" -gt 120 ]; then
+    width=120
+  fi
 
   printf '\n'
   picotools_box_top "$width"
@@ -1615,7 +1618,7 @@ print_commit_plan() {
   picotools_box_separator "$width"
 
   for ((commit_index = 1; commit_index < ${#lines[@]}; commit_index++)); do
-    picotools_box_line "${lines[$commit_index]}" "$width"
+    picotools_box_wrap_line "${lines[$commit_index]}" "$width"
   done
 
   picotools_box_bottom "$width"
