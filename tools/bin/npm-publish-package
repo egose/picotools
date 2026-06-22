@@ -283,7 +283,7 @@ write_publish_package_json() {
         elif ($value | type) == "array" then
           $value | map(rewrite_value(.))
         elif ($value | type) == "object" then
-          with_entries(.value |= rewrite_value(.))
+          $value | with_entries(.value |= rewrite_value(.))
         else
           $value
         end;
