@@ -1,3 +1,9 @@
+## [0.40.1](https://github.com/egose/picotools/compare/v0.40.0...v0.40.1) (2026-06-22)
+
+### Bug Fixes
+
+* preserve nested export maps when rewriting package manifests ([6f81b68](https://github.com/egose/picotools/commit/6f81b682eb6c9ef8d1221bac3a9ded415e21101b))
+
 ## [0.40.0](https://github.com/egose/picotools/compare/v0.39.0...v0.40.0) (2026-06-21)
 
 ### Features
