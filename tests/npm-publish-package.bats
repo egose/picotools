@@ -7,6 +7,8 @@ setup() {
   WORKSPACE="$(mktemp -d)" || return 1
   export WORKSPACE
   export STUB_BIN="$WORKSPACE/bin"
+  SYSTEM_JQ="$(asdf which jq 2>/dev/null || command -v jq || true)"
+  export SYSTEM_JQ
   mkdir -p "$STUB_BIN"
   export PATH="$STUB_BIN:$PATH"
 }
@@ -471,6 +473,56 @@ EOF
   assert_eq "$(jq -r '.exports["./feature"]' "$snapshots/package-1.json")" './feature.js' 'string export paths should be rewritten relative to the publish dir'
   assert_eq "$(jq -r '.files | join(",")' "$snapshots/package-1.json")" '**/*,!**/*.map' 'files should be reset to the publish bundle defaults'
   assert_eq "$(jq -r 'has("private")' "$snapshots/package-1.json")" 'false' 'non-whitelisted package.json keys should be omitted from the published manifest'
+}
+
+@test "preserves only the export map when rewriting nested exports" {
+  local npm_log snapshots
+
+  if [ -z "${SYSTEM_JQ:-}" ]; then
+    skip 'jq is required for this regression test'
+  fi
+
+  npm_log="$WORKSPACE/npm.log"
+  snapshots="$WORKSPACE/snapshots"
+
+  mkdir -p "$WORKSPACE/build" "$snapshots"
+  ln -s "$SYSTEM_JQ" "$STUB_BIN/jq"
+  write_npm_stub
+
+  printf 'built\n' >"$WORKSPACE/build/index.cjs"
+  printf 'built\n' >"$WORKSPACE/build/index.js"
+  printf 'built\n' >"$WORKSPACE/build/index.d.ts"
+  printf 'built\n' >"$WORKSPACE/build/feature.js"
+  printf 'built\n' >"$WORKSPACE/build/feature.d.ts"
+
+  cat >"$WORKSPACE/package.json" <<'EOF'
+{
+  "name": "demo-package",
+  "version": "1.2.3",
+  "description": "Demo package",
+  "main": "build/index.cjs",
+  "module": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./build/index.cjs",
+      "import": "build/index.js",
+      "types": "./build/index.d.ts"
+    },
+    "./feature": {
+      "import": "./build/feature.js",
+      "types": "build/feature.d.ts"
+    }
+  }
+}
+EOF
+
+  run bash -c 'cd "$1" && NPM_LOG="$2" NPM_SNAPSHOT_DIR="$3" "$4" --publish-dir build --skip-bundle' bash "$WORKSPACE" "$npm_log" "$snapshots" "$TOOL"
+
+  [ "$status" -eq 0 ] || fail 'npm-publish-package should preserve nested export maps'
+  assert_eq "$("$SYSTEM_JQ" -r '.exports | has("name")' "$snapshots/package-1.json")" 'false' 'exports should not be replaced with the full package manifest'
+  assert_eq "$("$SYSTEM_JQ" -r '.exports["."].import' "$snapshots/package-1.json")" './index.js' 'root export import path should be rewritten relative to the publish dir'
+  assert_eq "$("$SYSTEM_JQ" -r '.exports["./feature"].types' "$snapshots/package-1.json")" './feature.d.ts' 'nested export object paths should be rewritten relative to the publish dir'
 }
 
 @test "forwards registry otp and provenance to npm publish" {
