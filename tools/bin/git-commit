@@ -16,6 +16,7 @@ MAX_COMMIT_PLAN_CHANGED_FILES_CHARS=250000
 MAX_COMMIT_PLAN_DIFF_CHARS=50000
 MAX_COMMIT_PLAN_FILE_DIFF_CHARS=16384
 MAX_COMMIT_PLAN_ADDED_FILE_BYTES=65536
+MAX_COMMIT_PLAN_EXISTING_PR_BODY_CHARS=20000
 MAX_COMMIT_HEADER_LENGTH=100
 GIT_COMMIT_TMPFILES=()
 
@@ -356,7 +357,7 @@ github_repo_from_remote_url() {
   local repo=''
 
   case "$remote_url" in
-  git@github.com:*.git)
+  git@github.com:*)
     repo=${remote_url#git@github.com:}
     repo=${repo%.git}
     ;;
@@ -588,18 +589,10 @@ git_index_path() {
   git rev-parse --git-path index
 }
 
-restore_index_snapshot() {
-  local snapshot_path="$1"
-  local index_path
-
-  index_path=$(git_index_path)
-  cp "$snapshot_path" "$index_path"
-}
-
 run_pre_commit_checks() {
   local changed_files="$1"
   local retry_count="$2"
-  local hook_path index_snapshot file attempt=1
+  local hook_path index_snapshot temp_index file attempt=1
   local max_attempts=$((retry_count + 1))
   local -a files=()
 
@@ -621,7 +614,9 @@ run_pre_commit_checks() {
   fi
 
   index_snapshot=$(mktemp)
+  temp_index=$(mktemp)
   register_tmpfile "$index_snapshot"
+  register_tmpfile "$temp_index"
   trap 'cleanup_tmpfiles' EXIT
   cp "$(git_index_path)" "$index_snapshot"
 
@@ -632,11 +627,10 @@ run_pre_commit_checks() {
       printf 'Attempt %d/%d\n' "$attempt" "$max_attempts"
     fi
 
-    restore_index_snapshot "$index_snapshot"
-    git add -A :/
+    cp "$index_snapshot" "$temp_index"
+    GIT_INDEX_FILE="$temp_index" git add -A :/
 
-    if "$hook_path"; then
-      restore_index_snapshot "$index_snapshot"
+    if GIT_INDEX_FILE="$temp_index" "$hook_path"; then
       printf '\n'
       return 0
     fi
@@ -644,7 +638,6 @@ run_pre_commit_checks() {
     printf '\n'
 
     if [ "$attempt" -ge "$max_attempts" ]; then
-      restore_index_snapshot "$index_snapshot"
       echo "Error: pre-commit checks failed after $max_attempts attempts" >&2
       return 1
     fi
@@ -819,25 +812,76 @@ truncate_commit_plan_section() {
   printf '%s%s\n' "${text:0:$keep_chars}" "$notice"
 }
 
-commit_planning_system_message() {
+commit_planning_response_shape() {
+  local include_pr_details="${1:-false}"
+
+  if [ "$include_pr_details" = 'true' ]; then
+    printf '%s\n' '{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}],"pull_request":{"title":"short pr title","body":"detailed markdown description"}}'
+    return 0
+  fi
+
+  printf '%s\n' '{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}]}'
+}
+
+commit_planning_pull_request_rules() {
   cat <<'EOF'
-You are an expert software engineer creating conventional commit plans.
+Pull request rules:
+- `pull_request.title` must be concise and descriptive for the full change set.
+- `pull_request.body` must be a detailed pull request description for the full change set.
+- Keep the pull request title and body consistent with the planned commits.
+EOF
+}
 
-Return JSON only with this exact shape:
-{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}]}
-
+commit_planning_rules() {
+  cat <<'EOF'
 Rules:
-- Allowed types: feat, fix, docs, refactor, chore, perf, test
+- Allowed types: feat, fix, docs, refactor, chore, perf, test, ci
 - The message must be the commit subject suffix only. Do not include the type or scope prefix.
+- The message must start with an imperative lower-case verb.
 - The final commit header, including the type/scope prefix, must not exceed 100 characters.
 - When a scope is provided, do not repeat that scope value or its parent package/org prefix in the message unless it is required for clarity.
 - Prefer one commit unless the changes clearly belong to distinct tasks.
 - Prefer separate commits when reusable supporting changes are independently useful from the consuming feature.
 - When one tool or shared capability is extended to support a new tool, prefer one commit for the supporting capability and another for the new consuming feature when the split is coherent.
-- If you return multiple commits, each changed file must appear in exactly one commit.
+- Each changed file must appear in exactly one commit, even when there is only one commit.
 - Use file paths exactly as provided.
 - Do not include markdown fences or commentary.
 EOF
+}
+
+commit_planning_system_message() {
+  local include_pr_details="${1:-false}"
+
+  cat <<'EOF'
+You are an expert software engineer creating conventional commit plans.
+EOF
+
+  printf '\nReturn JSON only with this exact shape:\n%s\n' "$(commit_planning_response_shape "$include_pr_details")"
+  if [ "$include_pr_details" = 'true' ]; then
+    printf '\n%s\n' "$(commit_planning_pull_request_rules)"
+  fi
+  printf '\n%s\n' "$(commit_planning_rules)"
+}
+
+build_pull_request_context_block() {
+  local pr_base_branch="$1"
+  local existing_pr_title="$2"
+  local existing_pr_body="$3"
+  local existing_pr_exists="$4"
+  local existing_pr_body_section
+
+  printf '\nPull request base branch:\n%s\n' "$pr_base_branch"
+
+  if [ "$existing_pr_exists" = 'true' ]; then
+    # shellcheck disable=SC2016
+    printf '\nExisting open pull request:\nYes\n\nGenerate `pull_request.title` and `pull_request.body` for the full pull request after the current local changes are pushed. Preserve and extend relevant details from the existing pull request content below so the result covers both the existing PR changes and the current local changes.\n\nExisting pull request title:\n%s\n' "${existing_pr_title:-'(none)'}"
+    existing_pr_body_section=$(truncate_commit_plan_section 'existing pull request body' "$existing_pr_body" "$MAX_COMMIT_PLAN_EXISTING_PR_BODY_CHARS")
+    printf '\nExisting pull request body:\n%s\n' "$existing_pr_body_section"
+    return 0
+  fi
+
+  # shellcheck disable=SC2016
+  printf '\nExisting open pull request:\nNo\n\nGenerate `pull_request.title` and `pull_request.body` for the pull request that should be created from these current local changes.\n'
 }
 
 build_commit_planning_message() {
@@ -845,7 +889,12 @@ build_commit_planning_message() {
   local scope="$2"
   local changed_files="$3"
   local diff_output="$4"
-  local changed_files_section diff_section
+  local create_pr="${5:-false}"
+  local pr_base_branch="${6:-}"
+  local existing_pr_title="${7:-}"
+  local existing_pr_body="${8:-}"
+  local existing_pr_exists="${9:-false}"
+  local changed_files_section diff_section pr_section=''
 
   if [ -z "$scope" ]; then
     scope='(none)'
@@ -854,12 +903,17 @@ build_commit_planning_message() {
   changed_files_section=$(truncate_commit_plan_section 'changed file list' "$changed_files" "$MAX_COMMIT_PLAN_CHANGED_FILES_CHARS")
   diff_section=$(truncate_commit_plan_section 'diff' "$diff_output" "$MAX_COMMIT_PLAN_DIFF_CHARS")
 
-  printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n' \
+  if [ "$create_pr" = 'true' ]; then
+    pr_section=$(build_pull_request_context_block "$pr_base_branch" "$existing_pr_title" "$existing_pr_body" "$existing_pr_exists")
+  fi
+
+  printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s%s\n' \
     'Analyze these current git workspace changes and propose conventional commit plan JSON.' \
     'Current branch:' "$branch" \
     'Derived scope:' "$scope" \
     'Changed files:' "$changed_files_section" \
-    'Unified diff:' "$diff_section"
+    'Unified diff:' "$diff_section" \
+    "$pr_section"
 }
 
 should_retry_with_additional_model() {
@@ -975,6 +1029,39 @@ valid_commit_type() {
   return 1
 }
 
+json_read_string() {
+  local json_text="$1"
+  local jq_expression="$2"
+
+  printf '%s' "$json_text" | jq -r "$jq_expression" 2>/dev/null || true
+}
+
+json_read_type_or_null() {
+  local json_text="$1"
+  local jq_expression="$2"
+
+  printf '%s' "$json_text" | jq -r "${jq_expression} | if . == null then \"null\" else type end" 2>/dev/null || true
+}
+
+valid_commit_message_style() {
+  local message="$1"
+  local first_word
+
+  first_word=${message%% *}
+  if [[ ! "$message" =~ ^[a-z][a-z0-9-]*([[:space:]].+)?$ ]]; then
+    return 1
+  fi
+
+  # shellcheck disable=SC2221,SC2222
+  case "$first_word" in
+  *ed | *ing | is | are | was | were | been | being | has | have | had)
+    return 1
+    ;;
+  esac
+
+  return 0
+}
+
 plan_commit_count() {
   local plan_json="$1"
 
@@ -1025,26 +1112,29 @@ resolve_changed_file_reference() {
   return 1
 }
 
-resolved_commit_files() {
+resolve_commit_files_into() {
   local plan_json="$1"
   local commit_index="$2"
   local changed_files="$3"
+  local files_var_name="$4"
   local file resolved_file
-  local -a commit_files=()
+  local -a requested_files=()
+  local -n files_ref="$files_var_name"
 
-  mapfile -t commit_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]?")
-  if [ "${#commit_files[@]}" -eq 0 ]; then
+  mapfile -t requested_files < <(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].files[]?")
+  if [ "${#requested_files[@]}" -eq 0 ]; then
     echo "Error: commit plan item $((commit_index + 1)) must include files" >&2
     exit 1
   fi
 
-  for file in "${commit_files[@]}"; do
+  files_ref=()
+  for file in "${requested_files[@]}"; do
     if ! resolved_file=$(resolve_changed_file_reference "$file" "$changed_files"); then
       echo "Error: commit plan referenced an unknown or ambiguous changed file: $file" >&2
       exit 1
     fi
 
-    printf '%s\n' "$resolved_file"
+    files_ref+=("$resolved_file")
   done
 }
 
@@ -1065,7 +1155,7 @@ validate_multi_commit_plan() {
   count=$(plan_commit_count "$plan_json")
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
-    mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
+    resolve_commit_files_into "$plan_json" "$commit_index" "$changed_files" commit_files
 
     for resolved_file in "${commit_files[@]}"; do
       if [ -z "${changed_file_set[$resolved_file]:-}" ]; then
@@ -1088,6 +1178,63 @@ validate_multi_commit_plan() {
       exit 1
     fi
   done
+}
+
+validate_commit_plan() {
+  local plan_json="$1"
+  local changed_files="$2"
+  local count
+
+  count=$(plan_commit_count "$plan_json")
+  if [ "$count" -le 0 ]; then
+    echo 'Error: commit plan must include at least one commit' >&2
+    exit 1
+  fi
+
+  validate_multi_commit_plan "$plan_json" "$changed_files"
+}
+
+read_commit_plan_item() {
+  local plan_json="$1"
+  local commit_index="$2"
+  local scope="$3"
+  local changed_files="$4"
+  local type_ref_name="$5"
+  local message_ref_name="$6"
+  local title_ref_name="$7"
+  local files_var_name="$8"
+  local item_type item_message item_title
+  local -n type_ref="$type_ref_name"
+  local -n message_ref="$message_ref_name"
+  local -n title_ref="$title_ref_name"
+
+  item_type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
+  item_message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
+
+  if ! valid_commit_type "$item_type"; then
+    echo "Error: invalid commit type in plan: $item_type" >&2
+    exit 1
+  fi
+
+  if [ -z "$item_message" ]; then
+    echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
+    exit 1
+  fi
+
+  if ! valid_commit_message_style "$item_message"; then
+    echo "Error: commit plan item $((commit_index + 1)) must start with an imperative lower-case verb" >&2
+    exit 1
+  fi
+
+  item_title=$(format_commit_title "$item_type" "$scope" "$item_message")
+  resolve_commit_files_into "$plan_json" "$commit_index" "$changed_files" "$files_var_name"
+
+  # shellcheck disable=SC2034
+  {
+    type_ref="$item_type"
+    message_ref="$item_message"
+    title_ref="$item_title"
+  }
 }
 
 format_commit_title() {
@@ -1235,71 +1382,77 @@ pull_request_body() {
   printf '%s\n' "$body"
 }
 
-request_pr_title_from_ai() {
+planned_pull_request_title() {
   local plan_json="$1"
   local scope="$2"
-  local profile="$3"
-  local model="$4"
-  local system_message user_message commit_titles output stderr_file title
+  local existing_title="${3:-}"
+  local title
 
-  commit_titles=$(planned_commit_titles "$plan_json" "$scope")
-  system_message="You are an expert software engineer creating pull request titles.
-Generate a concise, descriptive PR title that encompasses all the changes listed below.
-The title should follow conventional commit format if a type is evident.
-Return ONLY the title text, no explanations or quotes."
-
-  user_message="Create a PR title for these commits:
-$commit_titles"
-
-  stderr_file=$(mktemp)
-  register_tmpfile "$stderr_file"
-
-  debug_log "Requesting PR title from AI for $(echo "$commit_titles" | wc -l) commit(s)"
-  if output=$(run_model_profile ask "$profile" --model "$model" --system-message "$system_message" --message "$user_message" 2>"$stderr_file"); then
-    if [ -s "$stderr_file" ]; then
-      print_error_output "$(<"$stderr_file")"
-    fi
-    title=$(printf '%s' "$output" | head -1 | sed 's/^"//;s/"$//')
-    if [ -n "$title" ]; then
-      debug_log "AI generated PR title: $title"
-      printf '%s\n' "$title"
-      return 0
-    fi
+  title=$(json_read_string "$plan_json" '.pull_request.title // empty')
+  if [ -n "$title" ]; then
+    printf '%s\n' "$title"
+    return 0
   fi
 
-  debug_log "AI PR title request failed, using fallback"
+  if [ -n "$existing_title" ]; then
+    printf '%s\n' "$existing_title"
+    return 0
+  fi
+
   pull_request_title "$plan_json" "$scope"
+}
+
+planned_pull_request_body() {
+  local plan_json="$1"
+  local scope="$2"
+  local existing_body="${3:-}"
+  local body fallback_body
+
+  body=$(json_read_string "$plan_json" '.pull_request.body // empty')
+  if [ -n "$body" ]; then
+    printf '%s\n' "$body"
+    return 0
+  fi
+
+  if [ -n "$existing_body" ]; then
+    fallback_body=$(pull_request_body "$plan_json" "$scope")
+    printf '%s\n\n%s\n' "$existing_body" "$fallback_body"
+    return 0
+  fi
+
+  pull_request_body "$plan_json" "$scope"
 }
 
 create_pull_request() {
   local branch="$1"
   local plan_json="$2"
   local scope="$3"
-  local requested_base_branch="$4"
-  local profile="$5"
-  local model="$6"
-  local remote repo owner name title body response pr_url base_branch existing_pr_url
+  local owner="$4"
+  local name="$5"
+  local base_branch="$6"
+  local existing_pr_url="${7:-}"
+  local existing_pr_number="${8:-}"
+  local existing_pr_title="${9:-}"
+  local existing_pr_body="${10:-}"
+  local repo title body response pr_url
 
-  remote=$(resolve_push_remote "$branch")
-  repo=$(github_repo_from_remote "$remote")
-  owner=${repo%%/*}
-  name=${repo#*/}
-  base_branch=$(resolve_pull_request_base_branch "$requested_base_branch" "$owner" "$name" "$remote")
+  repo="$owner/$name"
 
-  if [ "$branch" = "$base_branch" ]; then
-    echo "Error: --pr requires a branch different from the base branch '$base_branch'" >&2
-    exit 1
-  fi
+  title=$(planned_pull_request_title "$plan_json" "$scope" "$existing_pr_title")
+  body=$(planned_pull_request_body "$plan_json" "$scope" "$existing_pr_body")
 
-  existing_pr_url=$(find_existing_pull_request_url "$owner" "$name" "$branch" "$base_branch" || true)
-  if [ -n "$existing_pr_url" ]; then
-    debug_log "Reusing existing pull request for '$branch' into '$base_branch': $existing_pr_url"
-    printf '\033[1;33mPull request already exists:\033[0m %s\n' "$existing_pr_url"
+  if [ -n "$existing_pr_url" ] && [ -n "$existing_pr_number" ]; then
+    debug_log "Updating existing pull request for '$branch' into '$base_branch': $existing_pr_url"
+    response=$(run_git_api pulls/update "$owner" "$name" "$existing_pr_number" \
+      --field "title=$title" \
+      --field "body=$body")
+    pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty' 2>/dev/null || true)
+    if [ -z "$pr_url" ]; then
+      pr_url="$existing_pr_url"
+    fi
+    printf '\033[1;32mPull request updated:\033[0m %s\n' "$pr_url"
     return 0
   fi
-
-  title=$(request_pr_title_from_ai "$plan_json" "$scope" "$profile" "$model")
-  body=$(pull_request_body "$plan_json" "$scope")
 
   debug_log "Creating pull request for '$branch' into '$base_branch' on '$repo'"
   response=$(run_git_api pulls/create "$owner" "$name" \
@@ -1307,7 +1460,7 @@ create_pull_request() {
     --field "head=$branch" \
     --field "base=$base_branch" \
     --field "body=$body")
-  pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty')
+  pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty' 2>/dev/null || true)
   if [ -n "$pr_url" ]; then
     printf '\033[1;32mPull request:\033[0m %s\n' "$pr_url"
     return 0
@@ -1317,7 +1470,7 @@ create_pull_request() {
   exit 1
 }
 
-find_existing_pull_request_url() {
+find_existing_pull_request_response() {
   local owner="$1"
   local repo_name="$2"
   local branch="$3"
@@ -1337,7 +1490,186 @@ find_existing_pull_request_url() {
     return 1
   fi
 
-  printf '%s\n' "$pr_url"
+  printf '%s\n' "$response"
+}
+
+pull_request_url_from_list_response() {
+  local response="${1:-}"
+
+  if [ -z "$response" ]; then
+    return 0
+  fi
+
+  json_read_string "$response" '.[0].html_url // empty'
+}
+
+pull_request_number_from_list_response() {
+  local response="${1:-}"
+
+  if [ -z "$response" ]; then
+    return 0
+  fi
+
+  json_read_string "$response" '.[0].number // empty'
+}
+
+pull_request_title_from_list_response() {
+  local response="${1:-}"
+
+  if [ -z "$response" ]; then
+    return 0
+  fi
+
+  json_read_string "$response" '.[0].title // empty'
+}
+
+pull_request_body_from_list_response() {
+  local response="${1:-}"
+
+  if [ -z "$response" ]; then
+    return 0
+  fi
+
+  json_read_string "$response" '.[0].body // empty'
+}
+
+validate_pull_request_plan() {
+  local plan_json="$1"
+  local title_type body_type title body
+
+  title_type=$(json_read_type_or_null "$plan_json" '.pull_request.title')
+  if [ -n "$title_type" ] && [ "$title_type" != 'null' ] && [ "$title_type" != 'string' ]; then
+    echo 'Error: pull_request.title must be a string when provided' >&2
+    exit 1
+  fi
+
+  body_type=$(json_read_type_or_null "$plan_json" '.pull_request.body')
+  if [ -n "$body_type" ] && [ "$body_type" != 'null' ] && [ "$body_type" != 'string' ]; then
+    echo 'Error: pull_request.body must be a string when provided' >&2
+    exit 1
+  fi
+
+  title=$(json_read_string "$plan_json" '.pull_request.title // empty')
+  body=$(json_read_string "$plan_json" '.pull_request.body // empty')
+  if [ -z "$title" ] || [ -z "$body" ]; then
+    echo 'Error: pull_request.title and pull_request.body are required when --pr is used' >&2
+    exit 1
+  fi
+}
+
+resolve_pull_request_context() {
+  local branch="$1"
+  local requested_base_branch="$2"
+  local context_var_name="$3"
+  local remote repo owner name base_branch existing_pr_response
+  local -n context_ref="$context_var_name"
+
+  remote=$(resolve_push_remote "$branch")
+  repo=$(github_repo_from_remote "$remote")
+  owner=${repo%%/*}
+  name=${repo#*/}
+  base_branch=$(resolve_pull_request_base_branch "$requested_base_branch" "$owner" "$name" "$remote")
+
+  if [ "$branch" = "$base_branch" ]; then
+    echo "Error: --pr requires a branch different from the base branch '$base_branch'" >&2
+    exit 1
+  fi
+
+  existing_pr_response=$(find_existing_pull_request_response "$owner" "$name" "$branch" "$base_branch" || true)
+  context_ref[remote]="$remote"
+  context_ref[owner]="$owner"
+  context_ref[name]="$name"
+  context_ref[base_branch]="$base_branch"
+  # shellcheck disable=SC2154
+  {
+    context_ref[existing_response]="$existing_pr_response"
+    context_ref[existing_url]="$(pull_request_url_from_list_response "$existing_pr_response")"
+    context_ref[existing_number]="$(pull_request_number_from_list_response "$existing_pr_response")"
+    context_ref[existing_title]="$(pull_request_title_from_list_response "$existing_pr_response")"
+    context_ref[existing_body]="$(pull_request_body_from_list_response "$existing_pr_response")"
+  }
+  if [ -n "$existing_pr_response" ]; then
+    # shellcheck disable=SC2154
+    context_ref[existing_exists]='true'
+  else
+    # shellcheck disable=SC2034
+    context_ref[existing_exists]='false'
+  fi
+}
+
+request_validated_commit_plan() {
+  local output_ref_name="$1"
+  local profile="$2"
+  local model="$3"
+  local additional_profile="$4"
+  local additional_model="$5"
+  local branch="$6"
+  local scope="$7"
+  local changed_files="$8"
+  local diff_output="$9"
+  local create_pr="${10}"
+  local resolved_pr_base_branch="${11:-}"
+  local existing_pr_title="${12:-}"
+  local existing_pr_body="${13:-}"
+  local existing_pr_exists="${14:-false}"
+  local system_message user_message requested_plan_json request_status
+  local -n output_ref="$output_ref_name"
+
+  debug_log 'Collecting workspace diff for commit planning'
+  system_message=$(commit_planning_system_message "$create_pr")
+  user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output" "$create_pr" "$resolved_pr_base_branch" "$existing_pr_title" "$existing_pr_body" "$existing_pr_exists")
+  requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
+    request_status=$?
+    exit "$request_status"
+  }
+
+  if ! printf '%s' "$requested_plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
+    echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
+    exit 1
+  fi
+
+  validate_commit_plan "$requested_plan_json" "$changed_files"
+  if [ "$create_pr" = 'true' ]; then
+    validate_pull_request_plan "$requested_plan_json"
+  fi
+  debug_log 'Validated commit plan JSON'
+  output_ref="$requested_plan_json"
+}
+
+load_run_configuration() {
+  local config_values
+
+  debug_log 'Loading configured model profile'
+  config_values=$(load_configuration)
+  printf '%s\n' "$config_values"
+}
+
+prepare_workspace_changes() {
+  local output_ref_name="$1"
+  local pre_commit_retries="$2"
+  local prepared_changed_files changed_file_count
+  local -n output_ref="$output_ref_name"
+
+  debug_log 'Checking repository state'
+  require_git_repository
+  ensure_no_staged_changes
+  ensure_changes_exist
+
+  debug_log 'Collecting changed files'
+  prepared_changed_files=$(collect_changed_files)
+  changed_file_count=$(count_nonempty_lines "$prepared_changed_files")
+  debug_log "Collected $changed_file_count changed file(s)"
+
+  run_pre_commit_checks "$prepared_changed_files" "$pre_commit_retries"
+  ensure_changes_exist
+
+  debug_log 'Refreshing changed files after pre-commit checks'
+  prepared_changed_files=$(collect_changed_files)
+  changed_file_count=$(count_nonempty_lines "$prepared_changed_files")
+  debug_log "Collected $changed_file_count changed file(s) after pre-commit"
+
+  # shellcheck disable=SC2034
+  output_ref="$prepared_changed_files"
 }
 
 default_branch_from_git_api() {
@@ -1555,11 +1887,8 @@ print_git_add_command() {
 
 print_git_commit_command() {
   local title="$1"
-  local escaped_title
 
-  escaped_title=${title//\\/\\\\}
-  escaped_title=${escaped_title//"/\\"/}
-  printf 'git commit -m "%s"\n' "$escaped_title"
+  printf 'git commit -m %q\n' "$title"
 }
 
 print_commit_plan() {
@@ -1570,32 +1899,14 @@ print_commit_plan() {
   local -a commit_files=() lines=()
 
   count=$(plan_commit_count "$plan_json")
-  if [ "$count" -gt 1 ]; then
-    validate_multi_commit_plan "$plan_json" "$changed_files"
-  fi
 
   lines+=("commit plan")
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
-    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
-    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
-
-    if ! valid_commit_type "$type"; then
-      echo "Error: invalid commit type in plan: $type" >&2
-      exit 1
-    fi
-
-    if [ -z "$message" ]; then
-      echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
-      exit 1
-    fi
-
-    title=$(format_commit_title "$type" "$scope" "$message")
-
+    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
     if [ "$count" -eq 1 ]; then
-      lines+=("$(print_git_add_command)")
+      lines+=("$(print_git_add_command "${commit_files[@]}")")
     else
-      mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
       lines+=("Commit $((commit_index + 1)):")
       lines+=("$(print_git_add_command "${commit_files[@]}")")
     fi
@@ -1634,32 +1945,15 @@ execute_commit_plan() {
 
   count=$(plan_commit_count "$plan_json")
   debug_log "Applying commit plan with $count commit(s)"
-  if [ "$count" -gt 1 ]; then
-    validate_multi_commit_plan "$plan_json" "$changed_files"
-  fi
 
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
-    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
-    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
-
-    if ! valid_commit_type "$type"; then
-      echo "Error: invalid commit type in plan: $type" >&2
-      exit 1
-    fi
-
-    if [ -z "$message" ]; then
-      echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
-      exit 1
-    fi
-
-    title=$(format_commit_title "$type" "$scope" "$message")
+    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
     debug_log "Creating commit $((commit_index + 1))/$count: $title"
 
     if [ "$count" -eq 1 ]; then
-      git add -A :/
+      git add -- "${commit_files[@]/#/:/}"
     else
-      mapfile -t commit_files < <(resolved_commit_files "$plan_json" "$commit_index" "$changed_files")
       git add -- "${commit_files[@]/#/:/}"
     fi
 
@@ -1669,9 +1963,10 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files diff_output system_message user_message plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode changed_file_count request_status
+  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files='' diff_output plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode
   local -a config_lines=()
   local -a option_values=()
+  local -A pr_context=()
 
   mapfile -t option_values < <(parse_run_options "$@")
   scope_override="${option_values[0]:-}"
@@ -1687,26 +1982,9 @@ run_commit_tool() {
     enable_debug_logging
   fi
 
-  debug_log 'Checking repository state'
-  require_git_repository
-  ensure_no_staged_changes
-  ensure_changes_exist
+  prepare_workspace_changes changed_files "$pre_commit_retries"
 
-  debug_log 'Collecting changed files'
-  changed_files=$(collect_changed_files)
-  changed_file_count=$(count_nonempty_lines "$changed_files")
-  debug_log "Collected $changed_file_count changed file(s)"
-
-  run_pre_commit_checks "$changed_files" "$pre_commit_retries"
-  ensure_changes_exist
-
-  debug_log 'Refreshing changed files after pre-commit checks'
-  changed_files=$(collect_changed_files)
-  changed_file_count=$(count_nonempty_lines "$changed_files")
-  debug_log "Collected $changed_file_count changed file(s) after pre-commit"
-
-  debug_log 'Loading configured model profile'
-  config_values=$(load_configuration)
+  config_values=$(load_run_configuration)
   mapfile -t config_lines <<<"$config_values"
   profile="${config_lines[0]:-}"
   model="${config_lines[1]:-}"
@@ -1724,21 +2002,16 @@ run_commit_tool() {
   scope=$(resolve_scope "$branch" "$scope_override" "$no_scope" "$changed_files")
   debug_log "Resolved branch '$branch' and scope '${scope:-<none>}'"
 
-  debug_log 'Collecting workspace diff for commit planning'
-  diff_output=$(collect_changes_diff "$changed_files")
-  system_message=$(commit_planning_system_message)
-  user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output")
-  plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
-    request_status=$?
-    exit "$request_status"
-  }
-
-  if ! printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
-    echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
-    exit 1
+  if [ "$create_pr" = 'true' ]; then
+    debug_log 'Resolving pull request context before commit planning'
+    resolve_pull_request_context "$branch" "$pr_base_branch" pr_context
+    if [ "${pr_context[existing_exists]:-false}" = 'true' ]; then
+      debug_log "Found existing open pull request for '$branch' into '${pr_context[base_branch]:-}' before commit planning"
+    fi
   fi
 
-  debug_log 'Validated commit plan JSON'
+  diff_output=$(collect_changes_diff "$changed_files")
+  request_validated_commit_plan plan_json "$profile" "$model" "$additional_profile" "$additional_model" "$branch" "$scope" "$changed_files" "$diff_output" "$create_pr" "${pr_context[base_branch]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}" "${pr_context[existing_exists]:-false}"
   debug_log 'Printing commit plan preview'
   print_commit_plan "$plan_json" "$scope" "$changed_files"
 
@@ -1748,7 +2021,7 @@ run_commit_tool() {
       debug_log 'Pushing committed branch'
       push_current_branch "$branch"
       if [ "$create_pr" = 'true' ]; then
-        create_pull_request "$branch" "$plan_json" "$scope" "$pr_base_branch" "$profile" "$model"
+        create_pull_request "$branch" "$plan_json" "$scope" "${pr_context[owner]:-}" "${pr_context[name]:-}" "${pr_context[base_branch]:-}" "${pr_context[existing_url]:-}" "${pr_context[existing_number]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}"
       fi
     fi
     return 0
