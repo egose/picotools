@@ -47,6 +47,32 @@ strip_ansi() {
   printf '%s' "$1" | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
 }
 
+preview_git_add_command() {
+  if [ "$#" -eq 0 ]; then
+    printf 'git add -A :/\n'
+    return 0
+  fi
+
+  local file
+  printf 'git add --'
+  for file in "$@"; do
+    printf ' %q' ":/$file"
+  done
+  printf '\n'
+}
+
+preview_git_commit_command() {
+  local title="$1"
+
+  printf 'git commit -m %q\n' "$title"
+}
+
+decode_bash_word() {
+  local encoded="$1"
+
+  bash -lc "printf '%s' $encoded"
+}
+
 assert_not_contains() {
   local haystack="$1"
   local needle="$2"
@@ -227,8 +253,93 @@ if args[0] == '-r' and len(args) >= 2:
         print('')
         sys.exit(0)
 
+    if expr == '.[0].number // empty':
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                print(first.get('number', ''))
+                sys.exit(0)
+        print('')
+        sys.exit(0)
+
+    if expr == '.[0].title // empty':
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                print(first.get('title', ''))
+                sys.exit(0)
+        print('')
+        sys.exit(0)
+
+    if expr == '.[0].body // empty':
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                print(first.get('body', ''))
+                sys.exit(0)
+        print('')
+        sys.exit(0)
+
     if expr == '.default_branch // empty':
         print(data.get('default_branch', ''))
+        sys.exit(0)
+
+    if expr == '.pull_request.title // empty':
+        pull_request = data.get('pull_request', {})
+        if isinstance(pull_request, dict):
+            print(pull_request.get('title', ''))
+            sys.exit(0)
+        print('')
+        sys.exit(0)
+
+    if expr == '.pull_request.title | if . == null then "null" else type end':
+        pull_request = data.get('pull_request', {})
+        value = None
+        if isinstance(pull_request, dict):
+            value = pull_request.get('title', None)
+        if value is None:
+            print('null')
+        elif isinstance(value, str):
+            print('string')
+        elif isinstance(value, bool):
+            print('boolean')
+        elif isinstance(value, (int, float)):
+            print('number')
+        elif isinstance(value, list):
+            print('array')
+        elif isinstance(value, dict):
+            print('object')
+        else:
+            print('unknown')
+        sys.exit(0)
+
+    if expr == '.pull_request.body // empty':
+        pull_request = data.get('pull_request', {})
+        if isinstance(pull_request, dict):
+            print(pull_request.get('body', ''))
+            sys.exit(0)
+        print('')
+        sys.exit(0)
+
+    if expr == '.pull_request.body | if . == null then "null" else type end':
+        pull_request = data.get('pull_request', {})
+        value = None
+        if isinstance(pull_request, dict):
+            value = pull_request.get('body', None)
+        if value is None:
+            print('null')
+        elif isinstance(value, str):
+            print('string')
+        elif isinstance(value, bool):
+            print('boolean')
+        elif isinstance(value, (int, float)):
+            print('number')
+        elif isinstance(value, list):
+            print('array')
+        elif isinstance(value, dict):
+            print('object')
+        else:
+            print('unknown')
         sys.exit(0)
 
 sys.exit(1)
@@ -270,6 +381,9 @@ repos/get)
   ;;
 pulls/list)
   printf '%s\n' "${GIT_API_PULLS_LIST_RESPONSE:-[]}"
+  ;;
+pulls/update)
+  printf '%s\n' "${GIT_API_PULLS_UPDATE_RESPONSE:-{\"html_url\":\"https://github.com/octo/demo/pull/77\"}}"
   ;;
 pulls/create)
   printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
@@ -478,6 +592,32 @@ create_initial_commit() {
   assert_contains "$output" 'Warning: git-commit is not configured. Run git-commit configure.' 'git-commit should warn when configuration is missing'
 }
 
+@test "fails on detached HEAD" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q HEAD~0
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1); then
+    fail 'git-commit should fail on detached HEAD'
+  fi
+
+  assert_contains "$output" 'Error: detached HEAD is not supported' 'git-commit should reject detached HEAD before planning commits'
+}
+
 @test "fails when pre-staged changes are kept" {
   local stub_path repo output
 
@@ -522,8 +662,8 @@ create_initial_commit() {
       MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
       "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git add -A :/' 'git-commit should print a repo-root add command after unstaging staged changes'
-  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should print the proposed commit command after unstaging staged changes'
+  assert_contains "$output" "$(preview_git_add_command README.md)" 'git-commit should print an add command using the planned file list after unstaging staged changes'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should print the proposed commit command after unstaging staged changes'
   staged_after=$(git -C "$repo" diff --cached --name-only)
   assert_eq "$staged_after" '' 'git-commit should leave no staged changes after unstaging them for preview'
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -559,8 +699,8 @@ create_initial_commit() {
     fail "git-commit should create a single commit successfully ($output)"
   fi
 
-  assert_contains "$output" 'git add -A :/' 'git-commit should print a repo-root add command for a single planned commit'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print a conventional commit command with derived scope'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print an add command using the planned file list for a single planned commit'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print a conventional commit command with derived scope'
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'chore(init): initial commit' 'git-commit should not create the commit automatically'
   staged_after=$(git -C "$repo" diff --cached --name-only)
@@ -570,6 +710,88 @@ create_initial_commit() {
   assert_contains "$(<"$ask_log")" '--message-file' 'git-commit should pass the user prompt through a temp file'
   assert_contains "$(<"$ask_log")" 'SYSTEM_MESSAGE_FILE_CONTENT=You are an expert software engineer creating conventional commit plans.' 'git-commit should write the system prompt into the temp file'
   assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
+  assert_contains "$(<"$ask_log")" 'Allowed types: feat, fix, docs, refactor, chore, perf, test, ci' 'git-commit should keep the allowed commit types in the prompt aligned with runtime validation'
+  assert_contains "$(<"$ask_log")" 'Each changed file must appear in exactly one commit, even when there is only one commit.' 'git-commit should tell the model that file coverage is strict even for a single commit'
+  assert_not_contains "$(<"$ask_log")" '"pull_request":{"title":"short pr title","body":"detailed markdown description"}' 'git-commit should not request PR details unless --pr is used'
+}
+
+@test "fails when a commit message does not start with a lower-case verb" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"Updated readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1); then
+    fail 'git-commit should fail when a commit message does not start with a lower-case verb'
+  fi
+
+  assert_contains "$output" 'Error: commit plan item 1 must start with an imperative lower-case verb' 'git-commit should validate commit message style locally'
+}
+
+@test "fails when a single-commit plan does not cover all changed files" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222_2
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md"]}]}' \
+    "$TOOL" 2>&1); then
+    fail 'git-commit should fail when a single-commit plan does not cover all changed files'
+  fi
+
+  assert_contains "$output" 'Error: commit plan did not cover changed file: notes.txt' 'git-commit should reject single-commit plans that omit changed files'
+}
+
+@test "fails when the model returns an empty commit plan" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[]}' \
+    "$TOOL" 2>&1); then
+    fail 'git-commit should fail when the model returns an empty commit plan'
+  fi
+
+  assert_contains "$output" 'Error: commit plan must include at least one commit' 'git-commit should reject empty commit plans'
 }
 
 @test "falls back to the additional model profile on HTTP 429" {
@@ -606,7 +828,7 @@ create_initial_commit() {
   ask_payload=$(<"$ask_log")
   assert_contains "$ask_payload" 'ask alpha-profile --model alpha-model' 'git-commit should try the primary configured model first'
   assert_contains "$ask_payload" 'ask beta-profile --model beta-model-2' 'git-commit should retry with the configured additional model after HTTP 429'
-  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after falling back to the additional model'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should still print the commit preview after falling back to the additional model'
 }
 
 @test "falls back to the additional model profile on HTTP 503" {
@@ -643,22 +865,24 @@ create_initial_commit() {
   ask_payload=$(<"$ask_log")
   assert_contains "$ask_payload" 'ask alpha-profile --model alpha-model' 'git-commit should try the primary configured model first before handling HTTP 503'
   assert_contains "$ask_payload" 'ask beta-profile --model beta-model-2' 'git-commit should retry with the configured additional model after HTTP 503'
-  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview after a HTTP 503 fallback'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should still print the commit preview after a HTTP 503 fallback'
 }
 
 @test "fails immediately on HTTP 503 when no additional model profile is configured" {
-  local stub_path jq_stub git_api_stub repo output
+  local stub_path jq_stub git_api_stub remote repo output
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
   create_git_api_stub "$git_api_stub"
 
-  init_repo "$repo"
-  create_initial_commit "$repo"
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
   git -C "$repo" checkout -q -b feat/11222
   printf 'updated\n' >>"$repo/README.md"
 
@@ -714,7 +938,7 @@ create_initial_commit() {
     fail 'git-commit should not include the omitted large modified file diff contents in the prompt'
     ;;
   esac
-  assert_contains "$output" 'git commit -m "feat(11222): expand readme"' 'git-commit should still print the planned commit after omitting the modified file diff'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): expand readme')" 'git-commit should still print the planned commit after omitting the modified file diff'
 }
 
 @test "omits oversized added file diffs from the planning prompt" {
@@ -753,7 +977,7 @@ create_initial_commit() {
     fail 'git-commit should not include the omitted large added file contents in the prompt'
     ;;
   esac
-  assert_contains "$output" 'git commit -m "feat(11222): add large added file"' 'git-commit should still print the planned commit after omitting the added file diff'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add large added file')" 'git-commit should still print the planned commit after omitting the added file diff'
 }
 
 @test "prints progress steps when --debug is enabled" {
@@ -786,7 +1010,7 @@ create_initial_commit() {
   assert_contains "$(<"$ask_log")" 'ask alpha-profile --model alpha-model' 'git-commit should still call model-profile ask with the configured profile and model'
   assert_contains "$(<"$ask_log")" '--debug' 'git-commit should forward --debug to model-profile'
   assert_contains "$output" '[git-commit] Printing commit plan preview' 'git-commit should print the preview debug step'
-  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should still print the commit preview in debug mode'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should still print the commit preview in debug mode'
 }
 
 @test "creates multiple commits from grouped file plan" {
@@ -819,10 +1043,10 @@ create_initial_commit() {
 
   assert_contains "$output" 'Commit 1:' 'git-commit should print a header for the first grouped commit'
   assert_contains "$output" 'git add -- :/src/app.txt' 'git-commit should print a repo-root grouped add command for the first commit'
-  assert_contains "$output" 'git commit -m "fix(445566): update application logic"' 'git-commit should print the first grouped commit command'
+  assert_contains "$output" "$(preview_git_commit_command 'fix(445566): update application logic')" 'git-commit should print the first grouped commit command'
   assert_contains "$output" 'Commit 2:' 'git-commit should print a header for the second grouped commit'
   assert_contains "$output" 'git add -- :/tests/app.txt' 'git-commit should print a repo-root grouped add command for the second commit'
-  assert_contains "$output" 'git commit -m "test(445566): add coverage for application logic"' 'git-commit should print the second grouped commit command'
+  assert_contains "$output" "$(preview_git_commit_command 'test(445566): add coverage for application logic')" 'git-commit should print the second grouped commit command'
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'chore(init): initial commit' 'git-commit should not create grouped commits automatically'
   staged_after=$(git -C "$repo" diff --cached --name-only)
@@ -850,7 +1074,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "chore: update readme"' 'git-commit should omit scope when branch name has no slash'
+  assert_contains "$output" "$(preview_git_commit_command 'chore: update readme')" 'git-commit should omit scope when branch name has no slash'
 }
 
 @test "uses changed module name as scope in a monorepo when branch scope is unavailable" {
@@ -874,10 +1098,10 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["pnpm-workspace.yaml","packages/ui/package.json","packages/ui/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should fall back to the changed monorepo module name'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(ui): update ui module')" 'git-commit should fall back to the changed monorepo module name'
 }
 
 @test "uses the leaf package name as scope in a node monorepo when available" {
@@ -903,10 +1127,10 @@ create_initial_commit() {
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["packages/ui/src/index.ts"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update ui module","files":["pnpm-workspace.yaml","packages/ui/package.json","packages/ui/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(ui): update ui module"' 'git-commit should prefer the leaf package name over the scoped package prefix'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(ui): update ui module')" 'git-commit should prefer the leaf package name over the scoped package prefix'
   assert_contains "$(<"$ask_log")" $'Derived scope:\nui' 'git-commit should send the leaf package name as the derived scope in the planning prompt'
   assert_contains "$(<"$ask_log")" 'do not repeat that scope value or its parent package/org prefix' 'git-commit should tell the model to avoid repeating monorepo scope names in the message'
   assert_contains "$(<"$ask_log")" 'The final commit header, including the type/scope prefix, must not exceed 100 characters.' 'git-commit should tell the model about the commit header length limit'
@@ -935,10 +1159,10 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update shared workspace files","files":["packages/ui/src/index.ts","packages/api/src/index.ts"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update shared workspace files","files":["pnpm-workspace.yaml","packages/ui/package.json","packages/ui/src/index.ts","packages/api/package.json","packages/api/src/index.ts"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "chore: update shared workspace files"' 'git-commit should omit scope when multiple monorepo modules are changed'
+  assert_contains "$output" "$(preview_git_commit_command 'chore: update shared workspace files')" 'git-commit should omit scope when multiple monorepo modules are changed'
 }
 
 @test "uses explicit --scope override instead of branch-derived scope" {
@@ -962,7 +1186,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --scope override 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should use the explicit scope override'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(override): update readme')" 'git-commit should use the explicit scope override'
 }
 
 @test "uses explicit --scope=value override instead of branch-derived scope" {
@@ -986,7 +1210,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --scope=override 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(override): update readme"' 'git-commit should accept --scope=value'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(override): update readme')" 'git-commit should accept --scope=value'
 }
 
 @test "truncates generated commit headers to 100 characters" {
@@ -1011,7 +1235,7 @@ create_initial_commit() {
     "$TOOL" 2>&1)
 
   commit_command=$(printf '%s\n' "$output" | grep 'git commit -m ' | head -n 1)
-  header=$(printf '%s\n' "$commit_command" | sed 's/.*git commit -m "//; s/".*//')
+  header=$(decode_bash_word "${commit_command#git commit -m }")
 
   if [ "${#header}" -gt 100 ]; then
     fail "git-commit should cap commit headers at 100 characters (got ${#header}: $header)"
@@ -1039,7 +1263,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "chore(CCP-4318): update readme"' 'git-commit should strip the trailing numeric branch suffix from the derived scope'
+  assert_contains "$output" "$(preview_git_commit_command 'chore(CCP-4318): update readme')" 'git-commit should strip the trailing numeric branch suffix from the derived scope'
 }
 
 @test "omits scope when --no-scope is provided" {
@@ -1063,7 +1287,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" --no-scope 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat: update readme"' 'git-commit should omit scope when --no-scope is provided'
+  assert_contains "$output" "$(preview_git_commit_command 'feat: update readme')" 'git-commit should omit scope when --no-scope is provided'
 }
 
 @test "runs pre-commit on changed files when hook exists" {
@@ -1090,10 +1314,10 @@ create_initial_commit() {
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     PRE_COMMIT_LOG="$pre_commit_log" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should continue after successful pre-commit checks'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should continue after successful pre-commit checks'
   assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should execute the installed pre-commit hook'
 }
 
@@ -1126,9 +1350,38 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
-  assert_contains "$output" 'git commit -m "feat(11222): update readme"' 'git-commit should continue after pre-commit succeeds on a retry'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should continue after pre-commit succeeds on a retry'
   assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
   assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should retry the installed pre-commit hook'
+}
+
+@test "prints shell-safe preview commands for commit titles" {
+  # shellcheck disable=SC2016
+  {
+    local stub_path jq_stub repo output expected_command
+
+    stub_path="$TMP_HOME/model-profile-stub"
+    jq_stub="$TMP_HOME/jq"
+    repo="$TMP_HOME/repo"
+    create_model_provider_stub "$stub_path"
+    create_jq_stub "$jq_stub"
+
+    init_repo "$repo"
+    create_initial_commit "$repo"
+    git -C "$repo" checkout -q -b feat/11222
+    printf 'updated\n' >>"$repo/README.md"
+
+    write_git_commit_config alpha-profile alpha-model
+
+    output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"run $(whoami) `pwd` safely","files":["README.md"]}]}' \
+      "$TOOL" 2>&1)
+
+    expected_command=$(preview_git_commit_command 'feat(11222): run $(whoami) `pwd` safely')
+    assert_contains "$output" "$expected_command" 'git-commit should print a shell-safe preview command for generated commit titles'
+    assert_not_contains "$output" 'git commit -m "feat(11222): run $(whoami) `pwd` safely"' 'git-commit should not print an unsafe double-quoted preview command for generated commit titles'
+  }
 }
 
 @test "respects --pre-commit-retries override" {
@@ -1165,7 +1418,7 @@ create_initial_commit() {
 }
 
 @test "fails early when the installed pre-commit hook rejects the staged snapshot" {
-  local stub_path jq_stub pre_commit_stub repo output
+  local stub_path jq_stub pre_commit_stub repo output staged_after
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
@@ -1190,7 +1443,9 @@ create_initial_commit() {
     fail 'git-commit should fail when the installed pre-commit hook rejects the staged snapshot'
   fi
 
+  staged_after=$(git -C "$repo" diff --cached --name-only)
   assert_contains "$output" 'Shellcheck Bash Linter' 'git-commit should surface the installed hook failure'
+  assert_eq "$staged_after" '' 'git-commit should leave the real index untouched when pre-commit checks fail'
 }
 
 @test "applies a single planned commit with --apply" {
@@ -1212,15 +1467,15 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should create the planned commit in apply mode'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply mode'
-  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying a single commit'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying it'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print the add command using the planned file list before applying a single commit'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print the planned commit command before applying it'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply mode'
 }
 
@@ -1245,7 +1500,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
     "$TOOL" --push 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1256,18 +1511,19 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when push mode implies apply mode'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree when push mode implies apply mode'
-  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying when push mode is used'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before pushing'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print the add command using the planned file list before applying when push mode is used'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print the planned commit command before pushing'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title when push mode implies apply mode'
 }
 
 @test "--pr implies --apply and --push" {
-  local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
+  local stub_path jq_stub git_api_stub git_api_log remote repo ask_log output head_subject remote_head_subject upstream_branch status_after ask_count
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1285,7 +1541,8 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- update README\n- add repository notes file"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr 2>&1)
@@ -1298,11 +1555,16 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when PR mode implies apply and push'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree when PR mode implies apply and push'
-  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying when PR mode is used'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before opening a PR'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print the add command using the planned file list before applying when PR mode is used'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print the planned commit command before opening a PR'
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when PR mode implies apply and push'
+  assert_contains "$(<"$ask_log")" '"pull_request":{"title":"short pr title","body":"detailed markdown description"}' 'git-commit should request PR title and body in the planning prompt when --pr is used'
+  ask_count=$(grep -c '^ask alpha-profile --model alpha-model' "$ask_log")
+  assert_eq "$ask_count" '1' 'git-commit should use a single model ask call when --pr is used'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch when PR mode implies apply and push'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request when PR mode implies apply and push'
+  assert_contains "$(<"$git_api_log")" 'title=feat(11222): add repository notes' 'git-commit should use the AI-provided PR title from the single planning response'
+  assert_contains "$(<"$git_api_log")" 'body=## Summary' 'git-commit should use the AI-provided PR body from the single planning response'
 }
 
 @test "applies and pushes a single planned commit with --push" {
@@ -1326,7 +1588,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
     "$TOOL" --push 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
@@ -1337,8 +1599,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream when pushing a new branch'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply and push mode'
-  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying in apply and push mode'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying in apply and push mode'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print the add command using the planned file list before applying in apply and push mode'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print the planned commit command before applying in apply and push mode'
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply and push mode'
 }
 
@@ -1366,7 +1628,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr 2>&1)
@@ -1379,8 +1641,8 @@ create_initial_commit() {
   assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should set upstream before opening a pull request'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after apply, push, and PR mode'
-  assert_contains "$output" 'git add -A :/' 'git-commit should print the add command before applying in PR mode'
-  assert_contains "$output" 'git commit -m "feat(11222): add repository notes"' 'git-commit should print the planned commit command before applying in PR mode'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should print the add command using the planned file list before applying in PR mode'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should print the planned commit command before applying in PR mode'
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should query the repository default branch through git-api'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api'
@@ -1388,13 +1650,14 @@ create_initial_commit() {
   assert_contains "$(<"$git_api_log")" 'head=feat/11222' 'git-commit should use the current branch as the PR head'
 }
 
-@test "reuses an existing pull request when one is already open" {
-  local stub_path jq_stub git_api_stub git_api_log remote repo output head_subject remote_head_subject upstream_branch status_after
+@test "updates an existing pull request when one is already open" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo ask_log output head_subject remote_head_subject upstream_branch status_after
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
   git_api_log="$TMP_HOME/git-api-args.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
   remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
@@ -1412,26 +1675,102 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}]}' \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- existing PR changes\n- current local changes"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
-    GIT_API_PULLS_LIST_RESPONSE='[{"html_url":"https://github.com/octo/demo/pull/77"}]' \
+    GIT_API_PULLS_LIST_RESPONSE='[{"number":77,"title":"feat(11222): previous scope","body":"## Existing Summary\n- previous PR changes","html_url":"https://github.com/octo/demo/pull/77"}]' \
     "$TOOL" --pr 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
-  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should still create the planned commit before checking for an existing pull request'
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should still create the planned commit before updating an existing pull request'
   remote_head_subject=$(git -C "$remote" log -1 --pretty=%s refs/heads/feat/11222)
-  assert_eq "$remote_head_subject" 'feat(11222): add repository notes' 'git-commit should still push the created commit before reusing an existing pull request'
+  assert_eq "$remote_head_subject" 'feat(11222): add repository notes' 'git-commit should still push the created commit before updating an existing pull request'
   upstream_branch=$(git -C "$repo" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}')
-  assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should still set upstream before reusing an existing pull request'
+  assert_eq "$upstream_branch" 'origin/feat/11222' 'git-commit should still set upstream before updating an existing pull request'
   status_after=$(git -C "$repo" status --short)
-  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after reusing an existing pull request'
-  assert_contains "$(strip_ansi "$output")" 'Pull request already exists: https://github.com/octo/demo/pull/77' 'git-commit should report the existing pull request URL instead of creating a new one'
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after updating an existing pull request'
+  assert_contains "$(strip_ansi "$output")" 'Pull request updated: https://github.com/octo/demo/pull/77' 'git-commit should report the updated pull request URL instead of creating a new one'
+  assert_contains "$(<"$ask_log")" 'Existing open pull request:' 'git-commit should tell the model when an open pull request already exists'
+  assert_contains "$(<"$ask_log")" '## Existing Summary' 'git-commit should include the existing pull request body in the planning prompt before asking the model'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should still resolve the default branch before checking for an existing pull request'
   assert_contains "$(<"$git_api_log")" 'pulls/list octo demo' 'git-commit should query open pull requests for the branch'
   assert_contains "$(<"$git_api_log")" '--head octo:feat/11222' 'git-commit should look up existing pull requests by owner-qualified head branch'
   assert_contains "$(<"$git_api_log")" '--base main' 'git-commit should look up existing pull requests against the resolved base branch'
+  assert_contains "$(<"$git_api_log")" 'pulls/update octo demo 77' 'git-commit should update the existing pull request when one already exists'
+  assert_contains "$(<"$git_api_log")" 'title=feat(11222): add repository notes' 'git-commit should send the AI-generated title when updating an existing pull request'
+  assert_contains "$(<"$git_api_log")" 'body=## Summary' 'git-commit should send the AI-generated body when updating an existing pull request'
   assert_not_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should not create a new pull request when one already exists'
+}
+
+@test "updates an existing pull request when existing title and body are empty" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo ask_log output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_PULLS_LIST_RESPONSE='[{"number":77,"title":"","body":"","html_url":"https://github.com/octo/demo/pull/77"}]' \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request updated: https://github.com/octo/demo/pull/77' 'git-commit should still update an existing PR when its title and body are empty'
+  assert_contains "$(<"$ask_log")" $'Existing open pull request:\nYes' 'git-commit should still describe the empty-title PR as an existing pull request in the planning prompt'
+  assert_contains "$(<"$git_api_log")" 'title=feat(11222): update readme' 'git-commit should fall back to a generated PR title when the existing PR title is empty'
+  assert_contains "$(<"$git_api_log")" 'body=## Summary' 'git-commit should use the required AI-provided PR body when the existing PR body is empty'
+}
+
+@test "falls back to the existing PR URL when pulls/update returns no html_url" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_PULLS_LIST_RESPONSE='[{"number":77,"title":"feat(11222): prior","body":"prior body","html_url":"https://github.com/octo/demo/pull/77"}]' \
+    GIT_API_PULLS_UPDATE_RESPONSE='{"html_url":""}' \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request updated: https://github.com/octo/demo/pull/77' 'git-commit should fall back to the existing PR URL when pulls/update omits html_url'
 }
 
 @test "uses the configured git-api profile for pull request operations" {
@@ -1457,7 +1796,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr 2>&1)
@@ -1490,7 +1829,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     "$TOOL" --pr release-1.0 2>&1)
@@ -1498,6 +1837,132 @@ create_initial_commit() {
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should print the created pull request URL when an explicit base is provided'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request through git-api when an explicit base is provided'
   assert_contains "$(<"$git_api_log")" 'base=release-1.0' 'git-commit should use the provided PR base branch'
+}
+
+@test "supports GitHub SSH remotes without a .git suffix in PR mode" {
+  local stub_path jq_stub git_api_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin git@github.com:octo/demo
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should support GitHub SSH remotes without a .git suffix when creating a pull request'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should resolve the owner and repo correctly from an SSH remote without .git'
+  assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should create the pull request using the parsed owner and repo from an SSH remote without .git'
+}
+
+@test "fails in PR mode for unsupported non-GitHub remotes" {
+  local stub_path jq_stub git_api_stub remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin git@gitlab.com:octo/demo
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    GIT_API_BIN="$git_api_stub" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    "$TOOL" --pr 2>&1); then
+    fail 'git-commit should fail in PR mode for unsupported non-GitHub remotes'
+  fi
+
+  assert_contains "$output" 'Error: unsupported GitHub remote URL: git@gitlab.com:octo/demo' 'git-commit should reject unsupported PR remotes clearly'
+}
+
+@test "fails when the model returns invalid pull request fields" {
+  local stub_path jq_stub git_api_stub remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":{},"body":[]}}' \
+    GIT_API_BIN="$git_api_stub" \
+    "$TOOL" --pr 2>&1); then
+    fail 'git-commit should fail when the model returns invalid pull request fields'
+  fi
+
+  assert_contains "$output" 'Error: pull_request.title must be a string when provided' 'git-commit should reject invalid pull request fields from the model'
+}
+
+@test "fails when --pr planning response omits pull request metadata" {
+  local stub_path jq_stub git_api_stub remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    GIT_API_BIN="$git_api_stub" \
+    "$TOOL" --pr 2>&1); then
+    fail 'git-commit should fail when --pr planning omits pull request metadata'
+  fi
+
+  assert_contains "$output" 'Error: pull_request.title and pull_request.body are required when --pr is used' 'git-commit should require PR metadata in --pr mode'
 }
 
 @test "falls back to git metadata when git-api cannot resolve the default branch" {
@@ -1523,7 +1988,7 @@ create_initial_commit() {
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     GIT_API_REPOS_GET_FAIL=true \
@@ -1565,10 +2030,10 @@ create_initial_commit() {
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after grouped apply mode'
   assert_contains "$output" 'Commit 1:' 'git-commit should print the first grouped commit plan before applying it'
   assert_contains "$output" 'git add -- :/src/app.txt' 'git-commit should print the first grouped add command before applying it'
-  assert_contains "$output" 'git commit -m "fix(445566): update application logic"' 'git-commit should print the first grouped commit command before applying it'
+  assert_contains "$output" "$(preview_git_commit_command 'fix(445566): update application logic')" 'git-commit should print the first grouped commit command before applying it'
   assert_contains "$output" 'Commit 2:' 'git-commit should print the second grouped commit plan before applying it'
   assert_contains "$output" 'git add -- :/tests/app.txt' 'git-commit should print the second grouped add command before applying it'
-  assert_contains "$output" 'git commit -m "test(445566): add coverage for application logic"' 'git-commit should print the second grouped commit command before applying it'
+  assert_contains "$output" "$(preview_git_commit_command 'test(445566): add coverage for application logic')" 'git-commit should print the second grouped commit command before applying it'
   assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
   assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
 }
