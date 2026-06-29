@@ -1,3 +1,9 @@
+## [0.41.0](https://github.com/egose/picotools/compare/v0.40.1...v0.41.0) (2026-06-29)
+
+### Features
+
+* improve commit plan output and PR metadata handling ([8731508](https://github.com/egose/picotools/commit/87315084c2641270f94fe51a07a98f1ff19d49ad))
+
 ## [0.40.1](https://github.com/egose/picotools/compare/v0.40.0...v0.40.1) (2026-06-22)
 
 ### Bug Fixes
