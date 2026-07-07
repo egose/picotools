@@ -41,16 +41,16 @@ assert_eq() {
 }
 
 @test "prompts for MIT copyright owner and updates package.json license field" {
-  printf '%s\n' '{' '  "name": "demo",' '  "author": "Junmin Dev",' '  "license": "Apache-2.0"' '}' >"$WORKSPACE/package.json"
+  printf '%s\n' '{' '  "name": "demo",' '  "author": "Junmin Ahn",' '  "license": "Apache-2.0"' '}' >"$WORKSPACE/package.json"
 
   run bash -c 'cd "$1" && printf "\n" | "$2" --type mit --yes' bash "$WORKSPACE" "$TOOL"
 
   [ "$status" -eq 0 ] || fail 'license should prompt for MIT copyright owner successfully'
-  assert_contains "$output" 'Copyright owner [Junmin Dev]:' 'should prompt with the package author as default'
+  assert_contains "$output" 'Copyright owner [Junmin Ahn]:' 'should prompt with the package author as default'
   assert_contains "$output" "Updated 'package.json' license field to 'MIT'." 'should update package.json license field'
   assert_contains "$output" "Wrote MIT License to 'LICENSE'." 'should confirm the written file'
   assert_contains "$(<"$WORKSPACE/LICENSE")" 'MIT License' 'should write MIT content'
-  assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright (c) Junmin Dev' 'should use the prompted default owner'
+  assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright (c) Junmin Ahn' 'should use the prompted default owner'
   assert_contains "$(<"$WORKSPACE/package.json")" '"license": "MIT"' 'should rewrite package.json license'
 }
 
@@ -108,7 +108,7 @@ assert_eq() {
 
 @test "prompts for Apache copyright details and uses package author default" {
   mkdir -p "$WORKSPACE/bin"
-  printf '%s\n' '{' '  "name": "demo",' '  "author": "Junmin Dev",' '  "license": "MIT"' '}' >"$WORKSPACE/package.json"
+  printf '%s\n' '{' '  "name": "demo",' '  "author": "Junmin Ahn",' '  "license": "MIT"' '}' >"$WORKSPACE/package.json"
   mkdir -p "$WORKSPACE/.git"
   cat >"$WORKSPACE/bin/git" <<'EOF'
 #!/usr/bin/env bash
@@ -137,9 +137,9 @@ EOF
   run bash -c 'cd "$1" && PATH="$1/bin:$PATH" bash -c '\''printf "\n2\n" | "$1" --type apache-2.0 --yes'\'' bash "$2"' bash "$WORKSPACE" "$TOOL"
 
   [ "$status" -eq 0 ] || fail 'license should support interactive Apache copyright population'
-  assert_contains "$output" 'Copyright owner [Junmin Dev]:' 'should prompt with the package author as default'
+  assert_contains "$output" 'Copyright owner [Junmin Ahn]:' 'should prompt with the package author as default'
   assert_contains "$output" 'Copyright Years:' 'should show the years selection menu'
-  assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright 2000-2026 Junmin Dev' 'should write the populated copyright line'
+  assert_contains "$(<"$WORKSPACE/LICENSE")" 'Copyright 2000-2026 Junmin Ahn' 'should write the populated copyright line'
   assert_contains "$(<"$WORKSPACE/package.json")" '"license": "Apache-2.0"' 'should update package.json to Apache-2.0'
 }
 
