@@ -1,3 +1,120 @@
+## [0.41.0](https://github.com/egose/picotools/compare/v0.40.1...v0.41.0) (2026-06-29)
+
+### Features
+
+* improve commit plan output and PR metadata handling ([8731508](https://github.com/egose/picotools/commit/87315084c2641270f94fe51a07a98f1ff19d49ad))
+
+## [0.40.1](https://github.com/egose/picotools/compare/v0.40.0...v0.40.1) (2026-06-22)
+
+### Bug Fixes
+
+* preserve nested export maps when rewriting package manifests ([6f81b68](https://github.com/egose/picotools/commit/6f81b682eb6c9ef8d1221bac3a9ded415e21101b))
+
+## [0.40.0](https://github.com/egose/picotools/compare/v0.39.0...v0.40.0) (2026-06-21)
+
+### Features
+
+* add line wrapping capability to box library ([3be6d54](https://github.com/egose/picotools/commit/3be6d54c46c64158ca85f1dd4f341cf76e1acb8e))
+* wrap long lines in commit plan output ([0adcc15](https://github.com/egose/picotools/commit/0adcc152c9d4bdecf682a8ecef8437b7015441d4))
+
+## [0.39.0](https://github.com/egose/picotools/compare/v0.38.0...v0.39.0) (2026-06-18)
+
+### Features
+
+* add npm-publish-package tool ([9b645a8](https://github.com/egose/picotools/commit/9b645a832557d9670785ad90ef5e00c467f9140d))
+* report detailed updates in gh-actions-upgrade ([2d44f39](https://github.com/egose/picotools/commit/2d44f39494936729d59e753834c35bc255d395c9))
+* report detailed updates in pip-upgrade ([13dc36c](https://github.com/egose/picotools/commit/13dc36cf9e253890f7f2254835d20d0e892380f1))
+
+### Bug Fixes
+
+* reset highlight after tool name in interactive selector ([81a286f](https://github.com/egose/picotools/commit/81a286faf8ee4b9d892f01859df5b8c08c4b4a9f))
+
+## [0.38.0](https://github.com/egose/picotools/compare/v0.37.0...v0.38.0) (2026-06-15)
+
+### Features
+
+* reuse existing pull request if one is already open ([f5bccd5](https://github.com/egose/picotools/commit/f5bccd59e663e312505a50074307bf503c33cd40))
+
+## [0.37.0](https://github.com/egose/picotools/compare/v0.36.0...v0.37.0) (2026-06-14)
+
+### Features
+
+* add red color utility to UI library ([35b5391](https://github.com/egose/picotools/commit/35b5391e491460e4659dffe10f22388bd027c419))
+* color-code semver segments in upgrade list ([375e33c](https://github.com/egose/picotools/commit/375e33cef78b316f2b924e3dedda7f724c451f13))
+
+## [0.36.0](https://github.com/egose/picotools/compare/v0.35.0...v0.36.0) (2026-06-12)
+
+### Features
+
+* add shared UI, prompt, and command resolution helpers for interactive tools ([24aa42b](https://github.com/egose/picotools/commit/24aa42b380a20b14ed65bc396153ea4e4c6b09e0))
+* improve shared CLI UX and enforce commit header length ([f88f22a](https://github.com/egose/picotools/commit/f88f22a52f0558f5d0e21316e37bfc33a91bc97e))
+
+## [0.35.0](https://github.com/egose/picotools/compare/v0.34.0...v0.35.0) (2026-06-11)
+
+### Features
+
+* add optional GPG secret configuration to git-release-setup ([359712e](https://github.com/egose/picotools/commit/359712e70d5866424eeab2c11bd47656780822ce))
+
+## [0.34.0](https://github.com/egose/picotools/compare/v0.33.1...v0.34.0) (2026-06-11)
+
+### Features
+
+* add named PAT token profile management ([7662c8f](https://github.com/egose/picotools/commit/7662c8fc49dfdc63a271eae576b8174178f77284))
+* support configuring and using git-api profiles for PR operations ([44ef5fb](https://github.com/egose/picotools/commit/44ef5fb8346ad0b34fd029653f00f61ee8920c7d))
+
+## [0.33.1](https://github.com/egose/picotools/compare/v0.33.0...v0.33.1) (2026-06-11)
+
+### Refactors
+
+* rename config directory to git-profile ([7712477](https://github.com/egose/picotools/commit/771247774a2d248c4c661a68a121080e9275f38b))
+
+## [0.33.0](https://github.com/egose/picotools/compare/v0.32.1...v0.33.0) (2026-06-11)
+
+### Features
+
+* add git-release-setup tool for release workflow repository setup ([1a93809](https://github.com/egose/picotools/commit/1a93809a9a743ce1b790e170378f89f9b8ffb6f7))
+
+### Bug Fixes
+
+* rename context directory to git-profiles ([58da171](https://github.com/egose/picotools/commit/58da1716b0e1be89cd77dee4613918f33dff5671))
+
+## [0.32.1](https://github.com/egose/picotools/compare/v0.32.0...v0.32.1) (2026-06-11)
+
+### Bug Fixes
+
+* correct context directory path ([33c6d17](https://github.com/egose/picotools/commit/33c6d17bddb74d90041c8a7094ba7b126fdcee0d))
+
+## [0.32.0](https://github.com/egose/picotools/compare/v0.31.0...v0.32.0) (2026-06-10)
+
+### Features
+
+* add dynamic width and truncation to box utility ([a462114](https://github.com/egose/picotools/commit/a462114916318a0724d3a0a8a762c5212b651729))
+* implement dynamic width commit plan display ([529f0c0](https://github.com/egose/picotools/commit/529f0c0968a581f7e108f36f5cd553175f7c52ed))
+
+## [0.31.0](https://github.com/egose/picotools/compare/v0.30.0...v0.31.0) (2026-06-10)
+
+### Features
+
+* add AI-powered pull request title generation ([c6b3f22](https://github.com/egose/picotools/commit/c6b3f22637ccf36758f6c03f0e02184c10b1e288))
+* add box drawing utility ([e44b769](https://github.com/egose/picotools/commit/e44b76933d45cdb60a9b0accfe7be77e2ee54493))
+* add colored request logging ([829b4c5](https://github.com/egose/picotools/commit/829b4c5d8a97412e2eb0261e9a23614a9fa9b013))
+* format commit plan and colorize output ([6433ccd](https://github.com/egose/picotools/commit/6433ccd4f818782cd842852593862ed2ca5f0077))
+
+## [0.30.0](https://github.com/egose/picotools/compare/v0.29.0...v0.30.0) (2026-06-09)
+
+### Features
+
+* add gh-actions-upgrade tool ([5307c70](https://github.com/egose/picotools/commit/5307c70ae686142876c50c8fbc8691d50e51b350))
+* improve git-commit error handling and execution preview ([77d9ac2](https://github.com/egose/picotools/commit/77d9ac29b3fe7a1a7e499125714a36221bc1e06e))
+
+### Bug Fixes
+
+* correct git-profile config directory path ([89c226e](https://github.com/egose/picotools/commit/89c226e557feef4c50dd0eb691f0f40ac5def780))
+
+### Refactors
+
+* pluralize config directory name ([723bc35](https://github.com/egose/picotools/commit/723bc3517a84f0a4bfe7bbdd3b0f8433037625c7))
+
 ## [0.29.0](https://github.com/egose/picotools/compare/v0.28.2...v0.29.0) (2026-06-04)
 
 ### Features
