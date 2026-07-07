@@ -1,3 +1,9 @@
+## [0.44.0](https://github.com/egose/picotools/compare/v0.43.1...v0.44.0) (2026-07-07)
+
+### Features
+
+* add pre-commit hook upgrade tool ([5412948](https://github.com/egose/picotools/commit/54129485d4f93abcb086b20108d13f3c94fbde5f))
+
 ## [0.43.1](https://github.com/egose/picotools/compare/v0.43.0...v0.43.1) (2026-07-07)
 
 ### Bug Fixes
