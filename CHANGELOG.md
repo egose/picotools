@@ -1,3 +1,9 @@
+## [0.43.1](https://github.com/egose/picotools/compare/v0.43.0...v0.43.1) (2026-07-07)
+
+### Bug Fixes
+
+* surface duplicate-file validation errors and refine retry guidance ([4bd8519](https://github.com/egose/picotools/commit/4bd85199ef1cc79987e5941e0e1c05e6190e59d6))
+
 ## [0.43.0](https://github.com/egose/picotools/compare/v0.42.0...v0.43.0) (2026-07-07)
 
 ### Features
