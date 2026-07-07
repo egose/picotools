@@ -1,3 +1,13 @@
+## [0.42.0](https://github.com/egose/picotools/compare/v0.41.0...v0.42.0) (2026-07-07)
+
+### Features
+
+* handle fenced commit plans and retry invalid responses ([6631500](https://github.com/egose/picotools/commit/6631500726881d8438cf4861ba1017b521144c04))
+
+### Docs
+
+* update author name references ([81e5003](https://github.com/egose/picotools/commit/81e5003bb6146625acd14d3bb399853f00a9ee41))
+
 ## [0.41.0](https://github.com/egose/picotools/compare/v0.40.1...v0.41.0) (2026-06-29)
 
 ### Features
