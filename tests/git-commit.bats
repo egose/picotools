@@ -185,6 +185,22 @@ ask)
     printf '%s\n' "${MODEL_PROFILE_ASK_FAIL_MESSAGE:-Error: request failed}" >&2
     exit 1
   fi
+  if [ -n "${MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE:-}" ] && [ -f "${MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE:-}" ]; then
+    index=1
+    if [ -n "${MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE:-}" ] && [ -f "${MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE:-}" ]; then
+      index=$(( $(cat "${MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE}") + 1 ))
+    fi
+    if [ -n "${MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE:-}" ]; then
+      printf '%s\n' "$index" >"${MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE:-}"
+    fi
+    mapfile -t sequence_lines < "${MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE}"
+    response_index=$index
+    if [ "$response_index" -gt "${#sequence_lines[@]}" ]; then
+      response_index=${#sequence_lines[@]}
+    fi
+    printf '%s\n' "${sequence_lines[$((response_index - 1))]}"
+    exit 0
+  fi
   printf '%s\n' "$MODEL_PROFILE_ASK_RESPONSE"
   ;;
 *)
@@ -2100,4 +2116,202 @@ create_initial_commit() {
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after subdirectory apply mode'
   assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the basename-resolved commit title from a subdirectory'
+}
+
+@test "accepts a commit plan wrapped in a json markdown fence" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  local fenced
+  fenced=$'Looking at the changes:\n```json\n{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}\n```\nHope that helps.'
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE="$fenced" \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should accept a fenced commit plan response ($output)"
+  fi
+
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should print the planned commit parsed from inside the markdown fence'
+}
+
+@test "accepts a commit plan wrapped in a plain markdown fence" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  local fenced
+  fenced=$'Here you go:\n```\n{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}\n```'
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE="$fenced" \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should accept a plain-fenced commit plan response ($output)"
+  fi
+
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should print the planned commit parsed from inside the plain markdown fence'
+}
+
+@test "retries once when the first commit plan duplicates a file across commits" {
+  local stub_path jq_stub repo output ask_log
+  local sequence_file index_file
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/ask.sequence"
+  index_file="$TMP_HOME/ask.index"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/src" "$repo/tests"
+  printf 'code change\n' >"$repo/src/app.txt"
+  printf 'test change\n' >"$repo/tests/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  printf '%s\n' \
+    '{"commits":[{"type":"feat","message":"duplicate layout","files":["src/app.txt","tests/app.txt"]},{"type":"test","message":"coverage","files":["tests/app.txt"]}]}' \
+    '{"commits":[{"type":"feat","message":"update app logic","files":["src/app.txt"]},{"type":"test","message":"add coverage for app logic","files":["tests/app.txt"]}]}' \
+    >"$sequence_file"
+  rm -f "$index_file"
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+      MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+      "$TOOL" 2>&1
+  ); then
+    fail "git-commit should retry once after a duplicate-file commit plan and accept the corrected plan ($output)"
+  fi
+
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update app logic')" 'git-commit should print the first corrected grouped commit after retry'
+  assert_contains "$output" "$(preview_git_commit_command 'test(11222): add coverage for app logic')" 'git-commit should print the second corrected grouped commit after retry'
+  assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should send correction guidance to the model on the retry request'
+}
+
+@test "surfaces the underlying validation error after exhausting the commit plan retry budget" {
+  local stub_path jq_stub git_api_stub remote repo output ask_log
+  local sequence_file index_file
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/ask.sequence"
+  index_file="$TMP_HOME/ask.index"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  printf '%s\n' \
+    '{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":{},"body":[]}}' \
+    '{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":{},"body":[]}}' \
+    >"$sequence_file"
+  rm -f "$index_file"
+
+  if output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+      MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+      GIT_API_BIN="$git_api_stub" \
+      "$TOOL" --pr 2>&1
+  ); then
+    fail 'git-commit should fail when every commit plan attempt returns invalid pull request fields'
+  fi
+
+  assert_contains "$output" 'Error: pull_request.title must be a string when provided' 'git-commit should surface the original validation error after exhausting commit plan retries'
+  assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should retry the commit plan once before giving up on validation errors'
+}
+
+@test "fails when every commit plan attempt returns invalid JSON" {
+  local stub_path jq_stub repo output ask_log
+  local sequence_file index_file
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/ask.sequence"
+  index_file="$TMP_HOME/ask.index"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  printf '%s\n' \
+    'Sorry, I am not sure how to format the commit plan.' \
+    'I really cannot do this.' \
+    >"$sequence_file"
+  rm -f "$index_file"
+
+  if output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+      MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+      "$TOOL" 2>&1
+  ); then
+    fail 'git-commit should fail when every commit plan attempt returns invalid JSON'
+  fi
+
+  assert_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should surface the parseable-JSON error after exhausting commit plan retries'
+  assert_contains "$(<"$ask_log")" 'Return ONLY the JSON object with the exact shape requested' 'git-commit should ask the model for clean JSON after a parseable-JSON failure'
 }
