@@ -1,0 +1,247 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands version
+
+debug_mode=false
+config_file='.pre-commit-config.yaml'
+forced_ref_type=''
+PRE_COMMIT_UPGRADE_TMPFILE=''
+
+usage() {
+  cat <<'EOF'
+Usage: pre-commit-upgrade [--config PATH] [--ref-type tag|hash]
+
+Updates pinned pre-commit hook revisions by running `pre-commit autoupdate`.
+
+By default, each repo keeps its current ref style:
+- tag refs update to the latest tag
+- hash refs update to the latest frozen hash
+
+Options:
+  --config PATH              Path to pre-commit config (default: ./.pre-commit-config.yaml)
+  --ref-type TYPE            Force all hook refs to `tag` or `hash`
+  --debug                    Print progress details to stderr
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[pre-commit-upgrade] %s\n' "$1" >&2
+  fi
+}
+
+cleanup_tmpfile() {
+  if [ -n "$PRE_COMMIT_UPGRADE_TMPFILE" ] && [ -f "$PRE_COMMIT_UPGRADE_TMPFILE" ]; then
+    rm -f "$PRE_COMMIT_UPGRADE_TMPFILE"
+  fi
+}
+
+trim_trailing_whitespace() {
+  local value="$1"
+
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s\n' "$value"
+}
+
+trim_quotes() {
+  local value
+
+  value=$(trim_trailing_whitespace "$1")
+  case "$value" in
+  \"*\")
+    if [ "${value: -1}" = '"' ]; then
+      value=${value:1:${#value}-2}
+    fi
+    ;;
+  \'*\')
+    if [ "${value: -1}" = "'" ]; then
+      value=${value:1:${#value}-2}
+    fi
+    ;;
+  esac
+
+  printf '%s\n' "$value"
+}
+
+is_commit_hash_ref() {
+  [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
+}
+
+collect_hash_style_repos() {
+  local file="$1"
+  local line value_part current_repo='' current_rev
+  local -A seen_repos=()
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [[ "$line" =~ ^[[:space:]-]*repo:[[:space:]]*([^#]*)([[:space:]]*#.*)?$ ]]; then
+      value_part="${BASH_REMATCH[1]}"
+      current_repo=$(trim_quotes "$value_part")
+      continue
+    fi
+
+    if [[ "$line" =~ ^[[:space:]]*rev:[[:space:]]*([^#]*)([[:space:]]*#.*)?$ ]]; then
+      value_part="${BASH_REMATCH[1]}"
+      current_rev=$(trim_quotes "$value_part")
+      if [ -n "$current_repo" ] && is_commit_hash_ref "$current_rev" && [ -z "${seen_repos[$current_repo]:-}" ]; then
+        printf '%s\n' "$current_repo"
+        seen_repos["$current_repo"]=1
+      fi
+    fi
+  done <"$file"
+}
+
+run_pre_commit_autoupdate() {
+  local ref_type="$1"
+  local repo="${2:-}"
+  local -a command=(pre-commit autoupdate)
+
+  case "$ref_type" in
+  hash)
+    command+=(--freeze)
+    ;;
+  tag)
+    ;;
+  *)
+    echo "Error: unsupported ref type '$ref_type'" >&2
+    exit 1
+    ;;
+  esac
+
+  if [ -n "$repo" ]; then
+    command+=(--repo "$repo")
+  fi
+
+  command+=(--config "$config_file")
+
+  if [ -n "$repo" ]; then
+    debug_log "Running pre-commit autoupdate for '$config_file' using $ref_type refs for repo '$repo'"
+  else
+    debug_log "Running pre-commit autoupdate for '$config_file' using $ref_type refs"
+  fi
+
+  "${command[@]}"
+}
+
+main() {
+  local repo
+  local -a hash_repos=()
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    --config)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+
+      config_file="$2"
+      shift 2
+      ;;
+    --config=*)
+      config_file="${1#--config=}"
+      if [ -z "$config_file" ]; then
+        echo 'Error: --config requires a value' >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --ref-type)
+      if [ "$#" -lt 2 ]; then
+        echo 'Error: --ref-type requires a value' >&2
+        exit 1
+      fi
+
+      forced_ref_type="$2"
+      shift 2
+      ;;
+    --ref-type=*)
+      forced_ref_type="${1#--ref-type=}"
+      if [ -z "$forced_ref_type" ]; then
+        echo 'Error: --ref-type requires a value' >&2
+        exit 1
+      fi
+      shift
+      ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    *)
+      echo "Error: unexpected argument '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  case "$forced_ref_type" in
+  '' | tag | hash)
+    ;;
+  *)
+    echo "Error: invalid --ref-type '$forced_ref_type'; expected 'tag' or 'hash'" >&2
+    exit 1
+    ;;
+  esac
+
+  if [ ! -f "$config_file" ]; then
+    echo "Error: config file not found: $config_file" >&2
+    exit 1
+  fi
+
+  picotools_require_commands cmp pre-commit
+  PRE_COMMIT_UPGRADE_TMPFILE=$(mktemp)
+  cp "$config_file" "$PRE_COMMIT_UPGRADE_TMPFILE"
+  trap 'cleanup_tmpfile' EXIT
+
+  case "$forced_ref_type" in
+  hash)
+    run_pre_commit_autoupdate hash
+    ;;
+  tag)
+    run_pre_commit_autoupdate tag
+    ;;
+  '')
+    mapfile -t hash_repos < <(collect_hash_style_repos "$config_file")
+    run_pre_commit_autoupdate tag
+    for repo in "${hash_repos[@]}"; do
+      run_pre_commit_autoupdate hash "$repo"
+    done
+    ;;
+  esac
+
+  if cmp -s "$PRE_COMMIT_UPGRADE_TMPFILE" "$config_file"; then
+    echo 'No updates found.'
+    exit 0
+  fi
+
+  echo "Updated pre-commit hook versions in $config_file."
+}
+
+main "$@"
