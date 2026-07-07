@@ -847,6 +847,7 @@ Rules:
 - Each changed file must appear in exactly one commit, even when there is only one commit.
 - Before returning, check the full changed-file list and confirm every listed file appears exactly once across all commit `files` arrays.
 - Before returning, confirm no file path appears in more than one commit.
+- Before returning, build the union of every commit `files` array and compare it against the changed-file list. If any file is duplicated, missing, unknown, or ambiguous, rewrite the plan before returning.
 - Use file paths exactly as provided.
 - Do not include markdown fences or commentary.
 - Before returning, confirm the final response string is a single valid JSON object with the exact requested shape and no extra text before or after it.
@@ -923,10 +924,26 @@ build_commit_planning_message() {
 build_commit_planning_retry_message() {
   local original_user_message="$1"
   local correction="$2"
+  local normalized_correction
+
+  case "$correction" in
+  'Error: commit plan assigned the same file to multiple commits:'*)
+    normalized_correction="${correction} Remove duplicate file assignments. Each changed file must appear in exactly one commit, and no file may appear in more than one commit. Compare every file path across all commits before returning."
+    ;;
+  'Error: commit plan did not cover changed file:'*)
+    normalized_correction="${correction} Include every changed file exactly once across the commit plan before returning."
+    ;;
+  'Error: commit plan referenced an unknown or ambiguous changed file:'* | 'Error: commit plan referenced an unknown changed file:'*)
+    normalized_correction="${correction} Use only file paths from the provided changed-file list and keep each path assigned exactly once."
+    ;;
+  *)
+    normalized_correction="$correction"
+    ;;
+  esac
 
   printf '%s\n\n%s\n%s\n\n%s\n' \
     'A previous attempt produced an invalid commit plan. Reuse the same workspace information below.' \
-    'Correction required:' "${correction} Re-check the changed-file list and your final response string before returning." \
+    'Correction required:' "${normalized_correction} Re-check the changed-file list and your final response string before returning." \
     "$original_user_message"
 }
 
@@ -1755,6 +1772,12 @@ request_validated_commit_plan() {
   fi
 
   print_raw_commit_plan_response
+
+  case "$validation_error" in
+  'Error: '*)
+    exit 1
+    ;;
+  esac
 
   echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
   exit 1
