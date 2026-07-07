@@ -916,6 +916,16 @@ build_commit_planning_message() {
     "$pr_section"
 }
 
+build_commit_planning_retry_message() {
+  local original_user_message="$1"
+  local correction="$2"
+
+  printf '%s\n\n%s\n%s\n\n%s\n' \
+    'A previous attempt produced an invalid commit plan. Reuse the same workspace information below.' \
+    'Correction required:' "$correction" \
+    "$original_user_message"
+}
+
 should_retry_with_additional_model() {
   local error_output="$1"
 
@@ -1027,6 +1037,61 @@ valid_commit_type() {
   done
 
   return 1
+}
+
+extract_commit_plan_json() {
+  local raw="$1"
+  local fenced
+
+  if commit_plan_json_is_parseable "$raw"; then
+    printf '%s\n' "$raw"
+    return 0
+  fi
+
+  fenced=$(printf '%s\n' "$raw" | awk '
+    BEGIN { in_fence = 0 }
+    /^```[a-zA-Z0-9_-]*[[:space:]]*$/ {
+      if (in_fence) { in_fence = 0; next }
+      in_fence = 1
+      next
+    }
+    in_fence { print }
+  ' | awk '
+    BEGIN { line_no = 0 }
+    {
+      if (line_no > 0) printf "\n"
+      printf "%s", $0
+      line_no++
+    }
+  ')
+  if [ -n "$fenced" ] && commit_plan_json_is_parseable "$fenced"; then
+    printf '%s\n' "$fenced"
+    return 0
+  fi
+
+  printf '%s\n' "$raw"
+}
+
+commit_plan_json_is_parseable() {
+  local plan_json="$1"
+
+  printf '%s' "$plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1
+}
+
+run_commit_plan_validation() {
+  local plan_json="$1"
+  local changed_files="$2"
+  local create_pr="$3"
+  local error_output
+  local status=0
+
+  error_output=$(validate_commit_plan "$plan_json" "$changed_files" 2>&1 >/dev/null) || status=1
+  if [ "$status" -eq 0 ] && [ "$create_pr" = 'true' ]; then
+    error_output=$(validate_pull_request_plan "$plan_json" 2>&1 >/dev/null) || status=1
+  fi
+
+  printf '%s' "$error_output"
+  return "$status"
 }
 
 json_read_string() {
@@ -1612,28 +1677,66 @@ request_validated_commit_plan() {
   local existing_pr_title="${12:-}"
   local existing_pr_body="${13:-}"
   local existing_pr_exists="${14:-false}"
-  local system_message user_message requested_plan_json request_status
+  local system_message user_message requested_plan_json retry_message attempt max_attempts validation_error request_status
   local -n output_ref="$output_ref_name"
 
   debug_log 'Collecting workspace diff for commit planning'
   system_message=$(commit_planning_system_message "$create_pr")
   user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output" "$create_pr" "$resolved_pr_base_branch" "$existing_pr_title" "$existing_pr_body" "$existing_pr_exists")
-  requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
-    request_status=$?
-    exit "$request_status"
-  }
 
-  if ! printf '%s' "$requested_plan_json" | jq -e '.commits | type == "array"' >/dev/null 2>&1; then
-    echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
-    exit 1
+  max_attempts=2
+  attempt=1
+  validation_error=''
+  while true; do
+    debug_log "Requesting commit plan, attempt $attempt/$max_attempts"
+    if [ "$attempt" -eq 1 ]; then
+      requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
+        request_status=$?
+        exit "$request_status"
+      }
+    else
+      retry_message=$(build_commit_planning_retry_message "$user_message" "$validation_error")
+      debug_log 'Retrying commit plan request with correction guidance'
+      requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$retry_message") || {
+        request_status=$?
+        exit "$request_status"
+      }
+    fi
+
+    requested_plan_json=$(extract_commit_plan_json "$requested_plan_json")
+    debug_log "Extracted commit plan JSON (${#requested_plan_json} chars)"
+
+    if commit_plan_json_is_parseable "$requested_plan_json"; then
+      validation_error=$(run_commit_plan_validation "$requested_plan_json" "$changed_files" "$create_pr") && {
+        debug_log 'Validated commit plan JSON'
+        output_ref="$requested_plan_json"
+        return 0
+      }
+    else
+      validation_error='Your previous response did not contain parseable commit plan JSON. Return ONLY the JSON object with the exact shape requested, no markdown fences, no commentary, no prose before or after the JSON.'
+    fi
+
+    if [ "$attempt" -ge "$max_attempts" ]; then
+      debug_log "Commit plan validation failed after $max_attempts attempts"
+      break
+    fi
+
+    attempt=$((attempt + 1))
+  done
+
+  if [ -n "$validation_error" ]; then
+    case "$validation_error" in
+    'Error: '*)
+      printf '%s\n' "$validation_error" >&2
+      ;;
+    *)
+      printf 'Error: %s\n' "$validation_error" >&2
+      ;;
+    esac
   fi
 
-  validate_commit_plan "$requested_plan_json" "$changed_files"
-  if [ "$create_pr" = 'true' ]; then
-    validate_pull_request_plan "$requested_plan_json"
-  fi
-  debug_log 'Validated commit plan JSON'
-  output_ref="$requested_plan_json"
+  echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
+  exit 1
 }
 
 load_run_configuration() {
