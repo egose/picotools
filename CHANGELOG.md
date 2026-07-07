@@ -1,3 +1,9 @@
+## [0.43.0](https://github.com/egose/picotools/compare/v0.42.0...v0.43.0) (2026-07-07)
+
+### Features
+
+* add stricter commit plan validation guidance and raw response diagnostics ([7c573d8](https://github.com/egose/picotools/commit/7c573d86008b54c7c88b4602639b9996c615aac9))
+
 ## [0.42.0](https://github.com/egose/picotools/compare/v0.41.0...v0.42.0) (2026-07-07)
 
 ### Features
