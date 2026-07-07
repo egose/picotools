@@ -728,6 +728,8 @@ create_initial_commit() {
   assert_contains "$(<"$ask_log")" 'MESSAGE_FILE_CONTENT=Analyze these current git workspace changes and propose conventional commit plan JSON.' 'git-commit should write the user prompt into the temp file'
   assert_contains "$(<"$ask_log")" 'Allowed types: feat, fix, docs, refactor, chore, perf, test, ci' 'git-commit should keep the allowed commit types in the prompt aligned with runtime validation'
   assert_contains "$(<"$ask_log")" 'Each changed file must appear in exactly one commit, even when there is only one commit.' 'git-commit should tell the model that file coverage is strict even for a single commit'
+  assert_contains "$(<"$ask_log")" "Before returning, check the full changed-file list and confirm every listed file appears exactly once across all commit \`files\` arrays." 'git-commit should tell the model to verify the changed-file list before returning'
+  assert_contains "$(<"$ask_log")" 'Before returning, confirm the final response string is a single valid JSON object with the exact requested shape and no extra text before or after it.' 'git-commit should tell the model to verify the raw JSON response string before returning'
   assert_not_contains "$(<"$ask_log")" '"pull_request":{"title":"short pr title","body":"detailed markdown description"}' 'git-commit should not request PR details unless --pr is used'
 }
 
@@ -2225,6 +2227,7 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update app logic')" 'git-commit should print the first corrected grouped commit after retry'
   assert_contains "$output" "$(preview_git_commit_command 'test(11222): add coverage for app logic')" 'git-commit should print the second corrected grouped commit after retry'
   assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should send correction guidance to the model on the retry request'
+  assert_contains "$(<"$ask_log")" 'Re-check the changed-file list and your final response string before returning.' 'git-commit should tell the model to re-check both file coverage and the final response string on retry'
 }
 
 @test "surfaces the underlying validation error after exhausting the commit plan retry budget" {
@@ -2271,6 +2274,8 @@ create_initial_commit() {
   fi
 
   assert_contains "$output" 'Error: pull_request.title must be a string when provided' 'git-commit should surface the original validation error after exhausting commit plan retries'
+  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response after exhausting commit plan retries on validation errors'
+  assert_contains "$output" '"pull_request":{"title":{},"body":[]}' 'git-commit should show the invalid raw response body for validation failures'
   assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should retry the commit plan once before giving up on validation errors'
 }
 
@@ -2313,5 +2318,7 @@ create_initial_commit() {
   fi
 
   assert_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should surface the parseable-JSON error after exhausting commit plan retries'
+  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response after exhausting commit plan retries on invalid JSON'
+  assert_contains "$output" 'I really cannot do this.' 'git-commit should show the final raw non-JSON response on invalid JSON failures'
   assert_contains "$(<"$ask_log")" 'Return ONLY the JSON object with the exact shape requested' 'git-commit should ask the model for clean JSON after a parseable-JSON failure'
 }

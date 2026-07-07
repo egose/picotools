@@ -19,6 +19,7 @@ MAX_COMMIT_PLAN_ADDED_FILE_BYTES=65536
 MAX_COMMIT_PLAN_EXISTING_PR_BODY_CHARS=20000
 MAX_COMMIT_HEADER_LENGTH=100
 GIT_COMMIT_TMPFILES=()
+LAST_RAW_COMMIT_PLAN_RESPONSE=''
 
 usage() {
   cat <<'EOF'
@@ -844,8 +845,11 @@ Rules:
 - Prefer separate commits when reusable supporting changes are independently useful from the consuming feature.
 - When one tool or shared capability is extended to support a new tool, prefer one commit for the supporting capability and another for the new consuming feature when the split is coherent.
 - Each changed file must appear in exactly one commit, even when there is only one commit.
+- Before returning, check the full changed-file list and confirm every listed file appears exactly once across all commit `files` arrays.
+- Before returning, confirm no file path appears in more than one commit.
 - Use file paths exactly as provided.
 - Do not include markdown fences or commentary.
+- Before returning, confirm the final response string is a single valid JSON object with the exact requested shape and no extra text before or after it.
 EOF
 }
 
@@ -922,7 +926,7 @@ build_commit_planning_retry_message() {
 
   printf '%s\n\n%s\n%s\n\n%s\n' \
     'A previous attempt produced an invalid commit plan. Reuse the same workspace information below.' \
-    'Correction required:' "$correction" \
+    'Correction required:' "${correction} Re-check the changed-file list and your final response string before returning." \
     "$original_user_message"
 }
 
@@ -953,6 +957,18 @@ print_error_output() {
     printf '\n' >&2
     ;;
   esac
+}
+
+record_raw_commit_plan_response() {
+  LAST_RAW_COMMIT_PLAN_RESPONSE="$1"
+}
+
+print_raw_commit_plan_response() {
+  if [ -z "$LAST_RAW_COMMIT_PLAN_RESPONSE" ]; then
+    return 0
+  fi
+
+  printf 'Raw model response:\n%s\n' "$LAST_RAW_COMMIT_PLAN_RESPONSE" >&2
 }
 
 request_commit_plan_once() {
@@ -1000,6 +1016,7 @@ request_commit_plan() {
   printf '%s' "$user_message" >"$user_message_file"
 
   if output=$(request_commit_plan_once "$profile" "$model" "$system_message_file" "$user_message_file" "$stderr_file"); then
+    record_raw_commit_plan_response "$output"
     printf '%s\n' "$output"
     return 0
   else
@@ -1011,6 +1028,7 @@ request_commit_plan() {
     debug_log "Primary model request failed with a retryable status; retrying with additional profile '$additional_profile' model '$additional_model'"
     : >"$stderr_file"
     if output=$(request_commit_plan_once "$additional_profile" "$additional_model" "$system_message_file" "$user_message_file" "$stderr_file"); then
+      record_raw_commit_plan_response "$output"
       printf '%s\n' "$output"
       return 0
     else
@@ -1677,7 +1695,7 @@ request_validated_commit_plan() {
   local existing_pr_title="${12:-}"
   local existing_pr_body="${13:-}"
   local existing_pr_exists="${14:-false}"
-  local system_message user_message requested_plan_json retry_message attempt max_attempts validation_error request_status
+  local system_message user_message raw_requested_plan_json requested_plan_json retry_message attempt max_attempts validation_error request_status
   local -n output_ref="$output_ref_name"
 
   debug_log 'Collecting workspace diff for commit planning'
@@ -1690,20 +1708,21 @@ request_validated_commit_plan() {
   while true; do
     debug_log "Requesting commit plan, attempt $attempt/$max_attempts"
     if [ "$attempt" -eq 1 ]; then
-      requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
+      raw_requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
         request_status=$?
         exit "$request_status"
       }
     else
       retry_message=$(build_commit_planning_retry_message "$user_message" "$validation_error")
       debug_log 'Retrying commit plan request with correction guidance'
-      requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$retry_message") || {
+      raw_requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$retry_message") || {
         request_status=$?
         exit "$request_status"
       }
     fi
 
-    requested_plan_json=$(extract_commit_plan_json "$requested_plan_json")
+    record_raw_commit_plan_response "$raw_requested_plan_json"
+    requested_plan_json=$(extract_commit_plan_json "$raw_requested_plan_json")
     debug_log "Extracted commit plan JSON (${#requested_plan_json} chars)"
 
     if commit_plan_json_is_parseable "$requested_plan_json"; then
@@ -1734,6 +1753,8 @@ request_validated_commit_plan() {
       ;;
     esac
   fi
+
+  print_raw_commit_plan_response
 
   echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
   exit 1
