@@ -2227,7 +2227,54 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update app logic')" 'git-commit should print the first corrected grouped commit after retry'
   assert_contains "$output" "$(preview_git_commit_command 'test(11222): add coverage for app logic')" 'git-commit should print the second corrected grouped commit after retry'
   assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should send correction guidance to the model on the retry request'
+  assert_contains "$(<"$ask_log")" 'Remove duplicate file assignments.' 'git-commit should give duplicate-file-specific correction guidance on retry'
   assert_contains "$(<"$ask_log")" 'Re-check the changed-file list and your final response string before returning.' 'git-commit should tell the model to re-check both file coverage and the final response string on retry'
+}
+
+@test "surfaces duplicate-file validation errors without also reporting a JSON parse failure" {
+  local stub_path jq_stub repo output ask_log
+  local sequence_file index_file
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/ask.sequence"
+  index_file="$TMP_HOME/ask.index"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/src" "$repo/tests"
+  printf 'code change\n' >"$repo/src/app.txt"
+  printf 'test change\n' >"$repo/tests/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  printf '%s\n' \
+    '{"commits":[{"type":"feat","message":"duplicate layout","files":["src/app.txt","tests/app.txt"]},{"type":"test","message":"coverage","files":["tests/app.txt"]}]}' \
+    '{"commits":[{"type":"feat","message":"duplicate layout","files":["src/app.txt","tests/app.txt"]},{"type":"test","message":"coverage","files":["tests/app.txt"]}]}' \
+    >"$sequence_file"
+  rm -f "$index_file"
+
+  if output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+      MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+      "$TOOL" 2>&1
+  ); then
+    fail 'git-commit should fail when every retry keeps duplicating a file across commits'
+  fi
+
+  assert_contains "$output" 'Error: commit plan assigned the same file to multiple commits: tests/app.txt' 'git-commit should surface the duplicate-file validation error directly'
+  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response for duplicate-file validation failures'
+  assert_not_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should not report a JSON parse failure when the model returned valid but invalid-plan JSON'
+  assert_contains "$(<"$ask_log")" 'Remove duplicate file assignments.' 'git-commit should keep the duplicate-file-specific retry guidance in the retry prompt'
 }
 
 @test "surfaces the underlying validation error after exhausting the commit plan retry budget" {
