@@ -1,3 +1,13 @@
+## [0.45.0](https://github.com/egose/picotools/compare/v0.44.0...v0.45.0) (2026-07-10)
+
+### Features
+
+* add inotify watch reporting tool and docs ([8caac87](https://github.com/egose/picotools/commit/8caac8776178212fd47e0af94cfad72efd62d540))
+
+### Bug Fixes
+
+* improve commit command quoting in previews ([bd0a4d0](https://github.com/egose/picotools/commit/bd0a4d0cac7e5c15ed32e791ea49089de026deb6))
+
 ## [0.44.0](https://github.com/egose/picotools/compare/v0.43.1...v0.44.0) (2026-07-07)
 
 ### Features
