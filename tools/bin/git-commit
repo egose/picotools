@@ -2032,10 +2032,16 @@ print_git_add_command() {
   printf '\n'
 }
 
+shell_squote() {
+  local text="$1"
+
+  printf "'%s'" "${text//\'/\'\\\'\'}"
+}
+
 print_git_commit_command() {
   local title="$1"
 
-  printf 'git commit -m %q\n' "$title"
+  printf 'git commit -m %s\n' "$(shell_squote "$title")"
 }
 
 print_commit_plan() {
