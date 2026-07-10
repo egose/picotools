@@ -47,6 +47,10 @@ strip_ansi() {
   printf '%s' "$1" | perl -pe 's/\e\[[0-9;?]*[ -\/]*[@-~]//g'
 }
 
+strip_box_borders() {
+  perl -C -pe 's/^[\x{2500}-\x{257F}\x{2550}-\x{256C}]+[ \t]*//; s/[ \t]*[\x{2500}-\x{257F}\x{2550}-\x{256C}]+$//'
+}
+
 preview_git_add_command() {
   if [ "$#" -eq 0 ]; then
     printf 'git add -A :/\n'
@@ -61,10 +65,16 @@ preview_git_add_command() {
   printf '\n'
 }
 
+preview_shell_squote() {
+  local text="$1"
+
+  printf "'%s'" "${text//\'/\'\\\'\'}"
+}
+
 preview_git_commit_command() {
   local title="$1"
 
-  printf 'git commit -m %q\n' "$title"
+  printf 'git commit -m %s\n' "$(preview_shell_squote "$title")"
 }
 
 decode_bash_word() {
@@ -1252,7 +1262,7 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"refresh git, model, release, license, asdf, API, and route tools to use shared helpers and improved flows","files":["README.md"]}]}' \
     "$TOOL" 2>&1)
 
-  commit_command=$(printf '%s\n' "$output" | grep 'git commit -m ' | head -n 1)
+  commit_command=$(printf '%s\n' "$output" | strip_box_borders | grep 'git commit -m ' | head -n 1)
   header=$(decode_bash_word "${commit_command#git commit -m }")
 
   if [ "${#header}" -gt 100 ]; then

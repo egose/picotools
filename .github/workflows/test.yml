@@ -89,6 +89,9 @@ jobs:
         "$PWD/tmp/install/bin/license" --help >/dev/null
         test "$("$PWD/tmp/install/bin/license" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/inotify-watches" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/inotify-watches" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/oc-quota-requests" --help >/dev/null
         test "$("$PWD/tmp/install/bin/oc-quota-requests" --version)" = "$(cat VERSION)"
 
