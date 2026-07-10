@@ -1,0 +1,671 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" prompt string table version
+
+INOTIFY_WATCHES_MAX_USER_FILE="/proc/sys/fs/inotify/max_user_watches"
+INOTIFY_WATCHES_PROC="/proc"
+INOTIFY_WATCHES_TOP=10
+INOTIFY_WATCHES_SHOW_ALL=false
+INOTIFY_WATCHES_SHOW_ZEROS=false
+INOTIFY_WATCHES_KILL=false
+INOTIFY_WATCHES_SIGNAL='TERM'
+INOTIFY_WATCHES_ASSUME_YES=false
+INOTIFY_WATCHES_DRY_RUN=false
+declare -a INOTIFY_WATCHES_KILL_PIDS=()
+
+usage() {
+  cat <<'EOF'
+Usage: inotify-watches [options] [PID...]
+
+Inspects per-process Linux inotify watch usage by scanning /proc/<pid>/fdinfo/*
+for `inotify wd:` entries, then prints a formatted table of the top consumers
+alongside the system-wide total against the current max_user_watches limit.
+
+Options:
+  -n, --top N            Show the top N consumers (default: 10)
+  -a, --all              Show all processes, not just the top N
+  -z, --show-zeros       Include processes with zero recorded watches
+  -k, --kill             After printing the table, prompt to multi-select and
+                         signal the listed consumer PIDs (default signal: TERM)
+  -s, --signal SIG       Signal to send with --kill (e.g. TERM, KILL, HUP)
+      --dry-run          With --kill, print the kill commands without sending them
+      --yes              With --kill, skip the confirmation prompt
+  -p, --pid PID          Process id to kill; repeatable, forces --kill
+  --debug                Print progress details to stderr
+  -h, --help, help       Show this help message
+  -v, --version, version Show the tool version
+
+Non-interactive behavior:
+  When --kill is used without a terminal, the multi-select prompt is skipped
+  and PID(s) must be supplied explicitly via `--pid` repeatable flags or as
+  trailing positional arguments.
+
+Examples:
+  inotify-watches
+  inotify-watches --top 20
+  inotify-watches --all
+  inotify-watches --kill
+  inotify-watches --kill --all
+  inotify-watches --kill --signal KILL
+  inotify-watches --kill --dry-run
+  inotify-watches --kill --pid 1234 --pid 5678
+  inotify-watches --dry-run 1234 5678
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[inotify-watches] %s\n' "$1" >&2
+  fi
+}
+
+read_max_watches() {
+  local max_file="$1"
+
+  if [ ! -r "$max_file" ]; then
+    printf '0\n'
+    return 0
+  fi
+
+  picotools_trim_whitespace "$(cat "$max_file")"
+}
+
+format_percentage() {
+  local used="$1"
+  local total="$2"
+
+  if [ "$total" -eq 0 ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  awk -v used="$used" -v total="$total" 'BEGIN { printf "%.2f%%", (used / total) * 100 }'
+}
+
+render_progress_bar() {
+  local filled="$1"
+  local total_slots=10
+  local index
+  local bar='['
+
+  if [ "$filled" -lt 0 ]; then
+    filled=0
+  fi
+  if [ "$filled" -gt "$total_slots" ]; then
+    filled=$total_slots
+  fi
+
+  for ((index = 0; index < total_slots; index++)); do
+    if [ "$index" -lt "$filled" ]; then
+      bar+="█"
+    else
+      bar+="░"
+    fi
+  done
+
+  bar+=']'
+  printf '%s' "$bar"
+}
+
+format_progress_bar() {
+  local used="$1"
+  local total="$2"
+  local filled
+
+  if [ "$total" -le 0 ]; then
+    printf 'n/a'
+    return 0
+  fi
+
+  filled=$(awk -v used="$used" -v total="$total" 'BEGIN {
+    ratio = used / total
+    if (ratio < 0) ratio = 0
+    if (ratio > 1) ratio = 1
+    printf "%d\n", int((ratio * 10) + 0.5)
+  }')
+  render_progress_bar "$filled"
+}
+
+read_cmdline() {
+  local pid_dir="$1"
+  local cmdline
+
+  if [ ! -r "${pid_dir}/cmdline" ]; then
+    printf '<unreadable>\n'
+    return 0
+  fi
+
+  cmdline=$(tr '\0' ' ' <"${pid_dir}/cmdline")
+  cmdline=$(picotools_trim_whitespace "$cmdline")
+
+  if [ -z "$cmdline" ]; then
+    if [ -r "${pid_dir}/comm" ]; then
+      cmdline=$(picotools_trim_whitespace "$(cat "${pid_dir}/comm")")
+    fi
+    if [ -z "$cmdline" ]; then
+      cmdline='<kernel>'
+    fi
+  fi
+
+  printf '%s\n' "${cmdline:0:120}"
+}
+
+count_pid_watches() {
+  local pid_dir="$1"
+  local fdinfo_dir="${pid_dir}/fdinfo"
+  local count=0
+
+  if [ ! -d "$fdinfo_dir" ] || [ ! -r "$fdinfo_dir" ]; then
+    printf '0\n'
+    return 0
+  fi
+
+  count=$(awk '
+    FNR == 1 { file_has_inotify = 0 }
+    /^inotify wd:/ {
+      watch_count++
+      file_has_inotify = 1
+    }
+    ENDFILE {
+      if (file_has_inotify == 1) {
+        file_total += watch_count
+      }
+      watch_count = 0
+      file_has_inotify = 0
+    }
+    END { print file_total + 0 }
+  ' "${pid_dir}"/fdinfo/* 2>/dev/null)
+
+  picotools_trim_whitespace "$count"
+}
+
+collect_watches() {
+  local proc_root="$1"
+  local include_zeros="$2"
+  local pid_dir
+  local pid
+  local count
+  local cmdline
+
+  shopt -s nullglob
+  for pid_dir in "${proc_root}"/[0-9]*; do
+    [ -d "$pid_dir" ] || continue
+
+    pid=$(basename "$pid_dir")
+    debug_log "Scanning PID $pid"
+
+    count=$(count_pid_watches "$pid_dir")
+    if [ "$include_zeros" != 'true' ] && [ "$count" -le 0 ]; then
+      continue
+    fi
+
+    cmdline=$(read_cmdline "$pid_dir")
+    RECORDS+=("${count}"$'\t'"${pid}"$'\t'"${cmdline}")
+    TOTAL_WATCHES=$((TOTAL_WATCHES + count))
+  done
+  shopt -u nullglob
+}
+
+sorted_records() {
+  local -n sorted_in_ref="$1"
+  local -n sorted_out_ref="$2"
+
+  sorted_out_ref=()
+  if [ "${#sorted_in_ref[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  local buffer
+  buffer=$(printf '%s\n' "${sorted_in_ref[@]}" | sort -t$'\t' -k1,1nr -k2,2n)
+
+  while IFS= read -r line; do
+    [ -n "$line" ] && sorted_out_ref+=("$line")
+  done <<<"$buffer"
+}
+
+print_summary() {
+  local total="$1"
+  local max="$2"
+  local -a rows=()
+
+  rows=(
+    "Total watches"$'\t'"${total}"
+    "max_user_watches"$'\t'"${max}"
+    "Usage %"$'\t'"$(format_percentage "$total" "$max")"
+    "Usage bar"$'\t'"$(format_progress_bar "$total" "$max")"
+  )
+
+  picotools_print_two_column_table "${rows[@]}"
+}
+
+print_records_table() {
+  local max="$1"
+  shift
+  local -a rows=("$@")
+  local row
+  local count
+  local pid
+  local cmdline
+  local percent
+  local bar
+  local -a rendered=()
+
+  if [ "${#rows[@]}" -eq 0 ]; then
+    printf 'No inotify watch consumers found.\n'
+    return 0
+  fi
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r count pid cmdline <<<"$row"
+    percent=$(format_percentage "$count" "$max")
+    bar=$(format_progress_bar "$count" "$max")
+    rendered+=("${count}"$'\t'"${pid}"$'\t'"${percent}"$'\t'"${bar}"$'\t'"${cmdline}")
+  done
+
+  picotools_print_table $'Watches\tPID\tUsage %\tUsage Bar\tCommand' "${rendered[@]}"
+}
+
+record_for_pid() {
+  local needle_pid="$1"
+  shift
+  local -a search_records=("$@")
+  local row count pid cmdline
+
+  for row in "${search_records[@]}"; do
+    IFS=$'\t' read -r count pid cmdline <<<"$row"
+    if [ "$pid" = "$needle_pid" ]; then
+      printf '%s\t%s\t%s\n' "$count" "$pid" "$cmdline"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+pid_alive() {
+  local pid_dir="${INOTIFY_WATCHES_PROC}/$1"
+  [ -d "$pid_dir" ]
+}
+
+normalize_signal() {
+  local raw="${1^^}"
+  case "$raw" in
+  HUP | INT | QUIT | ILL | TRAP | ABRT | BUS | FPE | KILL | USR1 | SEGV | USR2 | PIPE | ALRM | TERM | STKFLT | CHLD | CONT | STOP | TSTP | TTIN | TTOU | URG | XCPU | XFSZ | VTALRM | PROF | WINCH | IO | PWR | SYS)
+    printf '%s\n' "$raw"
+    return 0
+    ;;
+  [0-9]*)
+    if [[ "$raw" =~ ^[0-9]+$ ]]; then
+      printf '%s\n' "$raw"
+      return 0
+    fi
+    ;;
+  esac
+
+  echo "Error: invalid signal '${1}'" >&2
+  return 1
+}
+
+build_kill_options() {
+  local -n kill_records_ref="$1"
+  local -n kill_options_ref="$2"
+  local row count pid cmdline label
+
+  kill_options_ref=()
+  for row in "${kill_records_ref[@]}"; do
+    IFS=$'\t' read -r count pid cmdline <<<"$row"
+    label=$(printf '%s watches  PID %s  %s' "$count" "$pid" "$cmdline")
+    kill_options_ref+=("$label")
+  done
+}
+
+print_kill_targets() {
+  local -a targets=("$@")
+  local row count pid cmdline
+  local -a rows=()
+
+  if [ "${#targets[@]}" -eq 0 ]; then
+    return 0
+  fi
+
+  for row in "${targets[@]}"; do
+    IFS=$'\t' read -r count pid cmdline <<<"$row"
+    rows+=("${pid}"$'\t'"${count}"$'\t'"${cmdline}")
+  done
+
+  picotools_print_table $'PID\tWatches\tCommand' "${rows[@]}"
+}
+
+select_kill_targets() {
+  local -a select_records=("$@")
+  local -a options=()
+  local -a indexes=()
+  local -a targets=()
+  local index
+  local row
+
+  if [ "${#select_records[@]}" -eq 0 ]; then
+    printf 'No inotify watch consumers available to kill.\n' >&2
+    return 0
+  fi
+
+  build_kill_options select_records options
+
+  if [ "$INOTIFY_WATCHES_ASSUME_YES" = 'true' ]; then
+    for index in "${!select_records[@]}"; do
+      indexes+=("$((index + 1))")
+    done
+  elif [ -t 0 ] && [ -t 2 ]; then
+    local selection_output
+    if selection_output=$(picotools_prompt_select_multiple_indexes 'Kill inotify consumers' 'Select PIDs to kill' true "${options[@]}"); then
+      mapfile -t indexes <<<"$selection_output"
+    else
+      picotools_cancel
+      return 1
+    fi
+  else
+    printf 'Error: cannot prompt for kill selection without a terminal; pass PID(s) as arguments or --pid.\n' >&2
+    return 1
+  fi
+
+  for index in "${indexes[@]+"${indexes[@]}"}"; do
+    row="${select_records[$((index - 1))]}"
+    targets+=("$row")
+  done
+
+  print_kill_targets "${targets[@]}"
+  if [ "${#targets[@]}" -eq 0 ]; then
+    printf 'No PIDs selected; killing nothing.\n'
+    return 0
+  fi
+
+  printf 'Signal: %s\n' "$INOTIFY_WATCHES_SIGNAL"
+  if [ "$INOTIFY_WATCHES_ASSUME_YES" != 'true' ]; then
+    if ! picotools_confirm_action "Send $INOTIFY_WATCHES_SIGNAL to ${#targets[@]} PID(s)?"; then
+      return 1
+    fi
+  fi
+
+  send_kill_signals "${targets[@]}"
+}
+
+resolve_kill_targets_from_pids() {
+  local -n resolve_source_ref="$1"
+  local -n resolve_output_ref="$2"
+  shift 2
+  local -a raw_pids=("$@")
+  local raw_pid row
+  local -a seen_pids=()
+
+  resolve_output_ref=()
+
+  for raw_pid in "${raw_pids[@]}"; do
+    local already=0
+    for seen in "${seen_pids[@]+"${seen_pids[@]}"}"; do
+      if [ "$seen" = "$raw_pid" ]; then already=1; fi
+    done
+    if [ "$already" -eq 1 ]; then
+      continue
+    fi
+    seen_pids+=("$raw_pid")
+
+    if row=$(record_for_pid "$raw_pid" "${resolve_source_ref[@]}"); then
+      resolve_output_ref+=("$row")
+    elif pid_alive "$raw_pid"; then
+      resolve_output_ref+=($'?\t'"${raw_pid}"$'\t''<no inotify watches>')
+    else
+      printf 'Error: PID %s not found under %s and not running.\n' "$raw_pid" "$INOTIFY_WATCHES_PROC" >&2
+      return 1
+    fi
+  done
+
+  return 0
+}
+
+send_kill_signals() {
+  local -a targets=("$@")
+  local row count pid cmdline
+  local pid_dir
+  local exit_code=0
+
+  for row in "${targets[@]}"; do
+    IFS=$'\t' read -r count pid cmdline <<<"$row"
+
+    if [ "$count" = '?' ]; then
+      debug_log "Skipping signal for PID $pid: not an inotify consumer (it was requested explicitly)"
+      continue
+    fi
+
+    pid_dir="${INOTIFY_WATCHES_PROC}/${pid}"
+    if [ ! -d "$pid_dir" ]; then
+      printf 'PID %s already gone (skipped)\n' "$pid"
+      continue
+    fi
+
+    if [ "$INOTIFY_WATCHES_DRY_RUN" = 'true' ]; then
+      printf 'kill -%s %s\n' "$INOTIFY_WATCHES_SIGNAL" "$pid"
+      continue
+    fi
+
+    debug_log "Sending $INOTIFY_WATCHES_SIGNAL to PID $pid"
+    if kill -"$INOTIFY_WATCHES_SIGNAL" "$pid"; then
+      printf 'kill -%s %s\n' "$INOTIFY_WATCHES_SIGNAL" "$pid"
+    else
+      printf 'Error: failed to send %s to PID %s\n' "$INOTIFY_WATCHES_SIGNAL" "$pid" >&2
+      exit_code=1
+    fi
+  done
+
+  return "$exit_code"
+}
+
+main() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    -n | --top)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      INOTIFY_WATCHES_TOP="$2"
+      shift 2
+      ;;
+    --top=*)
+      INOTIFY_WATCHES_TOP="${1#*=}"
+      shift
+      ;;
+    -a | --all)
+      INOTIFY_WATCHES_SHOW_ALL=true
+      shift
+      ;;
+    -z | --show-zeros)
+      INOTIFY_WATCHES_SHOW_ZEROS=true
+      shift
+      ;;
+    --proc)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      INOTIFY_WATCHES_PROC="$2"
+      shift 2
+      ;;
+    --proc=*)
+      INOTIFY_WATCHES_PROC="${1#*=}"
+      shift
+      ;;
+    --max-file)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      INOTIFY_WATCHES_MAX_USER_FILE="$2"
+      shift 2
+      ;;
+    --max-file=*)
+      INOTIFY_WATCHES_MAX_USER_FILE="${1#*=}"
+      shift
+      ;;
+    -k | --kill)
+      INOTIFY_WATCHES_KILL=true
+      shift
+      ;;
+    -s | --signal)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      INOTIFY_WATCHES_SIGNAL="$2"
+      shift 2
+      ;;
+    --signal=*)
+      INOTIFY_WATCHES_SIGNAL="${1#*=}"
+      shift
+      ;;
+    --dry-run)
+      INOTIFY_WATCHES_DRY_RUN=true
+      shift
+      ;;
+    --yes)
+      INOTIFY_WATCHES_ASSUME_YES=true
+      shift
+      ;;
+    -p | --pid)
+      if [ "$#" -lt 2 ]; then
+        echo "Error: missing value for $1" >&2
+        exit 1
+      fi
+      INOTIFY_WATCHES_KILL_PIDS+=("$2")
+      INOTIFY_WATCHES_KILL=true
+      shift 2
+      ;;
+    --pid=*)
+      INOTIFY_WATCHES_KILL_PIDS+=("${1#*=}")
+      INOTIFY_WATCHES_KILL=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    *)
+      case "${1:-}" in
+      '' | *[!0-9]*)
+        echo "Error: unknown argument: $1" >&2
+        usage >&2
+        exit 1
+        ;;
+      *)
+        INOTIFY_WATCHES_KILL_PIDS+=("$1")
+        INOTIFY_WATCHES_KILL=true
+        shift
+        ;;
+      esac
+      ;;
+    esac
+  done
+
+  case "$INOTIFY_WATCHES_TOP" in
+  '' | *[!0-9]*)
+    echo "Error: --top must be a non-negative integer" >&2
+    exit 1
+    ;;
+  esac
+
+  if [ ! -d "$INOTIFY_WATCHES_PROC" ]; then
+    echo "Error: proc root not found: $INOTIFY_WATCHES_PROC" >&2
+    exit 1
+  fi
+
+  debug_log "Proc root: $INOTIFY_WATCHES_PROC"
+  debug_log "Max watches file: $INOTIFY_WATCHES_MAX_USER_FILE"
+
+  collect_watches "$INOTIFY_WATCHES_PROC" "$INOTIFY_WATCHES_SHOW_ZEROS"
+
+  local max_watches
+  max_watches=$(read_max_watches "$INOTIFY_WATCHES_MAX_USER_FILE")
+  debug_log "max_user_watches: $max_watches"
+  debug_log "Total watches across processes: $TOTAL_WATCHES"
+
+  local -a sorted=()
+  sorted_records RECORDS sorted
+
+  local limit="$INOTIFY_WATCHES_TOP"
+  if [ "$INOTIFY_WATCHES_SHOW_ALL" = 'true' ] || [ "$limit" -le 0 ]; then
+    limit="${#sorted[@]}"
+  fi
+
+  local -a top_records=()
+  if [ "$limit" -gt 0 ] && [ "${#sorted[@]}" -gt 0 ]; then
+    top_records=("${sorted[@]:0:limit}")
+  fi
+
+  print_summary "$TOTAL_WATCHES" "$max_watches"
+  printf '\nTop consumers:\n'
+  print_records_table "$max_watches" "${top_records[@]}"
+
+  if [ "$max_watches" -gt 0 ] && [ "$TOTAL_WATCHES" -gt "$max_watches" ]; then
+    printf '\nWarning: total watches exceed max_user_watches limit.\n'
+  fi
+
+  if [ "$INOTIFY_WATCHES_KILL" != 'true' ]; then
+    return 0
+  fi
+
+  if ! INOTIFY_WATCHES_SIGNAL=$(normalize_signal "$INOTIFY_WATCHES_SIGNAL"); then
+    exit 1
+  fi
+
+  if [ "${#INOTIFY_WATCHES_KILL_PIDS[@]}" -gt 0 ]; then
+    local -a explicit_records=()
+    if ! resolve_kill_targets_from_pids sorted explicit_records "${INOTIFY_WATCHES_KILL_PIDS[@]}"; then
+      return 1
+    fi
+
+    printf '\nKill targets:\n'
+    print_kill_targets "${explicit_records[@]}"
+    printf 'Signal: %s\n' "$INOTIFY_WATCHES_SIGNAL"
+
+    if [ "$INOTIFY_WATCHES_ASSUME_YES" != 'true' ]; then
+      if ! picotools_confirm_action "Send $INOTIFY_WATCHES_SIGNAL to ${#explicit_records[@]} PID(s)?"; then
+        return 1
+      fi
+    fi
+
+    send_kill_signals "${explicit_records[@]}"
+  else
+    select_kill_targets "${sorted[@]}"
+  fi
+}
+
+declare -a RECORDS=()
+TOTAL_WATCHES=0
+
+main "$@"

@@ -25,6 +25,7 @@ The following scripts are included in `tools/bin`:
 | `git-clean-branches` | Deletes local branches and merged remote branches except the default/current branch |
 | `git-clean-task-pr` | Creates a fresh PR branch by pulling the base branch, then soft-resetting to one staged commit |
 | `license` | Creates or updates a LICENSE file from MIT or Apache 2.0 templates |
+| `inotify-watches` | Reports per-PID Linux inotify watch usage against `fs.inotify.max_user_watches` |
 
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
@@ -57,6 +58,8 @@ The following scripts are included in `tools/bin`:
 `git-clean-task-pr` first tries `git remote set-head <remote> --auto`, then falls back to cached local Git refs, and finally uses `main` when `refs/remotes/<remote>/main` exists. It also prompts for a new branch name and suggests `<current-branch>-1` or increments a trailing `-<number>` suffix such as `feat/1234-1` to `feat/1234-2`.
 
 `license` writes `LICENSE` in the current directory by default. It prompts you to choose `MIT License` or `Apache License 2.0`, asks before overwriting an existing file, updates `package.json` in the current directory when present, supports `--type` for non-interactive runs, and accepts an optional output path. It always requires a copyright owner for all supported license types and defaults that prompt from `package.json.author` when available. For Apache 2.0, copyright years are optional and the interactive flow lets you choose among omitting years, deriving them from git history, or entering them manually. For CI or scripted use, `--copyright-owner` or `--owner` works for all supported license types, and `--copyright-years` or `--years` supplies the Apache years directly.
+
+`inotify-watches` scans `/proc/<pid>/fdinfo/*` for `inotify wd:` entries, sums each process's watch count, and prints a summary table of the system-wide total against the current `fs.inotify.max_user_watches` limit followed by a top-consumers table sorted by watch count. Use `-n`/`--top N` to control how many consumers to show (default 10), `--all` to show every process, and `-z`/`--show-zeros` to include processes with zero recorded watches. It reads `cmdline` (or falls back to `comm`) for the command column and warns when the total exceeds the limit. Pass `-k`/`--kill` to enter the kill flow after printing the table: it opens a multi-select menu of the listed consumers, asks for confirmation, then sends the chosen signal (default `TERM`, override with `-s`/`--signal`) to each PID. Use `--dry-run` to print the kill commands without sending them and `--yes` to skip the confirmation prompt. Without a TTY the multi-select is skipped and you must pass explicit PID(s) via repeatable `-p`/`--pid` flags or trailing positional arguments; `--pid` and positional PIDs always force kill mode.
 
 All tools support `--help`, `--version`, and `--debug`. The version is read from the repository `VERSION` file.
 
@@ -110,6 +113,7 @@ git-release-setup
 git-clean-branches
 git-clean-task-pr
 license
+inotify-watches
 ```
 
 Please check the [asdf documentation](https://github.com/asdf-vm/asdf) for more details.
