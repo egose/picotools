@@ -1,6 +1,7 @@
-nodejs 26.4.0
+nodejs 26.5.0
 python 3.14.6
-pnpm 11.10.0
+pnpm 11.17.0
 shellcheck 0.11.0
 shfmt 3.13.1
-bats 1.13.0
+bats 1.14.0
+jq 1.8.2
