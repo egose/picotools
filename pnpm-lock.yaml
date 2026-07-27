@@ -20,15 +20,9 @@ importers:
       '@release-it/bumper':
         specifier: ^7.0.5
         version: 7.0.5(release-it@20.0.1(@types/node@25.6.0))
-      conventional-changelog:
-        specifier: ^7.2.0
-        version: 7.2.0(conventional-commits-filter@5.0.0)
-      conventional-changelog-conventionalcommits:
-        specifier: ^9.3.1
-        version: 9.3.1
-      git-semver-tags:
-        specifier: ^8.0.1
-        version: 8.0.1(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)
+      '@repo-toolkit/changelog':
+        specifier: ^0.7.2
+        version: 0.7.2(conventional-commits-filter@5.0.0)
       release-it:
         specifier: ^20.0.1
         version: 20.0.1(@types/node@25.6.0)
@@ -335,6 +329,16 @@ packages:
     peerDependencies:
       release-it: '>=18.0.0 || >=19.0.0'
 
+  '@repo-toolkit/changelog@0.7.2':
+    resolution: {integrity: sha512-u91IxH5NQd5avn470shFY6d40oDA4DmKirTFpOQ8VanWzvAmUM4/bsPVrU5hkvoMpD4eVaDnRpvJbfQfJPdXHg==}
+    engines: {node: '>=20'}
+    hasBin: true
+
+  '@repo-toolkit/publish-package@0.7.2':
+    resolution: {integrity: sha512-8CtEX6mZQK/wMUMRIER7S3m6CQ6dNwX55zcway/ZHoZzBOb7c7bgG7BIQVD67rj2bsJKT79xxei/b7aGHxOv6w==}
+    engines: {node: '>=20'}
+    hasBin: true
+
   '@simple-libs/child-process-utils@1.0.2':
     resolution: {integrity: sha512-/4R8QKnd/8agJynkNdJmNw2MBxuFTRcNFnE5Sg/G+jkSsV8/UBgULMzhizWWW42p8L5H7flImV2ATi79Ove2Tw==}
     engines: {node: '>=18'}
@@ -497,8 +501,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  conventional-changelog@7.2.0:
-    resolution: {integrity: sha512-BEdgG+vPl53EVlTTk9sZ96aagFp0AQ5pw/ggiQMy2SClLbTo1r0l+8dSg79gkLOO5DS1Lswuhp5fWn6RwE+ivg==}
+  conventional-changelog@7.2.1:
+    resolution: {integrity: sha512-smcpqCeNRCAoL586/Iql8GfVsduP1JDrr7SAzKHWM5C5voDzKhc3QtqwVWeKMhvVw4iYfAr+znz1TF4kPXVm3A==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -714,11 +718,7 @@ packages:
   git-raw-commits@5.0.1:
     resolution: {integrity: sha512-Y+csSm2GD/PCSh6Isd/WiMjNAydu0VBiG9J7EdQsNA5P9uXvLayqjmTsNlK5Gs9IhblFZqOU0yid5Il5JPoLiQ==}
     engines: {node: '>=18'}
-    hasBin: true
-
-  git-semver-tags@8.0.1:
-    resolution: {integrity: sha512-zMbamckSNdlT4U48IMFa2Cn6FTzM+2yF6/gEmStPJI8PiLxd/bT6dw10+mc6u5Qe4fhrc/y9nU290FWjQhAV7g==}
-    engines: {node: '>=18'}
+    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
     hasBin: true
 
   git-up@8.1.1:
@@ -1605,6 +1605,16 @@ snapshots:
       release-it: 20.0.1(@types/node@25.6.0)
       semver: 7.7.4
 
+  '@repo-toolkit/changelog@0.7.2(conventional-commits-filter@5.0.0)':
+    dependencies:
+      '@repo-toolkit/publish-package': 0.7.2
+      conventional-changelog: 7.2.1(conventional-commits-filter@5.0.0)
+      conventional-changelog-conventionalcommits: 9.3.1
+    transitivePeerDependencies:
+      - conventional-commits-filter
+
+  '@repo-toolkit/publish-package@0.7.2': {}
+
   '@simple-libs/child-process-utils@1.0.2':
     dependencies:
       '@simple-libs/stream-utils': 1.2.0
@@ -1769,7 +1779,7 @@ snapshots:
       meow: 13.2.0
       semver: 7.7.4
 
-  conventional-changelog@7.2.0(conventional-commits-filter@5.0.0):
+  conventional-changelog@7.2.1(conventional-commits-filter@5.0.0):
     dependencies:
       '@conventional-changelog/git-client': 2.7.0(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)
       '@simple-libs/hosted-git-info': 1.0.2
@@ -1971,14 +1981,6 @@ snapshots:
       pathe: 2.0.3
 
   git-raw-commits@5.0.1(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0):
-    dependencies:
-      '@conventional-changelog/git-client': 2.7.0(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)
-      meow: 13.2.0
-    transitivePeerDependencies:
-      - conventional-commits-filter
-      - conventional-commits-parser
-
-  git-semver-tags@8.0.1(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0):
     dependencies:
       '@conventional-changelog/git-client': 2.7.0(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.4.0)
       meow: 13.2.0
