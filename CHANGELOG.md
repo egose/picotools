@@ -1,3 +1,10 @@
+## [0.46.0](https://github.com/egose/picotools/compare/v0.45.0...v0.46.0) (2026-07-27)
+
+### Features
+
+* add gh-release-assets for release asset exports ([32830e5](https://github.com/egose/picotools/commit/32830e5d32cdad66733aac30ab95f536b890d7d7))
+* split pre-commit config into a bootstrap commit during apply ([c00359f](https://github.com/egose/picotools/commit/c00359fa057a0cbbd5ada9a16b539dd802612ec5))
+
 ## [0.45.0](https://github.com/egose/picotools/compare/v0.44.0...v0.45.0) (2026-07-10)
 
 ### Features
@@ -32,7 +39,7 @@
 
 * handle fenced commit plans and retry invalid responses ([6631500](https://github.com/egose/picotools/commit/6631500726881d8438cf4861ba1017b521144c04))
 
-### Docs
+### Documentation
 
 * update author name references ([81e5003](https://github.com/egose/picotools/commit/81e5003bb6146625acd14d3bb399853f00a9ee41))
 
@@ -102,7 +109,7 @@
 
 ## [0.33.1](https://github.com/egose/picotools/compare/v0.33.0...v0.33.1) (2026-06-11)
 
-### Refactors
+### Code Refactoring
 
 * rename config directory to git-profile ([7712477](https://github.com/egose/picotools/commit/771247774a2d248c4c661a68a121080e9275f38b))
 
@@ -149,7 +156,7 @@
 
 * correct git-profile config directory path ([89c226e](https://github.com/egose/picotools/commit/89c226e557feef4c50dd0eb691f0f40ac5def780))
 
-### Refactors
+### Code Refactoring
 
 * pluralize config directory name ([723bc35](https://github.com/egose/picotools/commit/723bc3517a84f0a4bfe7bbdd3b0f8433037625c7))
 
@@ -201,11 +208,11 @@
 * enhance tool capabilities and automation logic ([797497e](https://github.com/egose/picotools/commit/797497e0b305a6f69a9d6c896201d4a927d2e31b))
 * support base branch resolution for pull requests ([736965f](https://github.com/egose/picotools/commit/736965f74940552ace7296c67c3463ef3f367f1c))
 
-### Docs
+### Documentation
 
 * update bash tool conventions and README ([16c2e7a](https://github.com/egose/picotools/commit/16c2e7acb9c0560f81b5f41030f5132ed08d2ef3))
 
-### Refactors
+### Code Refactoring
 
 * implement standardized temp file management and command discovery ([2d1ef18](https://github.com/egose/picotools/commit/2d1ef1871b2a4bec8fe3648b0a8c1ed08414c087))
 
@@ -220,7 +227,7 @@
 * add debug logging and handle oversized diffs in git-commit ([19a2568](https://github.com/egose/picotools/commit/19a2568a225e5f09c15eaa9690a7c4d2dcc08058))
 * add git-api tool for calling GitHub REST operations by operationId ([1756049](https://github.com/egose/picotools/commit/1756049d62f397b830cebb60d9aecf59da51ce50))
 
-### Refactors
+### Code Refactoring
 
 * verify load script exists in candidate lib directories ([9b8216a](https://github.com/egose/picotools/commit/9b8216a1d95eeee3882c1cde8db61a949bd944ec))
 
@@ -260,7 +267,7 @@
 * support file-based message arguments in model-provider ([cf7bd47](https://github.com/egose/picotools/commit/cf7bd47e61282dfe6a775a90e093d0191b12013f))
 * use file-based messaging for git-commit LLM requests ([b1c0e70](https://github.com/egose/picotools/commit/b1c0e7056bf2a31c9a2a8249f151cdd4e889cf9e))
 
-### Docs
+### Documentation
 
 * update bash tool conventions for picotools loading and shared helpers ([f8667b7](https://github.com/egose/picotools/commit/f8667b768eeb015e01b2827e8a89fcb9a9c57665))
 
@@ -287,7 +294,7 @@
 * log progress during pre-commit check attempts ([31e4a40](https://github.com/egose/picotools/commit/31e4a40aba1a4ec7f1c0c80d3142c8baf4bfcd26))
 * support ANSI escape sequences in table alignment ([483efbb](https://github.com/egose/picotools/commit/483efbb3614bc552b0f470a24893f7f458917582))
 
-### Refactors
+### Code Refactoring
 
 * modernize shell patterns and tool-versions parsing ([24baa0d](https://github.com/egose/picotools/commit/24baa0dd32fdc6b55ef292d82e7e7f1bb8b3dce3))
 
@@ -337,7 +344,7 @@
 
 * add git-context script ([f768554](https://github.com/egose/picotools/commit/f76855470e0c8bf449ddd7dafffec45cdda833a3))
 
-### Refactors
+### Code Refactoring
 
 * extract shared bash helpers for reusable script logic ([ffbf6e3](https://github.com/egose/picotools/commit/ffbf6e3432f95eb4cd7f7965784c580841905fea))
 
