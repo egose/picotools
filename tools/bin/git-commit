@@ -12,6 +12,7 @@ fi
 picotools_source_modules "$SCRIPT_DIR" box commands prompt ui version
 
 ALLOWED_TYPES='feat fix docs refactor chore perf test ci'
+PRE_COMMIT_CONFIG_FILE='.pre-commit-config.yaml'
 MAX_COMMIT_PLAN_CHANGED_FILES_CHARS=250000
 MAX_COMMIT_PLAN_DIFF_CHARS=50000
 MAX_COMMIT_PLAN_FILE_DIFF_CHARS=16384
@@ -698,6 +699,20 @@ count_nonempty_lines() {
   printf '%s\n' "$count"
 }
 
+changed_files_include_path() {
+  local changed_files="$1"
+  local target_path="$2"
+  local file
+
+  while IFS= read -r file; do
+    if [ "$file" = "$target_path" ]; then
+      return 0
+    fi
+  done <<<"$changed_files"
+
+  return 1
+}
+
 file_size_bytes() {
   local file_path="$1"
 
@@ -1366,6 +1381,107 @@ format_commit_title() {
   printf '%s%s\n' "$prefix" "$message"
 }
 
+pre_commit_config_exists_in_worktree() {
+  [ -f "$(git_repo_root)/$PRE_COMMIT_CONFIG_FILE" ]
+}
+
+pre_commit_config_is_tracked() {
+  git ls-files --error-unmatch -- "$PRE_COMMIT_CONFIG_FILE" >/dev/null 2>&1
+}
+
+pre_commit_config_commit_title() {
+  local scope="$1"
+  local action='update'
+
+  if ! pre_commit_config_is_tracked; then
+    action='add'
+  fi
+
+  format_commit_title chore "$scope" "$action pre-commit config"
+}
+
+should_separate_pre_commit_config_commit() {
+  local plan_json="$1"
+  local scope="$2"
+  local changed_files="$3"
+  local type message title
+  local -a commit_files=()
+
+  if ! changed_files_include_path "$changed_files" "$PRE_COMMIT_CONFIG_FILE"; then
+    return 1
+  fi
+
+  if ! pre_commit_config_exists_in_worktree; then
+    return 1
+  fi
+
+  read_commit_plan_item "$plan_json" 0 "$scope" "$changed_files" type message title commit_files
+  if [ "${#commit_files[@]}" -eq 1 ] && [ "${commit_files[0]}" = "$PRE_COMMIT_CONFIG_FILE" ]; then
+    return 1
+  fi
+
+  return 0
+}
+
+copy_commit_files() {
+  local output_ref_name="$1"
+  shift
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=("$@")
+}
+
+copy_commit_files_without_pre_commit_config() {
+  local output_ref_name="$1"
+  shift
+  local file
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=()
+  for file in "$@"; do
+    if [ "$file" != "$PRE_COMMIT_CONFIG_FILE" ]; then
+      output_ref+=("$file")
+    fi
+  done
+}
+
+effective_commit_count() {
+  local plan_json="$1"
+  local scope="$2"
+  local changed_files="$3"
+  local count commit_index effective_count=0
+  local separate_pre_commit_config=false
+  local type message title
+  local -a commit_files=() effective_files=()
+
+  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
+    separate_pre_commit_config=true
+    effective_count=$((effective_count + 1))
+  fi
+
+  count=$(plan_commit_count "$plan_json")
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
+
+    if [ "$separate_pre_commit_config" = 'true' ]; then
+      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
+    else
+      copy_commit_files effective_files "${commit_files[@]}"
+    fi
+
+    if [ "${#effective_files[@]}" -gt 0 ]; then
+      effective_count=$((effective_count + 1))
+    fi
+
+    commit_index=$((commit_index + 1))
+  done
+
+  printf '%s\n' "$effective_count"
+}
+
 resolve_push_remote() {
   local branch="$1"
   local remote
@@ -1713,6 +1829,7 @@ request_validated_commit_plan() {
   local existing_pr_body="${13:-}"
   local existing_pr_exists="${14:-false}"
   local system_message user_message raw_requested_plan_json requested_plan_json retry_message attempt max_attempts validation_error request_status
+  # shellcheck disable=SC2178
   local -n output_ref="$output_ref_name"
 
   debug_log 'Collecting workspace diff for commit planning'
@@ -1745,6 +1862,7 @@ request_validated_commit_plan() {
     if commit_plan_json_is_parseable "$requested_plan_json"; then
       validation_error=$(run_commit_plan_validation "$requested_plan_json" "$changed_files" "$create_pr") && {
         debug_log 'Validated commit plan JSON'
+        # shellcheck disable=SC2178
         output_ref="$requested_plan_json"
         return 0
       }
@@ -1795,6 +1913,7 @@ prepare_workspace_changes() {
   local output_ref_name="$1"
   local pre_commit_retries="$2"
   local prepared_changed_files changed_file_count
+  # shellcheck disable=SC2178
   local -n output_ref="$output_ref_name"
 
   debug_log 'Checking repository state'
@@ -1816,6 +1935,7 @@ prepare_workspace_changes() {
   debug_log "Collected $changed_file_count changed file(s) after pre-commit"
 
   # shellcheck disable=SC2034
+  # shellcheck disable=SC2178
   output_ref="$prepared_changed_files"
 }
 
@@ -2048,24 +2168,54 @@ print_commit_plan() {
   local plan_json="$1"
   local scope="$2"
   local changed_files="$3"
-  local count commit_index type message title width
+  local count commit_index type message title width effective_count display_index=0
+  local separate_pre_commit_config=false pre_commit_title
   local -a commit_files=() lines=()
+  local -a effective_files=()
 
   count=$(plan_commit_count "$plan_json")
+  effective_count=$(effective_commit_count "$plan_json" "$scope" "$changed_files")
 
   lines+=("commit plan")
+  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
+    separate_pre_commit_config=true
+    pre_commit_title=$(pre_commit_config_commit_title "$scope")
+    display_index=$((display_index + 1))
+    if [ "$effective_count" -gt 1 ]; then
+      lines+=("Commit ${display_index}:")
+    fi
+    lines+=("$(print_git_add_command "$PRE_COMMIT_CONFIG_FILE")")
+    lines+=("$(print_git_commit_command "$pre_commit_title")")
+    if [ "$display_index" -lt "$effective_count" ]; then
+      lines+=("")
+    fi
+  fi
+
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
     read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
-    if [ "$count" -eq 1 ]; then
-      lines+=("$(print_git_add_command "${commit_files[@]}")")
+
+    if [ "$separate_pre_commit_config" = 'true' ]; then
+      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
     else
-      lines+=("Commit $((commit_index + 1)):")
-      lines+=("$(print_git_add_command "${commit_files[@]}")")
+      copy_commit_files effective_files "${commit_files[@]}"
+    fi
+
+    if [ "${#effective_files[@]}" -eq 0 ]; then
+      commit_index=$((commit_index + 1))
+      continue
+    fi
+
+    display_index=$((display_index + 1))
+    if [ "$effective_count" -eq 1 ]; then
+      lines+=("$(print_git_add_command "${effective_files[@]}")")
+    else
+      lines+=("Commit ${display_index}:")
+      lines+=("$(print_git_add_command "${effective_files[@]}")")
     fi
 
     lines+=("$(print_git_commit_command "$title")")
-    if [ "$commit_index" -lt $((count - 1)) ]; then
+    if [ "$display_index" -lt "$effective_count" ]; then
       lines+=("")
     fi
     commit_index=$((commit_index + 1))
@@ -2093,23 +2243,40 @@ execute_commit_plan() {
   local plan_json="$1"
   local scope="$2"
   local changed_files="$3"
-  local count commit_index type message title
+  local count commit_index type message title pre_commit_title
+  local separate_pre_commit_config=false effective_count
   local -a commit_files=()
+  local -a effective_files=()
 
   count=$(plan_commit_count "$plan_json")
-  debug_log "Applying commit plan with $count commit(s)"
+  effective_count=$(effective_commit_count "$plan_json" "$scope" "$changed_files")
+  debug_log "Applying commit plan with $effective_count commit(s)"
+
+  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
+    separate_pre_commit_config=true
+    pre_commit_title=$(pre_commit_config_commit_title "$scope")
+    debug_log "Creating pre-commit config bootstrap commit: $pre_commit_title"
+    git add -- ":/$PRE_COMMIT_CONFIG_FILE"
+    git commit -m "$pre_commit_title"
+  fi
 
   commit_index=0
   while [ "$commit_index" -lt "$count" ]; do
     read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
-    debug_log "Creating commit $((commit_index + 1))/$count: $title"
 
-    if [ "$count" -eq 1 ]; then
-      git add -- "${commit_files[@]/#/:/}"
+    if [ "$separate_pre_commit_config" = 'true' ]; then
+      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
     else
-      git add -- "${commit_files[@]/#/:/}"
+      copy_commit_files effective_files "${commit_files[@]}"
     fi
 
+    if [ "${#effective_files[@]}" -eq 0 ]; then
+      commit_index=$((commit_index + 1))
+      continue
+    fi
+
+    debug_log "Creating commit $((commit_index + 1))/$count: $title"
+    git add -- "${effective_files[@]/#/:/}"
     git commit -m "$title"
     commit_index=$((commit_index + 1))
   done

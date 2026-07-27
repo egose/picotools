@@ -1507,6 +1507,76 @@ create_initial_commit() {
   assert_contains "$output" 'feat(11222): add repository notes' 'git-commit should show the created commit title in apply mode'
 }
 
+@test "applies .pre-commit-config.yaml first when it is grouped with other files" {
+  local stub_path jq_stub repo output head_subject previous_subject status_after
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'repos:\n- repo: https://github.com/pre-commit/pre-commit-hooks\n' >"$repo/.pre-commit-config.yaml"
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":[".pre-commit-config.yaml","README.md","notes.txt"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
+  assert_eq "$head_subject" 'feat(11222): add repository notes' 'git-commit should keep the planned commit after bootstrapping the pre-commit config'
+  assert_eq "$previous_subject" 'chore(11222): add pre-commit config' 'git-commit should commit .pre-commit-config.yaml first in its own bootstrap commit'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after splitting out the pre-commit config commit'
+  assert_contains "$output" 'Commit 1:' 'git-commit should show the synthetic pre-commit config commit first in the preview'
+  assert_contains "$output" "$(preview_git_add_command .pre-commit-config.yaml)" 'git-commit should preview a config-only add command first'
+  assert_contains "$output" "$(preview_git_commit_command 'chore(11222): add pre-commit config')" 'git-commit should preview the synthetic config-only commit first'
+  assert_contains "$output" 'Commit 2:' 'git-commit should show the remaining planned commit after the synthetic config commit'
+  assert_contains "$output" "$(preview_git_add_command README.md notes.txt)" 'git-commit should remove the pre-commit config from the later planned add command'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should still preview the original planned commit title'
+}
+
+@test "applies updated .pre-commit-config.yaml first when it changes" {
+  local stub_path jq_stub repo output head_subject previous_subject status_after
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  printf 'repos:\n- repo: https://github.com/pre-commit/pre-commit-hooks\n' >"$repo/.pre-commit-config.yaml"
+  git -C "$repo" add .pre-commit-config.yaml
+  git -C "$repo" commit -q -m 'chore: add pre-commit config'
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'repos:\n- repo: https://github.com/pre-commit/pre-commit-hooks\n  rev: v4.6.0\n' >"$repo/.pre-commit-config.yaml"
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"refresh repository automation","files":[".pre-commit-config.yaml","README.md"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
+  assert_eq "$head_subject" 'feat(11222): refresh repository automation' 'git-commit should still create the planned commit after updating the pre-commit config first'
+  assert_eq "$previous_subject" 'chore(11222): update pre-commit config' 'git-commit should use an update-specific bootstrap title when the pre-commit config already exists'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after splitting out an updated pre-commit config'
+}
+
 @test "--push implies --apply" {
   local stub_path jq_stub remote repo output head_subject remote_head_subject upstream_branch status_after
 
