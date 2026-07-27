@@ -1,0 +1,273 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" commands debug prompt version
+
+debug_mode=false
+DEFAULT_MAX_RELEASES=100
+PER_PAGE=100
+
+usage() {
+  cat <<'EOF'
+Usage: gh-release-assets [options] [owner repo]
+
+Iterates all releases of a GitHub repository and writes a JSON file with
+each release's name, published_at, and the list of asset names.
+
+The JSON file is written to the caller's current working directory as
+`<owner>-<repo>-releases.json`.
+
+Options:
+  --max-releases N           Maximum number of releases to fetch (default 100)
+  --output PATH              Override the output JSON file path
+  --debug                    Print progress details to stderr
+  -h, --help, help           Show this help message
+  -v, --version, version     Show the tool version
+
+Arguments:
+  owner                       GitHub organization or user name
+  repo                        GitHub repository name
+
+Dependencies:
+  git-api, jq
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    picotools_debug_log 'gh-release-assets' "$1"
+  fi
+}
+
+git_api_command() {
+  picotools_resolve_tool_command "$SCRIPT_DIR" GIT_API_BIN git-api
+}
+
+run_git_api() {
+  local tool
+
+  tool=$(git_api_command)
+  if debug_enabled; then
+    "$tool" --debug "$@"
+    return $?
+  fi
+
+  "$tool" "$@"
+}
+
+fetch_release_page() {
+  local owner="$1"
+  local repo="$2"
+  local page="$3"
+
+  debug_log "Fetching release page ${page} for '${owner}/${repo}'"
+  run_git_api repos/list-releases "$owner" "$repo" --per-page "$PER_PAGE" --page "$page"
+}
+
+append_page() {
+  local accum="$1"
+  local page_data="$2"
+  local take="$3"
+  local result
+
+  if ! result=$(printf '%s\n%s' "$accum" "$page_data" | jq -s --argjson take "$take" '.[0] as $acc | .[1] | if type == "array" then $acc + (.[:$take]) else $acc end' 2>&1); then
+    echo "Error: jq failed while merging release page: ${result}" >&2
+    exit 1
+  fi
+  printf '%s\n' "$result"
+}
+
+aggregate_releases() {
+  local owner="$1"
+  local repo="$2"
+  local max_releases="$3"
+  local page=1
+  local remaining="$max_releases"
+  local all='[]'
+  local page_data count page_size
+
+  while [ "$remaining" -gt 0 ]; do
+    if ! page_data=$(fetch_release_page "$owner" "$repo" "$page"); then
+      echo "Error: failed to fetch release page ${page} for '${owner}/${repo}'" >&2
+      exit 1
+    fi
+
+    if ! count=$(printf '%s' "$page_data" | jq 'if type == "array" then length else empty end' 2>&1); then
+      echo "Error: jq failed while validating page ${page} of '${owner}/${repo}': ${count}" >&2
+      exit 1
+    fi
+
+    if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+      echo "Error: unexpected response while fetching page ${page} of '${owner}/${repo}' (git-api did not return a release array)" >&2
+      exit 1
+    fi
+
+    if [ "$count" -eq 0 ]; then
+      debug_log "No more releases after page ${page}"
+      break
+    fi
+
+    if [ "$count" -gt "$remaining" ]; then
+      page_size="$remaining"
+    else
+      page_size="$count"
+    fi
+
+    all=$(append_page "$all" "$page_data" "$page_size")
+    remaining=$((remaining - page_size))
+
+    if [ "$count" -lt "$PER_PAGE" ]; then
+      debug_log "Final page reached at page ${page}"
+      break
+    fi
+
+    page=$((page + 1))
+  done
+
+  printf '%s\n' "$all"
+}
+
+shape_releases() {
+  local releases="$1"
+
+  printf '%s' "$releases" | jq -c '[
+    .[] |
+    {
+      name: (.name // null),
+      published_at: (.published_at // null),
+      assets: [(.assets // [])[] | .name // empty]
+    }
+  ]'
+}
+
+main() {
+  local max_releases="$DEFAULT_MAX_RELEASES"
+  local output_path=''
+  local -a positionals=()
+
+  while [ "$#" -gt 0 ]; do
+    case "${1:-}" in
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    --max-releases)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --max-releases requires a value' >&2
+        exit 1
+      }
+      max_releases="$2"
+      shift 2
+      ;;
+    --max-releases=*)
+      max_releases="${1#*=}"
+      shift
+      ;;
+    --output)
+      [ "$#" -ge 2 ] || {
+        echo 'Error: --output requires a value' >&2
+        exit 1
+      }
+      output_path="$2"
+      shift 2
+      ;;
+    --output=*)
+      output_path="${1#*=}"
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --)
+      shift
+      while [ "$#" -gt 0 ]; do
+        positionals+=("$1")
+        shift
+      done
+      ;;
+    -*)
+      echo "Error: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *)
+      positionals+=("$1")
+      shift
+      ;;
+    esac
+  done
+
+  if ! [[ "$max_releases" =~ ^[0-9]+$ ]] || [ "$max_releases" -lt 1 ]; then
+    echo "Error: --max-releases must be a positive integer (got '$max_releases')" >&2
+    exit 1
+  fi
+
+  local owner repo
+
+  case "${#positionals[@]}" in
+  2)
+    owner="${positionals[0]}"
+    repo="${positionals[1]}"
+    ;;
+  0 | 1)
+    owner=$(picotools_prompt_value 'GitHub owner (org or user)' '' true)
+    repo=$(picotools_prompt_value 'GitHub repo name' '' true)
+    ;;
+  *)
+    echo 'Error: expected at most two positional arguments <owner> <repo>' >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+
+  if [ -z "$owner" ] || [ -z "$repo" ]; then
+    echo 'Error: owner and repo must not be empty' >&2
+    exit 1
+  fi
+
+  picotools_require_commands jq
+  git_api_command >/dev/null
+
+  if [ -z "$output_path" ]; then
+    output_path="${PWD}/${owner}-${repo}-releases.json"
+  fi
+
+  debug_log "Querying up to ${max_releases} release(s) for '${owner}/${repo}'"
+  echo "Fetching releases for ${owner}/${repo} (max ${max_releases})..." >&2
+
+  local releases
+  releases=$(aggregate_releases "$owner" "$repo" "$max_releases")
+
+  local total
+  total=$(printf '%s' "$releases" | jq 'length')
+  echo "Fetched ${total} release(s)." >&2
+
+  local payload
+  payload=$(shape_releases "$releases")
+
+  printf '%s\n' "$payload" | jq '.' >"$output_path"
+  echo "Wrote ${output_path}"
+}
+
+main "$@"

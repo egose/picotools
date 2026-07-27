@@ -17,6 +17,7 @@ The following scripts are included in `tools/bin`:
 | `oc-quota-requests` | Analyzes OpenShift namespace CPU and memory request quota usage |
 | `gh-repo-sync` | Downloads and caches all repos for a GitHub user/org |
 | `gh-actions-upgrade` | Updates pinned GitHub Action refs under `.github` to the latest tag or tag commit hash |
+| `gh-release-assets` | Exports each GitHub repo release with its name, published_at, and asset-name list to a JSON file |
 | `pre-commit-upgrade` | Runs `pre-commit autoupdate` against a pre-commit config file |
 | `model-provider` | Stores named model provider profiles with config and token data kept separately |
 | `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
@@ -30,6 +31,8 @@ The following scripts are included in `tools/bin`:
 `gh-repo-sync` requires `curl`, `jq`, and `unzip` to be available on the system.
 
 `gh-actions-upgrade` scans `.github/**/*.yml` and `.github/**/*.yaml` by default, updates `uses: owner/repo@ref` entries to each action repository's latest tag, prefers stable version tags over prereleases when both exist, and preserves each ref's current style unless `--ref-type tag` or `--ref-type hash` is used to force all rewritten refs to one form. It ignores local `./...` actions and `docker://...` references, requires `git` plus `sort`, and uses `GH_TOKEN`, `GITHUB_TOKEN`, `GITHUB_PAT`, or `PAT_TOKEN` for authenticated lookups when private action repositories need access.
+
+`gh-release-assets` iterates all releases of a GitHub repository through `git-api` and writes a JSON file in the caller's current directory listing each release's `name`, `published_at`, and `assets` array of asset-name strings. It pages through `repos/list-releases` up to `--max-releases` (default 100), writes the default file as `<owner>-<repo>-releases.json`, and accepts `--output PATH` to override the destination. Pass `owner` and `repo` as positional arguments or omit them to be prompted interactively. It requires `git-api` and `jq`, and uses the same authentication as `git-api`. Use `--debug` for progress details on stderr.
 
 `pre-commit-upgrade` runs `pre-commit autoupdate` against `.pre-commit-config.yaml` by default. It preserves each repo's current ref style unless `--ref-type tag` or `--ref-type hash` is used to force all rewritten refs to one form, and `--config PATH` targets a different config file. It requires `pre-commit` to be installed.
 
@@ -105,6 +108,7 @@ oc-route
 oc-quota-requests
 gh-repo-sync
 gh-actions-upgrade
+gh-release-assets
 pre-commit-upgrade
 model-provider
 git-commit

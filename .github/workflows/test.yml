@@ -66,6 +66,9 @@ jobs:
         "$PWD/tmp/install/bin/gh-actions-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/gh-actions-upgrade" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/gh-release-assets" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/gh-release-assets" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/pre-commit-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
 
