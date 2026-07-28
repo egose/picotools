@@ -1,3 +1,11 @@
+## [0.48.0](https://github.com/egose/picotools/compare/v0.47.0...v0.48.0) (2026-07-28)
+
+### Features
+
+* add commit planning and workspace-aware tool updates ([dc3c0a9](https://github.com/egose/picotools/commit/dc3c0a950407b401b9e8397b8e16d0e2b4067797))
+* add path filtering for workspace planning and commits ([1900731](https://github.com/egose/picotools/commit/19007311f2518203b48a69aa1abe6cfad74f56ba))
+* add path-file scoped planning support ([931dc66](https://github.com/egose/picotools/commit/931dc66a0669573f612cb615e000a64403f17646))
+
 ## [0.47.0](https://github.com/egose/picotools/compare/v0.46.0...v0.47.0) (2026-07-28)
 
 ### Features
