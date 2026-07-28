@@ -51,6 +51,9 @@ jobs:
         "$PWD/tmp/install/bin/asdf-install" --help >/dev/null
         test "$("$PWD/tmp/install/bin/asdf-install" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/asdf-cli-install" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/asdf-cli-install" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/asdf-clean-unused" --help >/dev/null
         test "$("$PWD/tmp/install/bin/asdf-clean-unused" --version)" = "$(cat VERSION)"
 

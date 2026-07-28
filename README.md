@@ -9,6 +9,7 @@ The following scripts are included in `tools/bin`:
 | Tool | Description |
 |------|-------------|
 | `asdf-install` | Installs all tools defined in `.tool-versions` via asdf |
+| `asdf-cli-install` | Lists recent asdf-vm/asdf GitHub releases, marks the current asdf CLI version, and installs the selected version |
 | `asdf-upgrade` | Finds newer stable strict-semver asdf versions and updates selected `.tool-versions` entries |
 | `asdf-clean-unused` | Scans workspace `.tool-versions` files and removes unused asdf plugins or versions |
 | `pip-upgrade` | Updates exact requirement pins in `requirements.txt` within a selected version scope |
@@ -47,6 +48,8 @@ The following scripts are included in `tools/bin`:
 `git-clean-branches` defaults to the `origin` remote and asks for confirmation before deleting branches. Use `git-clean-branches --yes` to skip the prompt.
 
 `asdf-clean-unused` ignores common generated directories such as `node_modules`, `dist`, `build`, `coverage`, `tmp`, `vendor`, `mnt`, `lost+found`, and virtualenv folders while scanning for `.tool-versions`. Use `--ignore-path PATH` to add more ignored paths. It prompts before removing unused plugins and versions by default; use `asdf-clean-unused --yes` to skip the confirmation.
+
+`asdf-cli-install` fetches the most recent `asdf-vm/asdf` GitHub releases (default 10) through the GitHub API, marks the currently installed asdf CLI version with `(installed)`, and installs the selected version on the local machine by downloading the matching `linux/darwin` + `amd64/arm64` tarball and placing the `asdf` binary under `--prefix` (default `$ASDF_DATA_DIR/bin` or `$HOME/.asdf/bin`) with `--shims-dir` (default `$ASDF_DATA_DIR/shims` or `$HOME/.asdf/shims`) reported as the next PATH entry. Pass a bare version or `v`-prefixed tag positional argument to skip the picker and install that version directly. When the selected version equals the currently installed one it skips re-install. Use `--max-releases N` to change the list size, `--yes` to skip the install confirmation, and `--debug` for progress on stderr. It requires `curl` and `tar`, and prefers `GITHUB_API_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, or `PAT_TOKEN` for higher rate limits.
 
 `asdf-upgrade` inspects `asdf current` in the current directory, keeps only installed tools whose active version and available upgrades are strict stable `<major>.<minor>.<patch>` releases, shows the tools with newer versions in a table, and lets you multi-select which entries to rewrite across one or more `.tool-versions` files together. After rewriting the selected entries, it can also run `asdf install` for you. Use `asdf-upgrade --yes` to update every listed tool without prompting.
 
@@ -100,6 +103,7 @@ Once installed, the tools are available directly on your `PATH`:
 
 ```sh
 asdf-install
+asdf-cli-install
 asdf-upgrade
 asdf-clean-unused
 pip-upgrade
