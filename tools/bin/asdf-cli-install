@@ -1,0 +1,422 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" box commands debug prompt string table ui version
+
+ASDF_CLI_INSTALL_TMP_DIR=""
+GITHUB_COORDINATES="asdf-vm/asdf"
+RELEASES_URL="https://api.github.com/repos/${GITHUB_COORDINATES}/releases"
+MAX_RELEASES=10
+
+usage() {
+  cat <<'EOF'
+Usage: asdf-cli-install [options] [version]
+
+Lists the most recent 10 asdf-vm/asdf GitHub releases, marks the currently
+installed asdf CLI version, and installs the selected version on the local
+machine. The matching Linux/darwin + amd64/arm64 tarball is downloaded and the
+asdf binary is placed under the configured install directory (default:
+$ASDF_DATA_DIR/bin or $HOME/.asdf/bin).
+
+Arguments:
+  version                  Install this specific version without prompting.
+                            Accepts a bare version (0.20.0) or a leading-v tag
+                            (v0.20.0). When omitted, an interactive picker is
+                            shown.
+
+Options:
+  --prefix PATH            Install directory for the asdf binary (default:
+                            $ASDF_DATA_DIR/bin or $HOME/.asdf/bin)
+  --shims-dir PATH         Shims directory to report after install (default:
+                            $ASDF_DATA_DIR/shims or $HOME/.asdf/shims)
+  --max-releases N        Number of recent releases to list (default: 10)
+  --yes                    Skip the install confirmation prompt
+  --debug                  Print progress details to stderr
+  -h, --help, help         Show this help message
+  -v, --version, version   Show the tool version
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = 'true' ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    picotools_debug_log 'asdf-cli-install' "$1"
+  fi
+}
+
+cleanup_tmp_dir() {
+  if [ -n "${ASDF_CLI_INSTALL_TMP_DIR:-}" ]; then
+    rm -rf "$ASDF_CLI_INSTALL_TMP_DIR"
+  fi
+}
+
+resolve_github_auth_headers() {
+  local -n headers_ref="$1"
+  local token=''
+
+  for var in GITHUB_API_TOKEN GH_TOKEN GITHUB_TOKEN PAT_TOKEN; do
+    if [ -n "${!var:-}" ]; then
+      token="${!var}"
+      break
+    fi
+  done
+
+  if [ -n "$token" ]; then
+    headers_ref+=("Authorization: token ${token}")
+  fi
+}
+
+curl_releases() {
+  local -a curl_opts=("-sSL" "--fail")
+  local -a headers=()
+  local response
+
+  resolve_github_auth_headers headers
+  for header in "${headers[@]}"; do
+    curl_opts+=("-H" "$header")
+  done
+
+  response=$(curl "${curl_opts[@]}" "${RELEASES_URL}?per_page=${MAX_RELEASES}") || {
+    echo "Error: failed to fetch asdf releases from ${RELEASES_URL}" >&2
+    return 1
+  }
+
+  printf '%s' "$response"
+}
+
+strip_leading_v() {
+  local value="$1"
+  printf '%s' "${value#v}"
+}
+
+format_release_label() {
+  local tag="$1"
+  local installed_version="$2"
+  local marker=''
+  local tag_value
+  local reset=''
+
+  tag_value=$(strip_leading_v "$tag")
+  if [ -n "$installed_version" ] && [ "$tag_value" = "$installed_version" ]; then
+    marker=' (installed)'
+    if picotools_ui_stderr_is_pretty; then
+      reset=$(picotools_ui_reset)
+      marker=" $(picotools_ui_green)(installed)${reset}"
+    fi
+  fi
+
+  printf '%s%s\n' "$tag" "$marker"
+}
+
+collect_release_tags() {
+  local output_file="$1"
+  local installed_version="$2"
+  local response
+  local raw_tags
+  local tag
+  local label
+  local key
+  local -A seen=()
+
+  response=$(curl_releases) || return 1
+  raw_tags=$(printf '%s' "$response" | grep -o '"tag_name": *"[^"]*"' | sed -E 's/"tag_name": *"([^"]*)"/\1/' || true)
+
+  [ -n "$raw_tags" ] || return 1
+
+  : >"$output_file"
+  while IFS= read -r tag; do
+    tag=$(picotools_trim_whitespace "$tag")
+    [ -n "$tag" ] || continue
+
+    key=$(strip_leading_v "$tag")
+    [ -n "${seen[$key]:-}" ] && continue
+    seen[$key]=1
+
+    label=$(format_release_label "$tag" "$installed_version")
+    printf '%s\t%s\n' "$tag" "$label" >>"$output_file"
+  done <<<"$raw_tags"
+}
+
+detect_installed_version() {
+  local current_version
+  local stripped
+
+  if ! command -v asdf >/dev/null 2>&1; then
+    return 0
+  fi
+
+  current_version=$(asdf --version 2>/dev/null || true)
+  # asdf prints e.g. "asdf version v0.18.0 (revision 2114f1e)". Keep only
+  # the first token that starts with a digit (with optional leading v).
+  stripped=$(printf '%s' "$current_version" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)
+  stripped=$(picotools_trim_whitespace "$stripped")
+  stripped=$(strip_leading_v "$stripped")
+  printf '%s\n' "$stripped"
+}
+
+map_os() {
+  case "$(uname -s)" in
+  Linux) printf 'linux\n' ;;
+  Darwin) printf 'darwin\n' ;;
+  *)
+    echo "Error: unsupported OS: $(uname -s)" >&2
+    return 1
+    ;;
+  esac
+}
+
+map_arch() {
+  case "$(uname -m)" in
+  x86_64) printf 'amd64\n' ;;
+  arm64 | aarch64) printf 'arm64\n' ;;
+  *)
+    echo "Error: unsupported architecture: $(uname -m)" >&2
+    return 1
+    ;;
+  esac
+}
+
+resolve_install_dirs() {
+  local prefix="${1:-}"
+  local shims_dir="${2:-}"
+  local data_dir="${ASDF_DATA_DIR:-$HOME/.asdf}"
+  local resolved_prefix
+  local resolved_shims
+
+  if [ -z "$prefix" ]; then
+    resolved_prefix="${data_dir}/bin"
+  else
+    resolved_prefix="$prefix"
+  fi
+
+  if [ -z "$shims_dir" ]; then
+    resolved_shims="${data_dir}/shims"
+  else
+    resolved_shims="$shims_dir"
+  fi
+
+  printf '%s\t%s\n' "$resolved_prefix" "$resolved_shims"
+}
+
+download_and_install_version() {
+  local target_version="$1"
+  local prefix="$2"
+  local asdf_os asdf_arch asdf_asset asdf_url tmp_dir outfile
+
+  asdf_os=$(map_os) || return 1
+  asdf_arch=$(map_arch) || return 1
+  asdf_asset="asdf-v${target_version}-${asdf_os}-${asdf_arch}.tar.gz"
+  asdf_url="https://github.com/${GITHUB_COORDINATES}/releases/download/v${target_version}/${asdf_asset}"
+
+  tmp_dir="$ASDF_CLI_INSTALL_TMP_DIR"
+  outfile="${tmp_dir}/${asdf_asset}"
+
+  debug_log "Downloading ${asdf_url}"
+  echo "Downloading asdf v${target_version} (${asdf_os}/${asdf_arch})..."
+
+  if ! curl -fsSL -o "$outfile" "$asdf_url"; then
+    echo "Error: failed to download asdf from ${asdf_url}" >&2
+    return 1
+  fi
+
+  mkdir -p "$prefix"
+
+  debug_log "Extracting ${outfile} into ${tmp_dir}"
+  tar -xzf "$outfile" -C "$tmp_dir"
+
+  install -m 0755 "${tmp_dir}/asdf" "${prefix}/asdf"
+  rm -f "${tmp_dir}/asdf" "${outfile}"
+
+  ASDF_CLI_INSTALL_BIN_DIR="$prefix"
+}
+
+prompt_install_confirmation() {
+  local target_version="$1"
+  local installed_version="$2"
+
+  echo "Selected version: v${target_version}"
+
+  if [ -n "$installed_version" ] && [ "$target_version" = "$installed_version" ]; then
+    echo "Version v${target_version} is already installed. Skipping re-install."
+    return 1
+  fi
+
+  if [ -n "$installed_version" ]; then
+    echo "Current asdf version: v${installed_version}"
+  else
+    echo 'Current asdf version: not installed'
+  fi
+
+  return 0
+}
+
+main() {
+  local positional_version=''
+  local prefix_override=''
+  local shims_override=''
+  local max_releases="$MAX_RELEASES"
+  local assume_yes=false
+  local releases_file selection_output selected_tag target_version
+  local installed_version resolved install_dir installed_shims
+  local -a rows=()
+  local -a labels=()
+  local -a values=()
+
+  while [ $# -gt 0 ]; do
+    case "${1:-}" in
+    --prefix)
+      prefix_override="${2:-}"
+      shift 2
+      [ -n "$prefix_override" ] || {
+        echo 'Error: --prefix requires a value' >&2
+        exit 1
+      }
+      ;;
+    --shims-dir)
+      shims_override="${2:-}"
+      shift 2
+      [ -n "$shims_override" ] || {
+        echo 'Error: --shims-dir requires a value' >&2
+        exit 1
+      }
+      ;;
+    --max-releases)
+      max_releases="${2:-}"
+      shift 2
+      if ! [[ "$max_releases" =~ ^[0-9]+$ ]] || [ "$max_releases" -lt 1 ]; then
+        echo "Error: --max-releases must be a positive integer" >&2
+        exit 1
+      fi
+      MAX_RELEASES="$max_releases"
+      ;;
+    --yes)
+      assume_yes=true
+      shift
+      ;;
+    --debug)
+      debug_mode=true
+      shift
+      ;;
+    -h | --help | help)
+      usage
+      exit 0
+      ;;
+    -v | --version | version)
+      print_version
+      exit 0
+      ;;
+    --)
+      shift
+      ;;
+    "")
+      shift
+      ;;
+    *)
+      if [ -n "$positional_version" ]; then
+        echo "Error: unexpected argument: $1" >&2
+        usage >&2
+        exit 1
+      fi
+      positional_version="$1"
+      shift
+      ;;
+    esac
+  done
+
+  picotools_require_command curl
+  picotools_require_command tar
+
+  ASDF_CLI_INSTALL_TMP_DIR=$(mktemp -d)
+  trap 'cleanup_tmp_dir' EXIT
+  debug_log "Created temporary directory '$ASDF_CLI_INSTALL_TMP_DIR'"
+
+  installed_version=$(detect_installed_version)
+  debug_log "Detected installed asdf version '${installed_version:-<none>}'"
+
+  if [ -n "$positional_version" ]; then
+    target_version=$(strip_leading_v "$positional_version")
+    echo "Installing requested version v${target_version}..."
+  else
+    releases_file="$ASDF_CLI_INSTALL_TMP_DIR/releases.tsv"
+    if ! collect_release_tags "$releases_file" "$installed_version"; then
+      echo 'Error: no asdf releases found.' >&2
+      exit 1
+    fi
+
+    if [ ! -s "$releases_file" ]; then
+      echo 'Error: no asdf releases found.' >&2
+      exit 1
+    fi
+
+    mapfile -t rows <"$releases_file"
+    for row in "${rows[@]}"; do
+      IFS=$'\t' read -r tag label <<<"$row"
+      labels+=("$label")
+      values+=("$tag")
+    done
+
+    selection_output=$(picotools_prompt_select_mapped_value \
+      'Available asdf releases' \
+      'Select a release' \
+      '' \
+      'Error: no asdf releases available' \
+      labels \
+      values) || {
+      echo 'Cancelled.' >&2
+      exit 1
+    }
+
+    selected_tag="$selection_output"
+    target_version=$(strip_leading_v "$selected_tag")
+  fi
+
+  if [ -n "$installed_version" ] && [ "$target_version" = "$installed_version" ]; then
+    echo "Version v${target_version} is already installed. Skipping re-install."
+    exit 0
+  fi
+
+  if [ "$assume_yes" != true ]; then
+    if ! prompt_install_confirmation "$target_version" "$installed_version"; then
+      exit 0
+    fi
+
+    if [ "$(picotools_prompt_yes_no 'Install this version now?' no)" != 'yes' ]; then
+      echo 'Cancelled.' >&2
+      exit 1
+    fi
+  fi
+
+  resolved=$(resolve_install_dirs "$prefix_override" "$shims_override")
+  IFS=$'\t' read -r install_dir installed_shims <<<"$resolved"
+  debug_log "Install prefix '$install_dir', shims dir '$installed_shims'"
+
+  download_and_install_version "$target_version" "$install_dir" || exit 1
+  install_dir="$ASDF_CLI_INSTALL_BIN_DIR"
+
+  picotools_ui_summary 'asdf CLI Install Complete' \
+    "Version: v${target_version}" \
+    "Binary: ${install_dir}/asdf" \
+    "Add to PATH: export PATH=\"${install_dir}:${installed_shims}:\$PATH\""
+
+  export PATH="${install_dir}:${installed_shims}:${PATH}"
+  echo '🚀 asdf installed successfully'
+}
+
+main "$@"
