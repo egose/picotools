@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
@@ -9,15 +9,18 @@ fi
 # shellcheck source=../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" github
+picotools_source_modules "$SCRIPT_DIR" commands github
 
 github_coordinates="${ASDF_PICOTOOLS_GITHUB_REPOSITORY:-$(picotools_resolve_github_coordinates "$SCRIPT_DIR")}"
 releases_url="https://api.github.com/repos/${github_coordinates}/releases"
+PER_PAGE=100
 
-# Use an array for headers to handle spaces/quotes safely
-curl_opts=("-s")
-if [ -n "$GITHUB_API_TOKEN" ]; then
-  curl_opts+=("-H" "Authorization: token $GITHUB_API_TOKEN")
+picotools_require_commands curl jq sort
+
+curl_opts=("-fsSL" "-H" "Accept: application/vnd.github+json")
+github_token="$(picotools_github_auth_token_optional)"
+if [ -n "$github_token" ]; then
+  curl_opts+=("-H" "Authorization: token $github_token")
 fi
 
 sort_versions() {
@@ -25,28 +28,28 @@ sort_versions() {
     LC_ALL=C sort -V | cut -d ' ' -f 2
 }
 
-all_tags=""
+all_tags=''
+page=1
 
-# Loop through pages 1 to 3 (300 items total)
-for page in {1..3}; do
-  # Construct the full URL with page params
-  current_url="${releases_url}?per_page=100&page=${page}"
-
-  # Execute curl using the array of options
+while true; do
+  current_url="${releases_url}?per_page=${PER_PAGE}&page=${page}"
   response=$(curl "${curl_opts[@]}" "$current_url")
-
-  # Extract tag names
-  tags=$(echo "$response" | grep -o '"tag_name": *"[^"]*"' | sed -E 's/"tag_name": *"v?([^"]*)"/\1/' || true)
-
-  # If the response is empty or just "[]", break
-  if [ -z "$tags" ] || [ "$response" == "[]" ]; then
+  count=$(jq -r 'if type == "array" then length else error("expected release array") end' <<<"$response")
+  if [ "$count" -eq 0 ]; then
     break
   fi
 
-  all_tags="${all_tags}${tags}"$'\n'
+  tags=$(jq -r '.[]?.tag_name // empty | ltrimstr("v")' <<<"$response")
+  if [ -n "$tags" ]; then
+    all_tags="${all_tags}${tags}"$'\n'
+  fi
+
+  if [ "$count" -lt "$PER_PAGE" ]; then
+    break
+  fi
+
+  page=$((page + 1))
 done
 
-# Clean up empty lines and sort
-versions=$(echo "$all_tags" | sed '/^$/d' | sort_versions | xargs)
-
-echo "$versions"
+versions=$(printf '%s' "$all_tags" | sort_versions | paste -sd ' ' -)
+printf '%s\n' "$versions"

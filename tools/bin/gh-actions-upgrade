@@ -216,7 +216,7 @@ latest_action_ref() {
 
 update_workflow_file() {
   local file="$1"
-  local tmpfile line prefix value_part comment trimmed_value quote target repo_path repo current_ref desired_ref_type new_ref new_target trailing_comment updated=false updated_count=0
+  local tmpfile line prefix value_part comment trimmed_value spacing_before_comment quote target anchor_prefix repo_path repo current_ref desired_ref_type new_ref new_target trailing_comment updated=false updated_count=0
 
   ensure_tmpdir
   tmpfile=$(mktemp "$GH_ACTIONS_UPGRADE_TMPDIR/file.XXXXXX")
@@ -227,20 +227,30 @@ update_workflow_file() {
       value_part="${BASH_REMATCH[2]}"
       comment="${BASH_REMATCH[3]:-}"
       trimmed_value=$(trim_trailing_whitespace "$value_part")
+      spacing_before_comment=''
+      if [ -n "$comment" ]; then
+        spacing_before_comment=${value_part#"$trimmed_value"}
+      fi
       quote=''
       target="$trimmed_value"
+      anchor_prefix=''
 
-      case "$trimmed_value" in
+      if [[ "$target" =~ ^(&[A-Za-z0-9_-]+[[:space:]]+)(.+)$ ]]; then
+        anchor_prefix="${BASH_REMATCH[1]}"
+        target="${BASH_REMATCH[2]}"
+      fi
+
+      case "$target" in
       \"*\")
-        if [ "${trimmed_value: -1}" = '"' ]; then
+        if [ "${target: -1}" = '"' ]; then
           quote='"'
-          target=${trimmed_value:1:${#trimmed_value}-2}
+          target=${target:1:${#target}-2}
         fi
         ;;
       \'*\')
-        if [ "${trimmed_value: -1}" = "'" ]; then
+        if [ "${target: -1}" = "'" ]; then
           quote="'"
-          target=${trimmed_value:1:${#trimmed_value}-2}
+          target=${target:1:${#target}-2}
         fi
         ;;
       esac
@@ -263,8 +273,8 @@ update_workflow_file() {
             new_ref=$(latest_action_ref "$repo" "$desired_ref_type")
             if [ "$new_ref" != "$current_ref" ]; then
               new_target="${repo_path}@${new_ref}"
-              trailing_comment="$comment"
-              printf '%s%s%s%s\n' "$prefix" "$quote" "$new_target" "$quote$trailing_comment" >>"$tmpfile"
+              trailing_comment="${spacing_before_comment}${comment}"
+              printf '%s%s%s%s\n' "$prefix" "$anchor_prefix$quote" "$new_target" "$quote$trailing_comment" >>"$tmpfile"
               debug_log "Updated '$repo' in '$file' from '$current_ref' to '$new_ref'"
               printf '%s\t%s: %s -> %s\n' "$file" "$repo" "$current_ref" "$new_ref" >>"$GH_ACTIONS_UPGRADE_CHANGES_FILE"
               updated=true

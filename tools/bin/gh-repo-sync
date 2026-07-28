@@ -17,14 +17,14 @@ PAT_FILE="${XDG_DATA_HOME:-$HOME/.local/share}/gh-repo-sync/pat"
 PER_PAGE=100
 
 REQUIRED_TOOLS=(curl jq unzip)
-GH_REPO_SYNC_TMPFILES=()
+GH_REPO_SYNC_TMPPATHS=()
 
 usage() {
   cat <<'EOF'
 Usage: gh-repo-sync [--reset-pat]
 
 Downloads and extracts repositories for a GitHub user or organization into
-./repos, and caches update timestamps in ./repo-updates.json.
+./repos/<owner>/<repo>, and caches update timestamps in ./repo-updates.json.
 
 Options:
   --reset-pat                 Remove the stored GitHub PAT and exit
@@ -50,14 +50,14 @@ debug_log() {
   fi
 }
 
-cleanup_tmpfiles() {
-  if [ "${#GH_REPO_SYNC_TMPFILES[@]}" -gt 0 ]; then
-    rm -f "${GH_REPO_SYNC_TMPFILES[@]}"
+cleanup_tmppaths() {
+  if [ "${#GH_REPO_SYNC_TMPPATHS[@]}" -gt 0 ]; then
+    rm -rf "${GH_REPO_SYNC_TMPPATHS[@]}"
   fi
 }
 
-register_tmpfile() {
-  GH_REPO_SYNC_TMPFILES+=("$1")
+register_tmppath() {
+  GH_REPO_SYNC_TMPPATHS+=("$1")
 }
 
 # --- PAT management ---
@@ -129,8 +129,7 @@ gh_api() {
   local http_code body tmpfile
 
   tmpfile=$(mktemp)
-  register_tmpfile "$tmpfile"
-  trap 'cleanup_tmpfiles' EXIT
+  register_tmppath "$tmpfile"
   local auth_header=()
   if [ -n "${GITHUB_PAT:-}" ]; then
     auth_header=(-H "Authorization: token ${GITHUB_PAT}")
@@ -175,8 +174,7 @@ download_repo_archive() {
   while [ "$attempt" -le "$max_attempts" ]; do
     debug_log "Downloading archive for '${repo_name}' attempt ${attempt}/${max_attempts}"
     tmp_zip=$(mktemp "${destination}.XXXXXX")
-    register_tmpfile "$tmp_zip"
-    trap 'cleanup_tmpfiles' EXIT
+    register_tmppath "$tmp_zip"
     response_code=$(curl -sS -L --retry 2 --retry-delay 1 --retry-all-errors \
       -w '%{http_code}' \
       -o "$tmp_zip" \
@@ -210,6 +208,61 @@ download_repo_archive() {
   done
 
   return 1
+}
+
+cache_key() {
+  local owner="$1"
+  local repo_name="$2"
+
+  printf '%s/%s\n' "$owner" "$repo_name"
+}
+
+repo_target_dir() {
+  local owner="$1"
+  local repo_name="$2"
+
+  printf '%s/%s/%s\n' "$REPOS_DIR" "$owner" "$repo_name"
+}
+
+extract_archive_root_dir() {
+  local extract_root="$1"
+  local -a extracted_entries=()
+
+  shopt -s dotglob nullglob
+  extracted_entries=("$extract_root"/*)
+  shopt -u dotglob nullglob
+
+  if [ "${#extracted_entries[@]}" -ne 1 ] || [ ! -d "${extracted_entries[0]}" ]; then
+    return 1
+  fi
+
+  printf '%s\n' "${extracted_entries[0]}"
+}
+
+replace_repo_from_archive() {
+  local archive_path="$1"
+  local owner="$2"
+  local repo_name="$3"
+  local extract_root extracted_dir target_dir owner_dir
+
+  extract_root=$(mktemp -d "${REPOS_DIR}/extract.${owner}.${repo_name}.XXXXXX")
+  register_tmppath "$extract_root"
+
+  if ! unzip -qo "$archive_path" -d "$extract_root" >/dev/null 2>&1; then
+    echo "Error processing ${owner}/${repo_name}" >&2
+    return 1
+  fi
+
+  extracted_dir=$(extract_archive_root_dir "$extract_root") || {
+    echo "Error: unexpected archive layout for ${owner}/${repo_name}" >&2
+    return 1
+  }
+
+  owner_dir="${REPOS_DIR}/${owner}"
+  target_dir=$(repo_target_dir "$owner" "$repo_name")
+  mkdir -p "$owner_dir"
+  rm -rf "$target_dir"
+  mv "$extracted_dir" "$target_dir"
 }
 
 fetch_all_repos() {
@@ -246,6 +299,8 @@ fetch_all_repos() {
 # --- Main ---
 
 main() {
+  trap 'cleanup_tmppaths' EXIT
+
   while [ $# -gt 0 ]; do
     case "${1:-}" in
     --debug)
@@ -304,41 +359,40 @@ main() {
 
   local i=0
   while [ "$i" -lt "$total" ]; do
-    local repo_name default_branch updated_at
+    local repo_name repo_owner default_branch updated_at
+    local cached_updated cache_entry_key zip_path
     repo_name=$(jq -r ".[$i].name" <<<"$repos")
+    repo_owner=$(jq -r ".[$i].owner.login // empty" <<<"$repos")
     default_branch=$(jq -r ".[$i].default_branch" <<<"$repos")
     updated_at=$(jq -r ".[$i].updated_at" <<<"$repos")
 
-    local cached_updated
-    cached_updated=$(get_cached_value "$cache" "$repo_name")
+    if [ -z "$repo_owner" ]; then
+      repo_owner="$org_name"
+    fi
 
-    local repo_folder="${REPOS_DIR}/${repo_name}-${default_branch}"
+    cache_entry_key=$(cache_key "$repo_owner" "$repo_name")
+    cached_updated=$(get_cached_value "$cache" "$cache_entry_key")
 
     if [ -n "$cached_updated" ] && [ "$cached_updated" = "$updated_at" ]; then
-      echo "Skipping ${repo_name} (no updates since last run)"
+      echo "Skipping ${cache_entry_key} (no updates since last run)"
       i=$((i + 1))
       continue
     fi
 
-    if [ -d "$repo_folder" ]; then
-      echo "Deleting old folder for ${repo_name}..."
-      rm -rf "$repo_folder"
-    fi
+    zip_path=$(mktemp "${REPOS_DIR}/archive.${repo_owner}.${repo_name}.XXXXXX.zip")
+    register_tmppath "$zip_path"
 
-    local zip_path="${REPOS_DIR}/${repo_name}.zip"
-    echo "Downloading ${repo_name}..."
-    if ! download_repo_archive "$org_name" "$repo_name" "$default_branch" "$zip_path"; then
+    echo "Downloading ${cache_entry_key}..."
+    if ! download_repo_archive "$repo_owner" "$repo_name" "$default_branch" "$zip_path"; then
       rm -f "$zip_path"
-      echo "Failed to download ${repo_name}" >&2
+      echo "Failed to download ${cache_entry_key}" >&2
       i=$((i + 1))
       continue
     fi
 
-    if unzip -qo "$zip_path" -d "$REPOS_DIR"; then
+    if replace_repo_from_archive "$zip_path" "$repo_owner" "$repo_name"; then
       rm -f "$zip_path"
-      cache=$(set_cached_value "$cache" "$repo_name" "${updated_at:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}")
-    else
-      echo "Error processing ${repo_name}" >&2
+      cache=$(set_cached_value "$cache" "$cache_entry_key" "${updated_at:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}")
     fi
 
     i=$((i + 1))

@@ -57,6 +57,9 @@ jobs:
         "$PWD/tmp/install/bin/asdf-clean-unused" --help >/dev/null
         test "$("$PWD/tmp/install/bin/asdf-clean-unused" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/asdf-upgrade" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/asdf-upgrade" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/pip-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pip-upgrade" --version)" = "$(cat VERSION)"
 
@@ -72,8 +75,14 @@ jobs:
         "$PWD/tmp/install/bin/gh-release-assets" --help >/dev/null
         test "$("$PWD/tmp/install/bin/gh-release-assets" --version)" = "$(cat VERSION)"
 
+        "$PWD/tmp/install/bin/git-profile" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/git-profile" --version)" = "$(cat VERSION)"
+
         "$PWD/tmp/install/bin/pre-commit-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/model-profile" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/model-profile" --version)" = "$(cat VERSION)"
 
         "$PWD/tmp/install/bin/git-api" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-api" --version)" = "$(cat VERSION)"
@@ -100,6 +109,9 @@ jobs:
 
         "$PWD/tmp/install/bin/oc-quota-requests" --help >/dev/null
         test "$("$PWD/tmp/install/bin/oc-quota-requests" --version)" = "$(cat VERSION)"
+
+        "$PWD/tmp/install/bin/oc-route" --help >/dev/null
+        test "$("$PWD/tmp/install/bin/oc-route" --version)" = "$(cat VERSION)"
 
     - name: Functional Test pip-upgrade scopes
       run: bash scripts/functional-test-pip-upgrade-scopes.bash

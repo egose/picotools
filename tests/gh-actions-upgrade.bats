@@ -232,6 +232,53 @@ EOF
   assert_contains "$(<"$log_file")" '-c http.extraHeader=Authorization: Bearer secret-token ls-remote --tags https://github.com/octo/private-action.git' 'tool should pass the GitHub token as a git auth header for private action lookups'
 }
 
+@test "preserves quotes and inline comments while skipping expression-based refs" {
+  local workflow_file updated_content
+
+  mkdir -p "$TMP_DIR/work/.github/workflows"
+  workflow_file="$TMP_DIR/work/.github/workflows/test.yml"
+
+  cat >"$workflow_file" <<'EOF'
+jobs:
+  test:
+    steps:
+    - uses: "actions/checkout@v4.1.0"   # keep comment
+    - uses: 'actions/upload-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' # frozen
+    - uses: actions/checkout@${{ matrix.checkout_ref }}
+EOF
+
+  run "$TOOL" "$TMP_DIR/work/.github"
+
+  [ "$status" -eq 0 ] || fail 'gh-actions-upgrade should succeed for quoted refs and expressions'
+  updated_content=$(<"$workflow_file")
+  assert_contains "$updated_content" '- uses: "actions/checkout@v6.0.2"   # keep comment' 'tool should preserve double quotes and inline spacing before comments'
+  assert_contains "$updated_content" "- uses: 'actions/upload-artifact@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' # frozen" 'tool should preserve single quotes and inline comments'
+  # shellcheck disable=SC2016
+  assert_contains "$updated_content" '- uses: actions/checkout@${{ matrix.checkout_ref }}' 'tool should skip expression-based refs entirely'
+}
+
+@test "updates anchored uses values while preserving the anchor prefix" {
+  local workflow_file updated_content
+
+  mkdir -p "$TMP_DIR/work/.github/workflows"
+  workflow_file="$TMP_DIR/work/.github/workflows/test.yml"
+
+  cat >"$workflow_file" <<'EOF'
+jobs:
+  test:
+    steps:
+    - uses: &checkout actions/checkout@v4.1.0
+    - uses: &artifact 'actions/upload-artifact@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' # frozen
+EOF
+
+  run "$TOOL" "$TMP_DIR/work/.github"
+
+  [ "$status" -eq 0 ] || fail 'gh-actions-upgrade should succeed for anchored uses values'
+  updated_content=$(<"$workflow_file")
+  assert_contains "$updated_content" '- uses: &checkout actions/checkout@v6.0.2' 'tool should preserve the YAML anchor while updating the tag ref'
+  assert_contains "$updated_content" "- uses: &artifact 'actions/upload-artifact@bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' # frozen" 'tool should preserve anchored single-quoted refs and comments'
+}
+
 @test "help documents the ref type override" {
   run "$TOOL" --help
 

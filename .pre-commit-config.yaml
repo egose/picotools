@@ -5,6 +5,8 @@ repos:
   - id: check-added-large-files
     args: [--maxkb=12000]
   - id: check-case-conflict
+  - id: detect-private-key
+    exclude: tools/lib/picotools/git-api/api.github.com.json
   - id: check-executables-have-shebangs
     files: \.bash
   - id: check-json
