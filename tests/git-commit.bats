@@ -830,6 +830,82 @@ create_initial_commit() {
   assert_not_contains "$ask_payload" 'notes.txt' 'git-commit should exclude unrelated changed files from the planning prompt when --path is used'
 }
 
+@test "supports multiple scoped paths from flags and path files" {
+  local stub_path jq_stub repo ask_log path_file output ask_payload
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  path_file="$TMP_HOME/paths.txt"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/docs"
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'guide\n' >"$repo/docs/guide.md"
+  printf 'new file\n' >"$repo/notes.txt"
+  printf '%s\n' 'docs' >"$path_file"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update docs","files":["README.md","docs/guide.md"]}]}' \
+      "$TOOL" --path README.md --path-file "$path_file" 2>&1
+  ); then
+    fail "git-commit should accept multiple scoped paths from flags and files ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$output" "$(preview_git_add_command README.md docs/guide.md)" 'git-commit should preview all selected-scope files from flags and path files'
+  assert_contains "$ask_payload" 'README.md' 'git-commit should include directly selected files in the planning prompt'
+  assert_contains "$ask_payload" 'docs/guide.md' 'git-commit should include path-file selected directories in the planning prompt'
+  assert_not_contains "$ask_payload" 'notes.txt' 'git-commit should still exclude unrelated changes outside the selected path scopes'
+}
+
+@test "resolves relative scoped paths from a subdirectory" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/docs/guides"
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'guide\n' >"$repo/docs/guides/intro.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo/docs" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]}]}' \
+      "$TOOL" --path ../README.md 2>&1
+  ); then
+    fail "git-commit should resolve relative --path values from subdirectories ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$output" "$(preview_git_add_command README.md)" 'git-commit should normalize relative scoped paths to repo-root paths in preview output'
+  assert_contains "$ask_payload" 'README.md' 'git-commit should plan using the normalized repo-root path'
+  assert_not_contains "$ask_payload" 'docs/guides/intro.md' 'git-commit should exclude unrelated changes when a relative scoped path selects a single file'
+}
+
 @test "fails when the model returns an empty commit plan" {
   local stub_path jq_stub repo output
 
@@ -2202,6 +2278,49 @@ create_initial_commit() {
   assert_eq "$remote_subject" 'docs(11222): add guide' 'git-commit should push the selected-scope commit to the remote branch'
   assert_contains "$status_after" '?? src/' 'git-commit should leave unrelated changes untouched after --push with --path'
   assert_contains "$output" 'docs(11222): add guide' 'git-commit should preview and apply the selected-scope commit before pushing'
+}
+
+@test "keeps pull request planning scoped to the selected path set" {
+  local stub_path jq_stub git_api_stub remote repo ask_log git_api_log output remote_head_subject status_after ask_payload
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  git_api_log="$TMP_HOME/git-api.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/docs" "$repo/src"
+  printf 'guide\n' >"$repo/docs/guide.md"
+  printf 'code change\n' >"$repo/src/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"add guide","files":["docs/guide.md"]}],"pull_request":{"title":"docs(11222): add guide","body":"## Summary\n- add guide"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --pr --path docs 2>&1)
+
+  ask_payload=$(<"$ask_log")
+  remote_head_subject=$(git -C "$remote" log -1 --pretty=%s refs/heads/feat/11222)
+  status_after=$(git -C "$repo" status --short)
+  assert_not_contains "$ask_payload" 'src/app.txt' 'git-commit should exclude unrelated changes from PR planning when --path is used'
+  assert_contains "$ask_payload" 'docs/guide.md' 'git-commit should keep selected-scope files in PR planning when --path is used'
+  assert_contains "$ask_payload" '"pull_request":{"title":"short pr title","body":"detailed markdown description"}' 'git-commit should still request PR details in scoped PR mode'
+  assert_eq "$remote_head_subject" 'docs(11222): add guide' 'git-commit should push only the scoped commit before creating the pull request'
+  assert_contains "$status_after" '?? src/' 'git-commit should leave unrelated changes untouched after scoped PR mode'
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request in scoped PR mode'
 }
 
 @test "applies grouped commits when the model returns a unique basename for a new file" {

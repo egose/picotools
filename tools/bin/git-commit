@@ -46,6 +46,7 @@ Options:
   --pr [base-branch]        Implies --apply --push and creates a pull request
   --pre-commit-retries <n>  Retry failed pre-commit checks this many times
   --path PATH               Limit planning and commits to a file or directory; repeatable
+  --path-file PATH          Load additional scoped paths from a newline-delimited file; repeatable
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
 EOF
@@ -1505,6 +1506,7 @@ parse_run_options() {
   local pr_base_branch=''
   local pre_commit_retries=2
   local debug_mode=false
+  local -a path_file_entries=()
   local -a selected_paths=()
 
   while [ "$#" -gt 0 ]; do
@@ -1573,6 +1575,24 @@ parse_run_options() {
         exit 1
       fi
       selected_paths+=("${1#--path=}")
+      shift
+      ;;
+    --path-file)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --path-file requires a value' >&2
+        exit 1
+      fi
+      mapfile -t path_file_entries < <(load_scope_paths_file "$2")
+      selected_paths+=("${path_file_entries[@]}")
+      shift 2
+      ;;
+    --path-file=*)
+      if [ -z "${1#--path-file=}" ]; then
+        echo 'Error: --path-file requires a value' >&2
+        exit 1
+      fi
+      mapfile -t path_file_entries < <(load_scope_paths_file "${1#--path-file=}")
+      selected_paths+=("${path_file_entries[@]}")
       shift
       ;;
     --scope)
@@ -1874,7 +1894,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --path | --path=* | --scope | --scope=* | --no-scope)
+  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --path | --path=* | --path-file | --path-file=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)

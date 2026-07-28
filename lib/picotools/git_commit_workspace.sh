@@ -84,6 +84,22 @@ filter_changed_files_to_scope() {
   done <<<"$changed_files"
 }
 
+load_scope_paths_file() {
+  local file_path="$1"
+  local line
+
+  if [ ! -f "$file_path" ]; then
+    echo "Error: --path-file not found: $file_path" >&2
+    exit 1
+  fi
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -n "$line" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <"$file_path"
+}
+
 collect_changed_files() {
   local repo_root file
   local has_head=false
