@@ -1,3 +1,9 @@
+## [0.47.0](https://github.com/egose/picotools/compare/v0.46.0...v0.47.0) (2026-07-28)
+
+### Features
+
+* add asdf CLI installer tool ([a853aae](https://github.com/egose/picotools/commit/a853aae17ef26aa39ca0dfa65af43e8ba7205d25))
+
 ## [0.46.0](https://github.com/egose/picotools/compare/v0.45.0...v0.46.0) (2026-07-27)
 
 ### Features
