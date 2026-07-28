@@ -9,6 +9,97 @@ git_repo_root() {
   git rev-parse --show-toplevel
 }
 
+resolve_scope_path() {
+  local repo_root="$1"
+  local current_dir="$2"
+  local raw_path="$3"
+  local absolute_path parent_dir leaf_name
+
+  raw_path="${raw_path#:/}"
+  if [ -z "$raw_path" ]; then
+    echo 'Error: --path requires a non-empty file or directory path' >&2
+    exit 1
+  fi
+
+  if [[ "$raw_path" = /* ]]; then
+    absolute_path="$raw_path"
+  else
+    absolute_path="$current_dir/$raw_path"
+  fi
+
+  absolute_path="${absolute_path%/}"
+  parent_dir=$(dirname "$absolute_path")
+  leaf_name=$(basename "$absolute_path")
+  parent_dir=$(cd "$parent_dir" 2>/dev/null && pwd -P) || {
+    echo "Error: unable to resolve --path '$raw_path'" >&2
+    exit 1
+  }
+
+  if [ "$leaf_name" = '.' ]; then
+    absolute_path="$parent_dir"
+  else
+    absolute_path="$parent_dir/$leaf_name"
+  fi
+
+  case "$absolute_path" in
+  "$repo_root")
+    printf '.\n'
+    ;;
+  "$repo_root"/*)
+    printf '%s\n' "${absolute_path#"$repo_root"/}"
+    ;;
+  *)
+    echo "Error: --path must stay inside the repository: $raw_path" >&2
+    exit 1
+    ;;
+  esac
+}
+
+filter_changed_files_to_scope() {
+  local changed_files="$1"
+  shift
+  local file selected_path
+  local -a selected_paths=("$@")
+
+  if [ "${#selected_paths[@]}" -eq 0 ]; then
+    printf '%s\n' "$changed_files"
+    return 0
+  fi
+
+  while IFS= read -r file; do
+    [ -n "$file" ] || continue
+    for selected_path in "${selected_paths[@]}"; do
+      if [ "$selected_path" = '.' ]; then
+        printf '%s\n' "$file"
+        break
+      fi
+
+      case "$file" in
+      "$selected_path" | "$selected_path"/*)
+        printf '%s\n' "$file"
+        break
+        ;;
+      esac
+    done
+  done <<<"$changed_files"
+}
+
+load_scope_paths_file() {
+  local file_path="$1"
+  local line
+
+  if [ ! -f "$file_path" ]; then
+    echo "Error: --path-file not found: $file_path" >&2
+    exit 1
+  fi
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -n "$line" ]; then
+      printf '%s\n' "$line"
+    fi
+  done <"$file_path"
+}
+
 collect_changed_files() {
   local repo_root file
   local has_head=false

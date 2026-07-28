@@ -45,6 +45,8 @@ Options:
   --push                    Implies --apply and pushes the created commits
   --pr [base-branch]        Implies --apply --push and creates a pull request
   --pre-commit-retries <n>  Retry failed pre-commit checks this many times
+  --path PATH               Limit planning and commits to a file or directory; repeatable
+  --path-file PATH          Load additional scoped paths from a newline-delimited file; repeatable
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
 EOF
@@ -630,7 +632,7 @@ run_pre_commit_checks() {
     fi
 
     cp "$index_snapshot" "$temp_index"
-    GIT_INDEX_FILE="$temp_index" git add -A :/
+    GIT_INDEX_FILE="$temp_index" git add -- "${files[@]/#/:/}"
 
     if GIT_INDEX_FILE="$temp_index" "$hook_path"; then
       printf '\n'
@@ -1374,7 +1376,11 @@ load_run_configuration() {
 prepare_workspace_changes() {
   local output_ref_name="$1"
   local pre_commit_retries="$2"
-  local prepared_changed_files changed_file_count
+  local current_dir="$3"
+  shift 3
+  local prepared_changed_files filtered_changed_files changed_file_count repo_root
+  local selected_path
+  local -a selected_paths=()
   # shellcheck disable=SC2178
   local -n output_ref="$output_ref_name"
 
@@ -1385,20 +1391,41 @@ prepare_workspace_changes() {
 
   debug_log 'Collecting changed files'
   prepared_changed_files=$(collect_changed_files)
-  changed_file_count=$(count_nonempty_lines "$prepared_changed_files")
+  repo_root=$(git_repo_root)
+  for selected_path in "$@"; do
+    selected_paths+=("$(resolve_scope_path "$repo_root" "$current_dir" "$selected_path")")
+  done
+  filtered_changed_files=$(filter_changed_files_to_scope "$prepared_changed_files" "${selected_paths[@]}")
+  if [ "${#selected_paths[@]}" -gt 0 ]; then
+    debug_log "Filtering changed files to ${#selected_paths[@]} selected path(s)"
+  fi
+  changed_file_count=$(count_nonempty_lines "$filtered_changed_files")
+  if [ "$changed_file_count" -eq 0 ]; then
+    if [ "${#selected_paths[@]}" -gt 0 ]; then
+      echo 'Error: no file changes found in the selected --path scope' >&2
+    else
+      echo 'Error: no file changes found in the current git workspace' >&2
+    fi
+    exit 1
+  fi
   debug_log "Collected $changed_file_count changed file(s)"
 
-  run_pre_commit_checks "$prepared_changed_files" "$pre_commit_retries"
+  run_pre_commit_checks "$filtered_changed_files" "$pre_commit_retries"
   ensure_changes_exist
 
   debug_log 'Refreshing changed files after pre-commit checks'
   prepared_changed_files=$(collect_changed_files)
-  changed_file_count=$(count_nonempty_lines "$prepared_changed_files")
+  filtered_changed_files=$(filter_changed_files_to_scope "$prepared_changed_files" "${selected_paths[@]}")
+  changed_file_count=$(count_nonempty_lines "$filtered_changed_files")
+  if [ "$changed_file_count" -eq 0 ]; then
+    echo 'Error: no file changes remained in the selected --path scope after pre-commit checks' >&2
+    exit 1
+  fi
   debug_log "Collected $changed_file_count changed file(s) after pre-commit"
 
   # shellcheck disable=SC2034
   # shellcheck disable=SC2178
-  output_ref="$prepared_changed_files"
+  output_ref="$filtered_changed_files"
 }
 
 default_branch_from_git_api() {
@@ -1479,6 +1506,8 @@ parse_run_options() {
   local pr_base_branch=''
   local pre_commit_retries=2
   local debug_mode=false
+  local -a path_file_entries=()
+  local -a selected_paths=()
 
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -1532,6 +1561,40 @@ parse_run_options() {
       fi
       shift
       ;;
+    --path)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --path requires a value' >&2
+        exit 1
+      fi
+      selected_paths+=("$2")
+      shift 2
+      ;;
+    --path=*)
+      if [ -z "${1#--path=}" ]; then
+        echo 'Error: --path requires a value' >&2
+        exit 1
+      fi
+      selected_paths+=("${1#--path=}")
+      shift
+      ;;
+    --path-file)
+      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+        echo 'Error: --path-file requires a value' >&2
+        exit 1
+      fi
+      mapfile -t path_file_entries < <(load_scope_paths_file "$2")
+      selected_paths+=("${path_file_entries[@]}")
+      shift 2
+      ;;
+    --path-file=*)
+      if [ -z "${1#--path-file=}" ]; then
+        echo 'Error: --path-file requires a value' >&2
+        exit 1
+      fi
+      mapfile -t path_file_entries < <(load_scope_paths_file "${1#--path-file=}")
+      selected_paths+=("${path_file_entries[@]}")
+      shift
+      ;;
     --scope)
       if [ "$#" -lt 2 ] || [ -z "$2" ]; then
         echo 'Error: --scope requires a value' >&2
@@ -1571,7 +1634,8 @@ parse_run_options() {
     apply_commits=true
   fi
 
-  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pr_base_branch" "$pre_commit_retries" "$debug_mode"
+  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pr_base_branch" "$pre_commit_retries" "$debug_mode" "${#selected_paths[@]}"
+  printf '%s\n' "${selected_paths[@]}"
 }
 
 resolve_scope() {
@@ -1745,9 +1809,10 @@ execute_commit_plan() {
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files='' diff_output plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode
+  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files='' diff_output plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode selected_path_count current_dir
   local -a config_lines=()
   local -a option_values=()
+  local -a selected_paths=()
   local -A pr_context=()
 
   mapfile -t option_values < <(parse_run_options "$@")
@@ -1759,12 +1824,17 @@ run_commit_tool() {
   pr_base_branch="${option_values[5]:-}"
   pre_commit_retries="${option_values[6]:-2}"
   debug_mode="${option_values[7]:-false}"
+  selected_path_count="${option_values[8]:-0}"
+  if [ "$selected_path_count" -gt 0 ]; then
+    selected_paths=("${option_values[@]:9:$selected_path_count}")
+  fi
 
   if [ "$debug_mode" = 'true' ]; then
     enable_debug_logging
   fi
 
-  prepare_workspace_changes changed_files "$pre_commit_retries"
+  current_dir=$(pwd -P)
+  prepare_workspace_changes changed_files "$pre_commit_retries" "$current_dir" "${selected_paths[@]}"
 
   config_values=$(load_run_configuration)
   mapfile -t config_lines <<<"$config_values"
@@ -1824,7 +1894,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --scope | --scope=* | --no-scope)
+  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --path | --path=* | --path-file | --path-file=* | --scope | --scope=* | --no-scope)
     run_commit_tool "$@"
     ;;
   *)
