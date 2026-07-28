@@ -796,6 +796,40 @@ create_initial_commit() {
   assert_contains "$output" 'Error: commit plan did not cover changed file: notes.txt' 'git-commit should reject single-commit plans that omit changed files'
 }
 
+@test "limits commit planning to the selected file path scope" {
+  local stub_path jq_stub repo ask_log output ask_payload
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+      "$TOOL" --path README.md 2>&1
+  ); then
+    fail "git-commit should succeed when --path limits planning to README.md ($output)"
+  fi
+
+  ask_payload=$(<"$ask_log")
+  assert_contains "$output" "$(preview_git_add_command README.md)" 'git-commit should preview commits for the selected file scope only'
+  assert_not_contains "$ask_payload" 'notes.txt' 'git-commit should exclude unrelated changed files from the planning prompt when --path is used'
+}
+
 @test "fails when the model returns an empty commit plan" {
   local stub_path jq_stub repo output
 
@@ -2134,6 +2168,40 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'test(445566): add coverage for application logic')" 'git-commit should print the second grouped commit command before applying it'
   assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
   assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
+}
+
+@test "pushes commits for the selected directory scope without touching unrelated changes" {
+  local stub_path jq_stub remote repo output head_subject remote_subject status_after
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/docs" "$repo/src"
+  printf 'guide\n' >"$repo/docs/guide.md"
+  printf 'code change\n' >"$repo/src/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"add guide","files":["docs/guide.md"]}]}' \
+    "$TOOL" --push --path docs 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  remote_subject=$(git --git-dir="$remote" log -1 --pretty=%s feat/11222)
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$head_subject" 'docs(11222): add guide' 'git-commit should create a commit only for the selected directory scope'
+  assert_eq "$remote_subject" 'docs(11222): add guide' 'git-commit should push the selected-scope commit to the remote branch'
+  assert_contains "$status_after" '?? src/' 'git-commit should leave unrelated changes untouched after --push with --path'
+  assert_contains "$output" 'docs(11222): add guide' 'git-commit should preview and apply the selected-scope commit before pushing'
 }
 
 @test "applies grouped commits when the model returns a unique basename for a new file" {
