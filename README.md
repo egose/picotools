@@ -20,7 +20,7 @@ The following scripts are included in `tools/bin`:
 | `gh-actions-upgrade` | Updates pinned GitHub Action refs under `.github` to the latest tag or tag commit hash |
 | `gh-release-assets` | Exports each GitHub repo release with its name, published_at, and asset-name list to a JSON file |
 | `pre-commit-upgrade` | Runs `pre-commit autoupdate` against a pre-commit config file |
-| `model-provider` | Stores named model provider profiles with config and token data kept separately |
+| `model-profile` | Stores named model provider profiles with config and token data kept separately |
 | `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
 | `git-api` | Calls GitHub REST operations by `operationId` using split OpenAPI method files |
 | `git-release-setup` | Generates a release SSH keypair, stores it as an Actions secret, and configures matching deploy-key permissions |
@@ -37,7 +37,7 @@ The following scripts are included in `tools/bin`:
 
 `pre-commit-upgrade` runs `pre-commit autoupdate` against `.pre-commit-config.yaml` by default. It preserves each repo's current ref style unless `--ref-type tag` or `--ref-type hash` is used to force all rewritten refs to one form, and `--config PATH` targets a different config file. It requires `pre-commit` to be installed.
 
-`model-provider` stores provider metadata under `~/.config/model-provider` and tokens under `~/.local/share/model-provider`. It supports `azure-openai`, `azure-cognitive-services`, `gemini`, and `custom` profiles with `create`, `update`, `list`, `read`, `profiles`, `models`, `ask`, and `delete`. Azure providers store a resource name, while `custom` stores an explicit OpenAI-compatible endpoint URL. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-provider ask <profile> --message TEXT` to send a prompt, `--message-file PATH` for larger prompts, `--model MODEL` to override the default first configured model, and `--system-message TEXT` or `--system-message-file PATH` to override the default system prompt. `--user-message` is accepted as an alias for `--message`. Use `--debug` to print request-phase steps to stderr. `MODEL_PROVIDER_DEBUG=true` still works as a deprecated fallback, and `MODEL_PROVIDER_CURL_MAX_TIME=<seconds>` bounds request duration.
+`model-profile` stores provider metadata under `~/.config/model-profile` and tokens under `~/.local/share/model-profile`. It supports `azure-openai`, `azure-cognitive-services`, `gemini`, and `custom` profiles with `create`, `update`, `list`, `read`, `profiles`, `models`, `ask`, `test`, and `delete`. Azure providers store a resource name, while `custom` stores an explicit OpenAI-compatible endpoint URL. `list` shows the saved profiles and can display a selected profile's details inline. `ask` uses OpenAI-compatible `chat/completions` requests and requires `curl` and `jq`. Use `model-profile ask <profile> --message TEXT` to send a prompt, `--message-file PATH` for larger prompts, `--model MODEL` to override the default first configured model, and `--system-message TEXT` or `--system-message-file PATH` to override the default system prompt. `--user-message` is accepted as an alias for `--message`. Use `--debug` to print request-phase steps to stderr. `MODEL_PROFILE_DEBUG=true` still works as a deprecated fallback, and `MODEL_PROFILE_CURL_MAX_TIME=<seconds>` bounds request duration.
 
 `git-commit` stores its selected model profile and model under `~/.config/git-commit/config`. Run `git-commit configure` first; if `git-api` named PAT profiles are present, it will also offer an optional `git-api` profile selection to use for pull-request creation. Then run `git-commit` inside a Git repository to ask the configured model for a conventional-commit plan and print shell-escaped `git add` and `git commit -m ...` commands for one or more commits from the current workspace changes. Planned `files` coverage is strict even for a single commit, and commit messages must start with an imperative lower-case verb. If staged changes already exist, it can optionally unstage them with `git restore --staged :/` before generating the preview. In monorepos, derived scopes prefer the leaf package name instead of repeating the npm org prefix. Use `--debug` to print progress steps to stderr, `--apply` to create the planned commits, `--push` to imply `--apply` and push them afterward, and `--pr` to imply `--apply --push` and open or update a pull request through `git-api`. In `--pr` mode, the model must return both `pull_request.title` and `pull_request.body`. `--pr` accepts an optional base branch; when omitted, `git-commit` resolves the repository default branch through `git-api` and falls back to git remote metadata.
 
@@ -114,7 +114,7 @@ gh-repo-sync
 gh-actions-upgrade
 gh-release-assets
 pre-commit-upgrade
-model-provider
+model-profile
 git-commit
 git-api
 git-release-setup

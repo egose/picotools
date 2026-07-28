@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eo pipefail
+set -euo pipefail
 
 tool_name="picotools"
 
@@ -11,13 +11,27 @@ fi
 # shellcheck source=../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" github
+picotools_source_modules "$SCRIPT_DIR" commands github
 
 github_coordinates="${ASDF_PICOTOOLS_GITHUB_REPOSITORY:-$(picotools_resolve_github_coordinates "$SCRIPT_DIR")}"
 base_download_url="https://github.com/${github_coordinates}/releases/download"
 
-version="$ASDF_INSTALL_VERSION"
-download_path="$ASDF_DOWNLOAD_PATH"
+picotools_require_command curl
+
+version="${ASDF_INSTALL_VERSION:-}"
+download_path="${ASDF_DOWNLOAD_PATH:-}"
+
+if [ -z "$version" ]; then
+  echo 'Error: ASDF_INSTALL_VERSION must be set' >&2
+  exit 1
+fi
+
+if [ -z "$download_path" ]; then
+  echo 'Error: ASDF_DOWNLOAD_PATH must be set' >&2
+  exit 1
+fi
+
+version="${version#v}"
 
 filename="${tool_name}-${version}.tar.gz"
 
@@ -25,9 +39,15 @@ mkdir -p "$download_path"
 download_url="${base_download_url}/v${version}/${filename}"
 outfile="${download_path}/${filename}"
 
+curl_opts=("-L" "--fail" "--connect-timeout" "10" "--retry" "3" "-sS")
+github_token="$(picotools_github_auth_token_optional)"
+if [ -n "$github_token" ]; then
+  curl_opts+=("-H" "Authorization: token $github_token")
+fi
+
 echo "Attempting to download: $download_url"
 
-if curl -L --fail --connect-timeout 10 --retry 3 "${download_url}" -o "${outfile}"; then
+if curl "${curl_opts[@]}" "${download_url}" -o "${outfile}"; then
   echo "Download successful."
   exit 0
 else

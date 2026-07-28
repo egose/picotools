@@ -82,6 +82,17 @@ trim_quotes() {
   printf '%s\n' "$value"
 }
 
+trim_yaml_scalar_value() {
+  local value
+
+  value=$(trim_trailing_whitespace "$1")
+  if [[ "$value" =~ ^\&[A-Za-z0-9._-]+[[:space:]]+(.+)$ ]]; then
+    value="${BASH_REMATCH[1]}"
+  fi
+
+  trim_quotes "$value"
+}
+
 is_commit_hash_ref() {
   [[ "$1" =~ ^[0-9a-fA-F]{40}$ ]]
 }
@@ -94,13 +105,13 @@ collect_hash_style_repos() {
   while IFS= read -r line || [ -n "$line" ]; do
     if [[ "$line" =~ ^[[:space:]-]*repo:[[:space:]]*([^#]*)([[:space:]]*#.*)?$ ]]; then
       value_part="${BASH_REMATCH[1]}"
-      current_repo=$(trim_quotes "$value_part")
+      current_repo=$(trim_yaml_scalar_value "$value_part")
       continue
     fi
 
     if [[ "$line" =~ ^[[:space:]]*rev:[[:space:]]*([^#]*)([[:space:]]*#.*)?$ ]]; then
       value_part="${BASH_REMATCH[1]}"
-      current_rev=$(trim_quotes "$value_part")
+      current_rev=$(trim_yaml_scalar_value "$value_part")
       if [ -n "$current_repo" ] && is_commit_hash_ref "$current_rev" && [ -z "${seen_repos[$current_repo]:-}" ]; then
         printf '%s\n' "$current_repo"
         seen_repos["$current_repo"]=1

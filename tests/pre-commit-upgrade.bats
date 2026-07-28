@@ -79,6 +79,10 @@ replace_pre_commit_hooks_repo() {
 
   content="${content//rev: v1.0.0/rev: ${value}}"
   content="${content//rev: v1.2.0/rev: ${value}}"
+  content="${content//rev: "v1.0.0"/rev: "${value}"}"
+  content="${content//rev: "v1.2.0"/rev: "${value}"}"
+  content="${content//rev: &hooks_rev v1.0.0/rev: &hooks_rev ${value}}"
+  content="${content//rev: &hooks_rev v1.2.0/rev: &hooks_rev ${value}}"
 }
 
 replace_black_repo() {
@@ -87,6 +91,11 @@ replace_black_repo() {
   content="${content//rev: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # frozen: v22.0.0/rev: ${value}}"
   content="${content//rev: v23.0.0/rev: ${value}}"
   content="${content//rev: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # frozen: v23.0.0/rev: ${value}}"
+  content="${content//rev: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # frozen: v22.0.0/rev: "${value}"}"
+  content="${content//rev: "v23.0.0"/rev: "${value}"}"
+  content="${content//rev: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" # frozen: v23.0.0/rev: "${value}"}"
+  content="${content//rev: &black_rev aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # frozen: v22.0.0/rev: &black_rev ${value}}"
+  content="${content//rev: &black_rev bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb # frozen: v23.0.0/rev: &black_rev ${value}}"
 }
 
 if [ -n "${PRE_COMMIT_OLD_REV:-}" ] && [ -n "${PRE_COMMIT_NEW_REV:-}" ]; then
@@ -331,6 +340,58 @@ EOF
 
   [ "$status" -eq 0 ] || fail 'pre-commit-upgrade should succeed when there are no changes'
   assert_contains "$output" 'No updates found.' 'tool should report when pre-commit did not change the config'
+}
+
+@test "preserves hash-style detection for quoted repo and rev values with inline comments" {
+  local config_file log_file expected_log
+
+  config_file="$TMP_DIR/.pre-commit-config.yaml"
+  log_file="$TMP_DIR/pre-commit.log"
+
+  cat >"$config_file" <<'EOF'
+repos:
+- repo: "https://github.com/pre-commit/pre-commit-hooks"
+  rev: "v1.0.0"
+  hooks:
+  - id: trailing-whitespace
+- repo: "https://github.com/psf/black" # formatter
+  rev: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" # frozen: v22.0.0
+  hooks:
+  - id: black
+EOF
+
+  run env PRE_COMMIT_LOG="$log_file" "$TOOL" --config "$config_file" --debug
+
+  [ "$status" -eq 0 ] || fail 'pre-commit-upgrade should succeed for quoted repo and rev values'
+  assert_contains "$output" "Running pre-commit autoupdate for '$config_file' using hash refs for repo 'https://github.com/psf/black'" 'tool should still detect quoted frozen hash repos for the second pass'
+  expected_log=$(printf 'autoupdate --config %s\nautoupdate --freeze --repo https://github.com/psf/black --config %s' "$config_file" "$config_file")
+  assert_eq "$(<"$log_file")" "$expected_log" 'tool should preserve hash-style repos even when the YAML uses quoted values'
+}
+
+@test "preserves hash-style detection for anchored repo and rev values" {
+  local config_file log_file expected_log
+
+  config_file="$TMP_DIR/.pre-commit-config.yaml"
+  log_file="$TMP_DIR/pre-commit.log"
+
+  cat >"$config_file" <<'EOF'
+repos:
+- repo: &hooks_repo https://github.com/pre-commit/pre-commit-hooks
+  rev: &hooks_rev v1.0.0
+  hooks:
+  - id: trailing-whitespace
+- repo: &black_repo https://github.com/psf/black
+  rev: &black_rev aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # frozen: v22.0.0
+  hooks:
+  - id: black
+EOF
+
+  run env PRE_COMMIT_LOG="$log_file" "$TOOL" --config "$config_file" --debug
+
+  [ "$status" -eq 0 ] || fail 'pre-commit-upgrade should succeed for anchored repo and rev values'
+  assert_contains "$output" "Running pre-commit autoupdate for '$config_file' using hash refs for repo 'https://github.com/psf/black'" 'tool should detect anchored frozen hash repos for the second pass'
+  expected_log=$(printf 'autoupdate --config %s\nautoupdate --freeze --repo https://github.com/psf/black --config %s' "$config_file" "$config_file")
+  assert_eq "$(<"$log_file")" "$expected_log" 'tool should preserve hash-style repos even when the YAML uses anchors'
 }
 
 @test "help documents the config override" {

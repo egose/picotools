@@ -39,3 +39,18 @@ picotools_resolve_github_coordinates() {
 
   printf '%s\n' "$repo"
 }
+
+picotools_github_auth_token_optional() {
+  local env_var_name
+  local env_value
+
+  for env_var_name in GITHUB_API_TOKEN GH_TOKEN GITHUB_TOKEN GITHUB_PAT PAT_TOKEN; do
+    env_value="${!env_var_name:-}"
+    if [ -n "$env_value" ]; then
+      printf '%s\n' "$env_value"
+      return 0
+    fi
+  done
+
+  printf '%s\n' ''
+}
