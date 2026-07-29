@@ -606,17 +606,6 @@ run_pre_commit_checks() {
     return 0
   fi
 
-  while IFS= read -r file; do
-    if [ -n "$file" ]; then
-      files+=("$file")
-    fi
-  done <<<"$changed_files"
-
-  if [ "${#files[@]}" -eq 0 ]; then
-    debug_log 'Skipping pre-commit checks because no changed files were collected'
-    return 0
-  fi
-
   index_snapshot=$(mktemp)
   temp_index=$(mktemp)
   register_tmpfile "$index_snapshot"
@@ -632,7 +621,7 @@ run_pre_commit_checks() {
     fi
 
     cp "$index_snapshot" "$temp_index"
-    GIT_INDEX_FILE="$temp_index" git add -- "${files[@]/#/:/}"
+    GIT_INDEX_FILE="$temp_index" git add -A :/
 
     if GIT_INDEX_FILE="$temp_index" "$hook_path"; then
       printf '\n'
