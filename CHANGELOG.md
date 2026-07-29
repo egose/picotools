@@ -1,3 +1,9 @@
+## [0.49.0](https://github.com/egose/picotools/compare/v0.48.0...v0.49.0) (2026-07-29)
+
+### Features
+
+* stage baseline updates during pre-commit retries ([518c47a](https://github.com/egose/picotools/commit/518c47a8753afdb91f4bbc6ad5c983e9aefd0833))
+
 ## [0.48.0](https://github.com/egose/picotools/compare/v0.47.0...v0.48.0) (2026-07-28)
 
 ### Features
