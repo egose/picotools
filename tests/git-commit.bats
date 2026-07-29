@@ -448,6 +448,57 @@ EOF
   chmod +x "$stub_path"
 }
 
+create_detect_secrets_pre_commit_stub() {
+  local stub_path="$1"
+
+  cat >"$stub_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+attempt=1
+if [ -n "${PRE_COMMIT_ATTEMPTS_FILE:-}" ]; then
+  if [ -f "$PRE_COMMIT_ATTEMPTS_FILE" ]; then
+    attempt=$(( $(<"$PRE_COMMIT_ATTEMPTS_FILE") + 1 ))
+  fi
+  printf '%s\n' "$attempt" >"$PRE_COMMIT_ATTEMPTS_FILE"
+fi
+
+if [ -n "${PRE_COMMIT_LOG:-}" ]; then
+  printf 'attempt=%s args=%s\n' "$attempt" "$*" >>"$PRE_COMMIT_LOG"
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+if [ "$attempt" -eq 1 ]; then
+  printf 'baseline refresh\n' >>"$repo_root/.secrets.baseline"
+  cat >&2 <<'EOFMSG'
+Detect secrets...........................................................Failed
+- hook id: detect-secrets
+- exit code: 3
+- files were modified by this hook
+
+The baseline file was updated.
+Probably to keep line numbers of secrets up-to-date.
+Please `git add .secrets.baseline`, thank you.
+EOFMSG
+  exit 3
+fi
+
+baseline_staged=false
+while IFS= read -r file; do
+  if [ "$file" = '.secrets.baseline' ]; then
+    baseline_staged=true
+    break
+  fi
+done < <(git diff --cached --name-only)
+
+if [ "$baseline_staged" != 'true' ]; then
+  echo 'missing staged .secrets.baseline on retry' >&2
+  exit 3
+fi
+EOF
+  chmod +x "$stub_path"
+}
+
 install_pre_commit_hook() {
   local repo="$1"
 
@@ -1491,6 +1542,48 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should continue after pre-commit succeeds on a retry'
   assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
   assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should retry the installed pre-commit hook'
+}
+
+@test "stages detect-secrets baseline updates after a pre-commit retry" {
+  local stub_path jq_stub pre_commit_stub repo output pre_commit_log pre_commit_attempts head_subject status_after baseline_contents
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  pre_commit_stub="$TMP_HOME/pre-commit"
+  pre_commit_log="$TMP_HOME/pre-commit.log"
+  pre_commit_attempts="$TMP_HOME/pre-commit.attempts"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_detect_secrets_pre_commit_stub "$pre_commit_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  printf '{"results": {}}\n' >"$repo/.secrets.baseline"
+  git -C "$repo" add .secrets.baseline
+  git -C "$repo" commit -q -m 'chore: add secrets baseline'
+  install_pre_commit_hook "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    PRE_COMMIT_LOG="$pre_commit_log" \
+    PRE_COMMIT_ATTEMPTS_FILE="$pre_commit_attempts" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"refresh readme secrets metadata","files":["README.md",".secrets.baseline"]}]}' \
+    "$TOOL" --apply 2>&1)
+
+  head_subject=$(git -C "$repo" log -1 --pretty=%s)
+  assert_eq "$head_subject" 'feat(11222): refresh readme secrets metadata' 'git-commit should finish the commit after detect-secrets updates the baseline'
+  assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit once before the final git commit hook run'
+  assert_contains "$output" "Please \`git add .secrets.baseline\`, thank you." 'git-commit should surface the detect-secrets retry output'
+  assert_contains "$(<"$pre_commit_log")" 'attempt=2 args=hook-impl --hook-type pre-commit' 'git-commit should rerun the pre-commit hook after the baseline changes'
+  status_after=$(git -C "$repo" status --short)
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after committing the refreshed baseline'
+  baseline_contents=$(git -C "$repo" show HEAD:.secrets.baseline)
+  assert_contains "$baseline_contents" 'baseline refresh' 'git-commit should include the detect-secrets baseline update in the commit'
 }
 
 @test "prints shell-safe preview commands for commit titles" {
