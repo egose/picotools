@@ -1900,6 +1900,13 @@ run_commit_tool() {
     git_api_command >/dev/null
     git_profile_command >/dev/null
     resolve_repository_git_api_auth
+    if [ -n "$GIT_COMMIT_GIT_API_TOKEN" ]; then
+      echo 'Pull request auth: current git-profile PAT.'
+    elif [ -n "$GIT_COMMIT_GIT_API_PROFILE" ]; then
+      echo 'Pull request auth: configured git-api profile.'
+    else
+      echo 'Pull request auth: git-api fallback resolution.'
+    fi
   fi
 
   debug_log 'Resolving branch and commit scope'

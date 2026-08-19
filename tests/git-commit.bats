@@ -2155,6 +2155,7 @@ create_initial_commit() {
     "$TOOL" --pr 2>&1)
 
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request with a configured git-api profile'
+  assert_contains "$(strip_ansi "$output")" 'Pull request auth: configured git-api profile.' 'git-commit should report configured git-api profile authentication'
   assert_contains "$(<"$git_api_log")" '--profile work repos/get octo demo' 'git-commit should pass the configured git-api profile when resolving the default branch'
   assert_contains "$(<"$git_api_log")" '--profile work pulls/create octo demo' 'git-commit should pass the configured git-api profile when creating the pull request'
 }
@@ -2197,6 +2198,7 @@ create_initial_commit() {
     "$TOOL" --debug --pr 2>&1)
 
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should create the pull request when a repository PAT is available'
+  assert_contains "$(strip_ansi "$output")" 'Pull request auth: current git-profile PAT.' 'git-commit should report repository git-profile PAT authentication'
   assert_contains "$(<"$git_api_log")" '--token-stdin repos/get octo demo' 'git-commit should use stdin token auth when resolving the default branch'
   assert_contains "$(<"$git_api_log")" '--token-stdin pulls/list octo demo' 'git-commit should use stdin token auth when checking for an existing pull request'
   assert_contains "$(<"$git_api_log")" '--token-stdin pulls/create octo demo' 'git-commit should use stdin token auth when creating the pull request'
@@ -2326,6 +2328,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
     "$TOOL" --pr 2>&1)
 
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request when no explicit auth selector is available'
+  assert_contains "$(strip_ansi "$output")" 'Pull request auth: git-api fallback resolution.' 'git-commit should report fallback authentication resolution'
   assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should still resolve the default branch through git-api'
   assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should still create the pull request through git-api'
   assert_not_contains "$(<"$git_api_log")" '--profile' 'git-commit should not pass a configured git-api profile when none is configured'
