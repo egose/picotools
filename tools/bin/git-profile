@@ -285,6 +285,7 @@ prompt_update_field() {
   local current_push_autosetupremote="$9"
   local current_core_editor="${10}"
   local current_ssh_add_on_start="${11}"
+  local current_pat_status="${12}"
   local selection
   local option_gpg_program option_ssh_add_on_start
   local -a options=()
@@ -311,6 +312,7 @@ prompt_update_field() {
       "Push AutoSetupRemote [$current_push_autosetupremote]"
       "Core Editor [$current_core_editor]"
       "$option_ssh_add_on_start"
+      "PAT [$current_pat_status]"
       'Done'
     )
 
@@ -364,6 +366,10 @@ prompt_update_field() {
       return 0
       ;;
     10)
+      printf '%s\n' pat
+      return 0
+      ;;
+    11)
       printf '%s\n' 'done'
       return 0
       ;;
@@ -1196,7 +1202,7 @@ update_context_file() {
   local name user_name email ssh_command use_ssh
   local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
   local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
-  local ssh_add_on_start token_configured token_action pat_token=''
+  local ssh_add_on_start token_configured token_action=keep selected_token_action pat_token=''
   local selected_field
 
   name=$(context_name_from_file "$file")
@@ -1233,7 +1239,7 @@ update_context_file() {
   token_configured=$(context_token_status "$name")
 
   while true; do
-    if ! selected_field=$(prompt_update_field "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"); then
+    if ! selected_field=$(prompt_update_field "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start" "$token_configured"); then
       picotools_cancel
       exit 1
     fi
@@ -1269,6 +1275,26 @@ update_context_file() {
     ssh_add_on_start)
       ssh_add_on_start=$(picotools_prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
       ;;
+    pat)
+      if ! selected_token_action=$(prompt_pat_update_action "$token_configured"); then
+        picotools_cancel
+        exit 1
+      fi
+      case "$selected_token_action" in
+      add | replace)
+        pat_token=$(picotools_prompt_secret_value 'GitHub PAT' '' true)
+        token_action="$selected_token_action"
+        token_configured=yes
+        ;;
+      remove)
+        pat_token=''
+        token_action=remove
+        token_configured=no
+        ;;
+      keep)
+        ;;
+      esac
+      ;;
     done)
       break
       ;;
@@ -1278,23 +1304,6 @@ update_context_file() {
   if [ "$use_gpg" = 'yes' ] && [ -z "$gpg_program" ]; then
     gpg_program=$(default_gpg_program)
   fi
-
-  if ! token_action=$(prompt_pat_update_action "$token_configured"); then
-    picotools_cancel
-    exit 1
-  fi
-
-  case "$token_action" in
-  add | replace)
-    pat_token=$(picotools_prompt_secret_value 'GitHub PAT' '' true)
-    token_configured=yes
-    ;;
-  remove)
-    token_configured=no
-    ;;
-  keep)
-    ;;
-  esac
 
   picotools_ui_summary 'Review Updated Profile' \
     "Profile: ${name}" \
