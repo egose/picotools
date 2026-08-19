@@ -43,6 +43,14 @@ git_api_print_response() {
   fi
 }
 
+git_api_escape_curl_config_value() {
+  local value="$1"
+
+  value=${value//\\/\\\\}
+  value=${value//\"/\\\"}
+  printf '%s\n' "$value"
+}
+
 git_api_request() {
   local method="$1"
   local api_root="$2"
@@ -53,7 +61,7 @@ git_api_request() {
   local -a query_args=()
   local -a header_args=()
   local -a field_args=()
-  local pair key value token query_string url tmpfile http_code body
+  local pair key value token query_string url tmpfile auth_config_file http_code body
   local section='queries'
   local response_message=''
 
@@ -119,7 +127,18 @@ git_api_request() {
     -H "X-GitHub-Api-Version: $api_version"
 
   if [ -n "$token" ]; then
-    set -- "$@" -H "Authorization: Bearer $token"
+    case "$token" in
+    *$'\n'* | *$'\r'*)
+      echo 'Error: auth token must not contain CR or LF bytes' >&2
+      exit 1
+      ;;
+    esac
+
+    auth_config_file=$(mktemp)
+    git_api_register_tmpfile "$auth_config_file"
+    chmod 600 "$auth_config_file"
+    printf 'header = "%s"\n' "$(git_api_escape_curl_config_value "Authorization: Bearer $token")" >"$auth_config_file"
+    set -- "$@" --config "$auth_config_file"
   fi
 
   for pair in "${header_args[@]}"; do

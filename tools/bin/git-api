@@ -36,6 +36,7 @@ Commands:
 
 Options:
   --token TOKEN              Override the auth token for this invocation
+  --token-stdin              Read the auth token from stdin; same precedence as --token
   --profile NAME             Use a named stored token profile for this invocation
   Query flags come from the operation spec and use --<param-name>
   --field KEY=VALUE          JSON body field
@@ -47,6 +48,11 @@ Options:
   -h, --help, help           Show this help message
   -v, --version, version     Show the tool version
 
+Auth precedence:
+  Explicit --token or --token-stdin, then --profile, then the current named
+  profile or supported token environment variables, then the legacy configured
+  token.
+
 Examples:
   git-api configure
   git-api configure work
@@ -54,6 +60,7 @@ Examples:
   git-api use work
   git-api --profile work repos/get octocat hello-world
   git-api --token ghp_xxx repos/get octocat hello-world
+  printf 'ghp_xxx\n' | git-api --token-stdin repos/get octocat hello-world
   git-api list
   git-api list repos/
   git-api show repos/get
@@ -406,6 +413,8 @@ call_operation() {
 
 main() {
   local command="${1:-}"
+  local token_override_set=false
+  local token_stdin_override_set=false
 
   while [ "$#" -gt 0 ]; do
     case "${1:-}" in
@@ -418,8 +427,21 @@ main() {
         echo 'Error: --token requires a value' >&2
         exit 1
       }
+      if [ "$token_stdin_override_set" = 'true' ]; then
+        echo 'Error: --token and --token-stdin cannot be used together' >&2
+        exit 1
+      fi
       export GIT_API_TOKEN_OVERRIDE="$2"
+      token_override_set=true
       shift 2
+      ;;
+    --token-stdin)
+      if [ "$token_override_set" = 'true' ]; then
+        echo 'Error: --token and --token-stdin cannot be used together' >&2
+        exit 1
+      fi
+      token_stdin_override_set=true
+      shift
       ;;
     --profile)
       [ "$#" -ge 2 ] || {
@@ -468,6 +490,11 @@ main() {
     exit 1
     ;;
   esac
+
+  if [ "$token_stdin_override_set" = 'true' ]; then
+    export GIT_API_TOKEN_OVERRIDE
+    GIT_API_TOKEN_OVERRIDE=$(git_api_read_token_stdin)
+  fi
 
   shift
 

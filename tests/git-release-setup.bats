@@ -119,7 +119,7 @@ fi
 
 printf '%s|%s\n' "$debug" "$*" >>"$TMP_DIR/git-api.log"
 
-case "${1:-}" in
+  case "${1:-}" in
 repos/list-deploy-keys)
   if [ -n "${EXISTING_DEPLOY_KEYS_JSON:-}" ]; then
     printf '%s\n' "$EXISTING_DEPLOY_KEYS_JSON"
@@ -143,11 +143,15 @@ repos/create-deploy-key)
   cp "$5" "$TMP_DIR/deploy-key-body.json"
   printf '%s\n' '{}'
   ;;
-actions/set-github-actions-default-workflow-permissions-repository)
-  cp "$5" "$TMP_DIR/workflow-permissions-body.json"
-  printf '%s\n' '{}'
-  ;;
-*)
+  actions/set-github-actions-default-workflow-permissions-repository)
+    cp "$5" "$TMP_DIR/workflow-permissions-body.json"
+    printf '%s\n' '{}'
+    ;;
+  actions/set-fork-pr-contributor-approval-permissions-repository)
+    cp "$5" "$TMP_DIR/fork-pr-contributor-approval-body.json"
+    printf '%s\n' '{}'
+    ;;
+  *)
   echo "unexpected git-api invocation: $*" >&2
   exit 1
   ;;
@@ -197,7 +201,7 @@ assert_eq() {
   [ "$status" -eq 0 ] || fail 'help should succeed'
   assert_contains "$output" 'Usage: git-release-setup' 'help should document the tool entrypoint'
   assert_contains "$output" '--key-name NAME' 'help should document the key name override'
-  assert_contains "$output" 'optionally upload a release GPG private key' 'help should document the optional release GPG flow'
+  assert_contains "$output" 'release GPG private key, passphrase, and email as repository secrets' 'help should document the optional release GPG flow'
   assert_contains "$output" 'Fine-grained PAT:' 'help should document token requirements'
   assert_contains "$output" 'Under Repository permissions' 'help should distinguish repository permissions from account permissions'
   assert_contains "$output" 'Secrets: Read and write' 'help should document secrets permission requirements'
@@ -227,6 +231,7 @@ assert_eq() {
   assert_contains "$(<"$TMP_DIR/git-api.log")" 'false|actions/create-or-update-repo-secret octo demo SSH_KEY --body-file' 'tool should store the encrypted private key as a secret'
   assert_contains "$(<"$TMP_DIR/git-api.log")" 'false|repos/create-deploy-key octo demo --body-file' 'tool should create the deploy key through git-api'
   assert_contains "$(<"$TMP_DIR/git-api.log")" 'false|actions/set-github-actions-default-workflow-permissions-repository octo demo --body-file' 'tool should update workflow permissions through git-api'
+  assert_contains "$(<"$TMP_DIR/git-api.log")" 'false|actions/set-fork-pr-contributor-approval-permissions-repository octo demo --body-file' 'tool should update the fork PR approval policy through git-api'
   assert_contains "$(<"$TMP_DIR/python-public-key.json")" '"key_id":"test-key-id"' 'tool should pass the repository public key into the encryption helper'
   assert_eq "$(<"$TMP_DIR/python-secret.txt")" 'PRIVATE KEY' 'tool should encrypt the generated private key'
   assert_contains "$(<"$TMP_DIR/repo-secret-body.json")" '"encrypted_value":"sealed-private-key"' 'tool should upload the encrypted secret payload'
@@ -236,6 +241,7 @@ assert_eq() {
   assert_contains "$(<"$TMP_DIR/deploy-key-body.json")" '"read_only":false' 'tool should request write access for the deploy key'
   assert_contains "$(<"$TMP_DIR/workflow-permissions-body.json")" '"default_workflow_permissions":"write"' 'tool should grant workflow write permissions'
   assert_contains "$(<"$TMP_DIR/workflow-permissions-body.json")" '"can_approve_pull_request_reviews":true' 'tool should allow workflow PR review approvals'
+  assert_contains "$(<"$TMP_DIR/fork-pr-contributor-approval-body.json")" '"approval_policy":"first_time_contributors_new_to_github"' 'tool should require approval for first-time contributors who are new to GitHub'
   case "$(<"$TMP_DIR/git-api.log")" in
   *'RELEASE_GPG_PRIVATE_KEY'* | *'RELEASE_GPG_PASSPHRASE'* | *'RELEASE_USER_EMAIL'*)
     fail 'tool should not upload release GPG secrets when the prompt is not accepted'

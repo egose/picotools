@@ -380,6 +380,9 @@ create_git_api_stub() {
 #!/usr/bin/env bash
 set -euo pipefail
 
+token_stdin_requested=false
+stdin_payload=''
+
 if [ -n "${GIT_API_ARGS_LOG:-}" ]; then
   printf '%s\n' "$*" >>"$GIT_API_ARGS_LOG"
 fi
@@ -392,11 +395,23 @@ while [ "$#" -gt 0 ]; do
   --profile)
     shift 2
     ;;
+  --token-stdin)
+    token_stdin_requested=true
+    shift
+    ;;
   *)
     break
     ;;
   esac
 done
+
+if [ "$token_stdin_requested" = 'true' ]; then
+  stdin_payload=$(cat)
+fi
+
+if [ "$token_stdin_requested" = 'true' ] && [ -n "${GIT_API_STDIN_LOG:-}" ]; then
+  printf '%s\n' "$stdin_payload" >>"$GIT_API_STDIN_LOG"
+fi
 
 case "${1:-}" in
 repos/get)
@@ -413,6 +428,37 @@ pulls/update)
   ;;
 pulls/create)
   printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
+  ;;
+*)
+  exit 1
+  ;;
+esac
+EOF
+  chmod +x "$stub_path"
+}
+
+create_git_profile_stub() {
+  local stub_path="$1"
+
+  cat >"$stub_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -n "${GIT_PROFILE_ARGS_LOG:-}" ]; then
+  printf '%s\n' "$*" >>"$GIT_PROFILE_ARGS_LOG"
+fi
+
+while [ "${1:-}" = '--debug' ]; do
+  shift
+done
+
+case "${1:-}" in
+token)
+  if [ -n "${GIT_PROFILE_TOKEN_ERROR:-}" ]; then
+    printf '%s\n' "$GIT_PROFILE_TOKEN_ERROR" >&2
+    exit "${GIT_PROFILE_TOKEN_STATUS:-1}"
+  fi
+  printf '%s\n' "${GIT_PROFILE_TOKEN_STDOUT:-}"
   ;;
 *)
   exit 1
@@ -609,6 +655,8 @@ create_initial_commit() {
   assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '--push' 'help should list push mode'
   assert_contains "$output" '--pr' 'help should list pull request mode'
+  assert_contains "$output" 'picotools.gitProfile' 'help should document repository context for PR auth'
+  assert_contains "$output" "then the configured \`git-api.profile\`" 'help should document PR auth precedence'
   assert_contains "$output" '--pre-commit-retries <n>' 'help should list pre-commit retry option'
 
   printf '2\n2\n2\n' | MODEL_PROFILE_BIN="$stub_path" "$TOOL" configure >/dev/null 2>&1
@@ -2075,17 +2123,59 @@ create_initial_commit() {
 }
 
 @test "uses the configured git-api profile for pull request operations" {
-  local stub_path jq_stub git_api_stub git_api_log remote repo output
+  local stub_path jq_stub git_api_stub git_profile_stub git_api_log remote repo output
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
   git_api_stub="$TMP_HOME/git-api"
+  git_profile_stub="$TMP_HOME/git-profile"
   git_api_log="$TMP_HOME/git-api-args.log"
   remote="$TMP_HOME/remote.git"
   repo="$TMP_HOME/repo"
   create_model_provider_stub "$stub_path"
   create_jq_stub "$jq_stub"
   create_git_api_stub "$git_api_stub"
+  create_git_profile_stub "$git_profile_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model '' '' work
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_PROFILE_BIN="$git_profile_stub" \
+    GIT_PROFILE_TOKEN_ERROR='Error: no git profile is recorded in this repository' \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request with a configured git-api profile'
+  assert_contains "$(<"$git_api_log")" '--profile work repos/get octo demo' 'git-commit should pass the configured git-api profile when resolving the default branch'
+  assert_contains "$(<"$git_api_log")" '--profile work pulls/create octo demo' 'git-commit should pass the configured git-api profile when creating the pull request'
+}
+
+@test "uses the repository git profile PAT for PR create calls and retrieves it once" {
+  local stub_path jq_stub git_api_stub git_profile_stub git_api_log git_api_stdin_log git_profile_log remote repo output token
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_profile_stub="$TMP_HOME/git-profile"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  git_api_stdin_log="$TMP_HOME/git-api-stdin.log"
+  git_profile_log="$TMP_HOME/git-profile-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  token='repo-profile-token-sentinel'
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+  create_git_profile_stub "$git_profile_stub"
 
   create_repo_with_remote "$remote" "$repo"
   git -C "$repo" remote set-url origin https://github.com/octo/demo.git
@@ -2100,11 +2190,146 @@ create_initial_commit() {
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_STDIN_LOG="$git_api_stdin_log" \
+    GIT_PROFILE_BIN="$git_profile_stub" \
+    GIT_PROFILE_ARGS_LOG="$git_profile_log" \
+    GIT_PROFILE_TOKEN_STDOUT="$token" \
+    "$TOOL" --debug --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should create the pull request when a repository PAT is available'
+  assert_contains "$(<"$git_api_log")" '--token-stdin repos/get octo demo' 'git-commit should use stdin token auth when resolving the default branch'
+  assert_contains "$(<"$git_api_log")" '--token-stdin pulls/list octo demo' 'git-commit should use stdin token auth when checking for an existing pull request'
+  assert_contains "$(<"$git_api_log")" '--token-stdin pulls/create octo demo' 'git-commit should use stdin token auth when creating the pull request'
+  assert_not_contains "$(<"$git_api_log")" '--profile work' 'git-commit should not pass the configured git-api profile when a repository PAT is available'
+  assert_eq "$(<"$git_api_stdin_log")" "$token
+$token
+$token" 'git-commit should pass the repository PAT over stdin to each PR-related git-api call'
+  assert_eq "$(<"$git_profile_log")" 'token' 'git-commit should resolve the repository PAT only once per PR run'
+  assert_not_contains "$(<"$git_api_log")" "$token" 'git-api argv should not contain the repository PAT'
+  assert_not_contains "$output" "$token" 'git-commit debug output should not contain the repository PAT'
+}
+
+@test "uses the repository git profile PAT for PR update calls" {
+  local stub_path jq_stub git_api_stub git_profile_stub git_api_log git_api_stdin_log remote repo output token
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_profile_stub="$TMP_HOME/git-profile"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  git_api_stdin_log="$TMP_HOME/git-api-stdin.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  token='repo-profile-token-sentinel'
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+  create_git_profile_stub "$git_profile_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model '' '' work
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_API_STDIN_LOG="$git_api_stdin_log" \
+    GIT_API_PULLS_LIST_RESPONSE='[{"number":77,"title":"feat(11222): prior","body":"prior body","html_url":"https://github.com/octo/demo/pull/77"}]' \
+    GIT_PROFILE_BIN="$git_profile_stub" \
+    GIT_PROFILE_TOKEN_STDOUT="$token" \
     "$TOOL" --pr 2>&1)
 
-  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request with a configured git-api profile'
-  assert_contains "$(<"$git_api_log")" '--profile work repos/get octo demo' 'git-commit should pass the configured git-api profile when resolving the default branch'
-  assert_contains "$(<"$git_api_log")" '--profile work pulls/create octo demo' 'git-commit should pass the configured git-api profile when creating the pull request'
+  assert_contains "$(strip_ansi "$output")" 'Pull request updated: https://github.com/octo/demo/pull/77' 'git-commit should update an existing pull request when a repository PAT is available'
+  assert_contains "$(<"$git_api_log")" '--token-stdin repos/get octo demo' 'git-commit should use stdin token auth when resolving the default branch for update flows'
+  assert_contains "$(<"$git_api_log")" '--token-stdin pulls/list octo demo' 'git-commit should use stdin token auth when searching for an existing pull request'
+  assert_contains "$(<"$git_api_log")" '--token-stdin pulls/update octo demo 77' 'git-commit should use stdin token auth when updating an existing pull request'
+  assert_not_contains "$(<"$git_api_log")" '--profile work' 'git-commit should not pass the configured git-api profile when a repository PAT is available'
+  assert_eq "$(<"$git_api_stdin_log")" "$token
+$token
+$token" 'git-commit should pass the repository PAT over stdin to each PR-related git-api call'
+}
+
+@test "falls back to the configured git-api profile when the active repository profile has no PAT" {
+  local stub_path jq_stub git_api_stub git_profile_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_profile_stub="$TMP_HOME/git-profile"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+  create_git_profile_stub "$git_profile_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model '' '' work
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_PROFILE_BIN="$git_profile_stub" \
+    GIT_PROFILE_TOKEN_ERROR="Error: PAT not configured for profile 'work'" \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request when the repository profile has no PAT'
+  assert_contains "$(<"$git_api_log")" '--profile work repos/get octo demo' 'git-commit should fall back to the configured git-api profile for default branch lookup'
+  assert_contains "$(<"$git_api_log")" '--profile work pulls/create octo demo' 'git-commit should fall back to the configured git-api profile for pull request creation'
+  assert_not_contains "$(<"$git_api_log")" '--token-stdin' 'git-commit should not use stdin token auth when the repository profile has no PAT'
+}
+
+@test "omits explicit git-api auth selectors when neither a repository PAT nor configured profile exists" {
+  local stub_path jq_stub git_api_stub git_profile_stub git_api_log remote repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  git_api_stub="$TMP_HOME/git-api"
+  git_profile_stub="$TMP_HOME/git-profile"
+  git_api_log="$TMP_HOME/git-api-args.log"
+  remote="$TMP_HOME/remote.git"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+  create_git_api_stub "$git_api_stub"
+  create_git_profile_stub "$git_profile_stub"
+
+  create_repo_with_remote "$remote" "$repo"
+  git -C "$repo" remote set-url origin https://github.com/octo/demo.git
+  git -C "$repo" remote set-url --push origin "$remote"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
+    GIT_API_BIN="$git_api_stub" \
+    GIT_API_ARGS_LOG="$git_api_log" \
+    GIT_PROFILE_BIN="$git_profile_stub" \
+    GIT_PROFILE_TOKEN_ERROR='Error: no git profile is recorded in this repository' \
+    "$TOOL" --pr 2>&1)
+
+  assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request when no explicit auth selector is available'
+  assert_contains "$(<"$git_api_log")" 'repos/get octo demo' 'git-commit should still resolve the default branch through git-api'
+  assert_contains "$(<"$git_api_log")" 'pulls/create octo demo' 'git-commit should still create the pull request through git-api'
+  assert_not_contains "$(<"$git_api_log")" '--profile' 'git-commit should not pass a configured git-api profile when none is configured'
+  assert_not_contains "$(<"$git_api_log")" '--token-stdin' 'git-commit should not use stdin token auth when no repository PAT exists'
 }
 
 @test "uses the explicit base branch provided to --pr" {
