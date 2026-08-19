@@ -1,3 +1,9 @@
+## [0.51.0](https://github.com/egose/picotools/compare/v0.50.0...v0.51.0) (2026-08-19)
+
+### Features
+
+* add PAT editing to profile update flow ([7bd518d](https://github.com/egose/picotools/commit/7bd518d872a7d25fb27ab594cd8afe110c60a499))
+
 ## [0.50.0](https://github.com/egose/picotools/compare/v0.49.0...v0.50.0) (2026-08-19)
 
 ### Features
