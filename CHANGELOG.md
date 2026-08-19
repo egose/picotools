@@ -1,3 +1,9 @@
+## [0.52.0](https://github.com/egose/picotools/compare/v0.51.0...v0.52.0) (2026-08-19)
+
+### Features
+
+* report pull request auth selection ([bd5b972](https://github.com/egose/picotools/commit/bd5b9723dc76385ad83341e3e1e14c28dfc192d2))
+
 ## [0.51.0](https://github.com/egose/picotools/compare/v0.50.0...v0.51.0) (2026-08-19)
 
 ### Features
