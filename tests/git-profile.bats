@@ -630,7 +630,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n1\ngpg2\n2\ninput\n3\nfalse\n10\n' |
+  output=$(printf '1\n1\ngpg2\n2\ninput\n3\nfalse\n11\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" 'Optional settings:' 'update should show the optional settings menu'
@@ -641,7 +641,8 @@ EOF
   assert_contains "$output" '4. Pull Rebase [false]' 'update should show the current pull.rebase value'
   assert_contains "$output" '8. Core Editor [vim]' 'update should show the current core.editor value'
   assert_contains "$output" '9. SSH Add On Start [false]' 'update should show the current SSH add-on-start value'
-  assert_contains "$output" '10. Done' 'update should offer a done option'
+  assert_contains "$output" '10. PAT [no]' 'update should offer PAT as an updatable field'
+  assert_contains "$output" '11. Done' 'update should offer a done option'
   assert_not_contains "$output" 'Use SSH connection?' 'update should not prompt to rewrite SSH settings'
   assert_not_contains "$output" 'Use GPG signing?' 'update should not prompt to rewrite GPG enablement'
   assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
@@ -673,7 +674,7 @@ EOF
     push.autoSetupRemote false \
     core.editor vim
 
-  output=$(printf '1\n4\ntrue\n5\ntrue\n6\ncurrent\n7\ntrue\n8\nnano\n10\n' |
+  output=$(printf '1\n4\ntrue\n5\ntrue\n6\ncurrent\n7\ntrue\n8\nnano\n11\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
@@ -699,7 +700,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n2\ninput\n10\n' |
+  output=$(printf '1\n2\ninput\n11\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
@@ -721,7 +722,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n1\n2\ninput\n10\n' |
+  output=$(printf '1\n1\n2\ninput\n11\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" 'GPG Program can only be updated when GPG signing is enabled for the profile.' 'update should explain why gpg.program is unavailable'
@@ -747,7 +748,7 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n3\nfalse\n10\n' |
+  output=$(printf '1\n3\nfalse\n11\n' |
     run_tool update 2>&1)
 
   assert_contains "$output" "Updated profile 'work'." 'update should confirm the selected profile was updated'
@@ -1406,20 +1407,20 @@ EOF
     core.autocrlf false \
     core.fileMode true
 
-  output=$(printf '1\n10\n2\n%s\n' "$first_token" | run_tool update 2>&1)
+  output=$(printf '1\n10\n2\n%s\n11\n' "$first_token" | run_tool update 2>&1)
   assert_eq "$(tr -d '\r\n' <"$token_file")" "$first_token" 'update should add a PAT when requested'
   assert_not_contains "$output" "$first_token" 'update should not print an added PAT'
 
-  output=$(printf '1\n10\n1\n' | run_tool update 2>&1)
+  output=$(printf '1\n10\n1\n11\n' | run_tool update 2>&1)
   assert_eq "$(tr -d '\r\n' <"$token_file")" "$first_token" 'update should keep the PAT when requested'
   assert_not_contains "$output" "$first_token" 'update should not print a kept PAT'
 
-  output=$(printf '1\n10\n2\n%s\n' "$second_token" | run_tool update 2>&1)
+  output=$(printf '1\n10\n2\n%s\n11\n' "$second_token" | run_tool update 2>&1)
   assert_eq "$(tr -d '\r\n' <"$token_file")" "$second_token" 'update should replace the PAT when requested'
   assert_not_contains "$output" "$first_token" 'update should not print the old PAT during replacement'
   assert_not_contains "$output" "$second_token" 'update should not print the replacement PAT'
 
-  output=$(printf '1\n10\n3\n' | run_tool update 2>&1)
+  output=$(printf '1\n10\n3\n11\n' | run_tool update 2>&1)
   assert_file_not_exists "$token_file" 'update should remove the PAT when requested'
   assert_not_contains "$output" "$second_token" 'update should not print the removed PAT'
 }
