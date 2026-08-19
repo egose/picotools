@@ -1,3 +1,9 @@
+## [0.50.0](https://github.com/egose/picotools/compare/v0.49.0...v0.50.0) (2026-08-19)
+
+### Features
+
+* add git profile PAT support and PR auth precedence ([8ca5bf3](https://github.com/egose/picotools/commit/8ca5bf3f1b5d3634b4a087ddb6fcd274c83b9790))
+
 ## [0.49.0](https://github.com/egose/picotools/compare/v0.48.0...v0.49.0) (2026-07-29)
 
 ### Features
