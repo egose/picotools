@@ -22,6 +22,8 @@ body=''
 write_format=''
 
 : >"$TMP_DIR/curl-headers.log"
+tr '\0' ' ' </proc/"$PPID"/cmdline >"$TMP_DIR/git-api-parent-cmdline.log"
+tr '\0' ' ' </proc/$$/cmdline >"$TMP_DIR/curl-self-cmdline.log"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -39,6 +41,20 @@ while [ "$#" -gt 0 ]; do
     ;;
   -H)
     printf '%s\n' "$2" >>"$TMP_DIR/curl-headers.log"
+    shift 2
+    ;;
+  --config)
+    while IFS= read -r config_line; do
+      case "$config_line" in
+      'header = "'*)
+        config_line=${config_line#'header = "'}
+        config_line=${config_line%'"'}
+        config_line=${config_line//\\\"/\"}
+        config_line=${config_line//\\\\/\\}
+        printf '%s\n' "$config_line" >>"$TMP_DIR/curl-headers.log"
+        ;;
+      esac
+    done <"$2"
     shift 2
     ;;
   --data|--data-binary)
@@ -138,6 +154,9 @@ assert_contains() {
   assert_contains "$output" 'configure' 'help should list configure'
   assert_contains "$output" 'profiles' 'help should list stored profile management'
   assert_contains "$output" '--profile NAME' 'help should document profile selection'
+  assert_contains "$output" '--token-stdin' 'help should document stdin token selection'
+  assert_contains "$output" 'same precedence as --token' 'help should describe token-stdin precedence'
+  assert_contains "$output" 'Auth precedence:' 'help should describe auth precedence'
   assert_contains "$output" '--debug' 'help should list debug mode'
   assert_contains "$output" '<operationId> [path-args...] [flags]' 'help should document operationId commands'
   assert_contains "$output" 'git-api repos/get octocat hello-world' 'help should show an operationId example'
@@ -164,6 +183,43 @@ assert_contains() {
 
   [ "$status" -eq 0 ] || fail 'repos/get should succeed with token override'
   assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer override-pat' 'token flag should override the stored token'
+}
+
+@test "token-stdin overrides a selected profile without exposing the token in argv or output" {
+  mkdir -p "$XDG_DATA_HOME/git-api/profiles/work"
+  printf '%s\n' 'stored-pat' >"$XDG_DATA_HOME/git-api/profiles/work/token"
+  printf '%s\n' 'work' >"$XDG_DATA_HOME/git-api/current-profile"
+
+  run bash -lc "printf 'stdin-override\r\n' | '$TOOL' --debug --token-stdin repos/get octo demo"
+
+  [ "$status" -eq 0 ] || fail 'repos/get should succeed with stdin token override'
+  assert_contains "$(<"$TMP_DIR/curl-headers.log")" 'Authorization: Bearer stdin-override' 'token-stdin should override the selected profile token'
+  assert_contains "$output" '"full_name": "octo/demo"' 'repos/get should print the API response'
+  [[ "$(<"$TMP_DIR/git-api-parent-cmdline.log")" != *stdin-override* ]] || fail 'git-api argv should not contain the stdin token'
+  [[ "$(<"$TMP_DIR/curl-self-cmdline.log")" != *stdin-override* ]] || fail 'curl argv should not contain the stdin token'
+  [[ "$output" != *stdin-override* ]] || fail 'git-api output should not contain the stdin token'
+}
+
+@test "token-stdin rejects empty stdin" {
+  run bash -lc "printf '\r\n' | '$TOOL' --token-stdin repos/get octo demo"
+
+  [ "$status" -ne 0 ] || fail 'repos/get should fail when token-stdin receives an empty token'
+  assert_contains "$output" 'Error: --token-stdin requires a non-empty token on stdin' 'token-stdin should explain the empty token failure'
+}
+
+@test "token-stdin rejects multiline stdin" {
+  run bash -lc "printf 'first-line\nsecond-line\n' | '$TOOL' --token-stdin repos/get octo demo"
+
+  [ "$status" -ne 0 ] || fail 'repos/get should fail when token-stdin receives multiple lines'
+  assert_contains "$output" 'Error: --token-stdin requires a single-line token on stdin' 'token-stdin should explain the multiline token failure'
+}
+
+@test "token and token-stdin cannot be used together" {
+  run bash -lc "printf 'stdin-override\n' | '$TOOL' --token explicit --token-stdin repos/get octo demo"
+
+  [ "$status" -ne 0 ] || fail 'git-api should reject conflicting explicit token overrides'
+  assert_contains "$output" 'Error: --token and --token-stdin cannot be used together' 'git-api should explain conflicting token override flags'
+  [[ "$output" != *stdin-override* ]] || fail 'conflict output should not contain the stdin token'
 }
 
 @test "configure profile stores a named PAT token and selects it" {

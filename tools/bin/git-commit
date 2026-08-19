@@ -37,6 +37,10 @@ Without a command, `git-commit` analyzes the current git workspace, asks the
 configured model for conventional commit suggestions, and creates one or more
 commits.
 
+In `--pr` mode, authentication precedence is: the PAT owned by the repository's
+`picotools.gitProfile` marker, then the configured `git-api.profile`, then
+`git-api`'s own fallback resolution.
+
 Options:
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
@@ -49,6 +53,10 @@ Options:
   --path-file PATH          Load additional scoped paths from a newline-delimited file; repeatable
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
+
+Repository context:
+  `git-profile set` and `git-profile clone` record the active profile as the
+  local `picotools.gitProfile` Git config value used by `--pr` auth lookup.
 EOF
 }
 
@@ -138,11 +146,26 @@ git_api_command() {
   picotools_resolve_tool_command "$SCRIPT_DIR" GIT_API_BIN git-api
 }
 
+git_profile_command() {
+  picotools_resolve_tool_command "$SCRIPT_DIR" GIT_PROFILE_BIN git-profile
+}
+
 run_git_api() {
   local tool
+  local repository_token="${GIT_COMMIT_GIT_API_TOKEN:-}"
   local configured_profile="${GIT_COMMIT_GIT_API_PROFILE:-}"
 
   tool=$(git_api_command)
+  if [ -n "$repository_token" ]; then
+    if debug_enabled; then
+      printf '%s' "$repository_token" | "$tool" --debug --token-stdin "$@"
+      return $?
+    fi
+
+    printf '%s' "$repository_token" | "$tool" --token-stdin "$@"
+    return $?
+  fi
+
   if debug_enabled; then
     if [ -n "$configured_profile" ]; then
       "$tool" --debug --profile "$configured_profile" "$@"
@@ -157,6 +180,13 @@ run_git_api() {
     return $?
   fi
 
+  "$tool" "$@"
+}
+
+run_git_profile() {
+  local tool
+
+  tool=$(git_profile_command)
   "$tool" "$@"
 }
 
@@ -1362,6 +1392,37 @@ load_run_configuration() {
   printf '%s\n' "$config_values"
 }
 
+resolve_repository_git_api_auth() {
+  local token stderr_file stderr_output
+
+  GIT_COMMIT_GIT_API_TOKEN=''
+  stderr_file=$(mktemp)
+  register_tmpfile "$stderr_file"
+
+  debug_log 'Checking for a repository git profile PAT'
+  if token=$(run_git_profile token 2>"$stderr_file"); then
+    GIT_COMMIT_GIT_API_TOKEN="$token"
+    debug_log 'Using repository git profile PAT for pull request API calls'
+    return 0
+  fi
+
+  stderr_output=$(<"$stderr_file")
+  case "$stderr_output" in
+  'Error: no git profile is recorded in this repository' | "Error: PAT not configured for profile '"*"'")
+    debug_log 'No repository git profile PAT is available; falling back to git-api profile resolution'
+    return 0
+    ;;
+  '')
+    echo 'Error: failed to resolve repository git profile PAT' >&2
+    ;;
+  *)
+    printf '%s\n' "$stderr_output" >&2
+    ;;
+  esac
+
+  exit 1
+}
+
 prepare_workspace_changes() {
   local output_ref_name="$1"
   local pre_commit_retries="$2"
@@ -1832,10 +1893,13 @@ run_commit_tool() {
   additional_profile="${config_lines[2]:-}"
   additional_model="${config_lines[3]:-}"
   git_api_profile="${config_lines[4]:-}"
+  GIT_COMMIT_GIT_API_TOKEN=''
   GIT_COMMIT_GIT_API_PROFILE="$git_api_profile"
   require_dependencies
   if [ "$create_pr" = 'true' ]; then
     git_api_command >/dev/null
+    git_profile_command >/dev/null
+    resolve_repository_git_api_auth
   fi
 
   debug_log 'Resolving branch and commit scope'

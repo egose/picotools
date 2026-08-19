@@ -291,6 +291,44 @@ git_api_token() {
   git_api_read_token
 }
 
+git_api_read_token_stdin() {
+  local token=''
+
+  token="$(
+    cat
+    printf '_'
+  )"
+  token=${token%_}
+
+  while true; do
+    case "$token" in
+    *$'\n')
+      token=${token%$'\n'}
+      ;;
+    *$'\r')
+      token=${token%$'\r'}
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  if [ -z "$token" ]; then
+    echo 'Error: --token-stdin requires a non-empty token on stdin' >&2
+    exit 1
+  fi
+
+  case "$token" in
+  *$'\n'* | *$'\r'*)
+    echo 'Error: --token-stdin requires a single-line token on stdin' >&2
+    exit 1
+    ;;
+  esac
+
+  printf '%s' "$token"
+}
+
 git_api_validate_key_value() {
   local pair="$1"
   local flag_name="$2"

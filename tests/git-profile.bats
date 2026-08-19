@@ -8,7 +8,9 @@ setup() {
   export TMP_HOME
   export HOME="$TMP_HOME"
   export XDG_CONFIG_HOME="$TMP_HOME/.config"
+  export XDG_DATA_HOME="$TMP_HOME/.local/share"
   export PROFILE_DIR="$XDG_CONFIG_HOME/git-profile"
+  export PROFILE_DATA_DIR="$XDG_DATA_HOME/git-profile"
 }
 
 teardown() {
@@ -142,6 +144,18 @@ context_file_path() {
   printf '%s/%s.gitconfig\n' "$PROFILE_DIR" "$1"
 }
 
+token_file_path() {
+  printf '%s/%s.token\n' "$PROFILE_DATA_DIR" "$1"
+}
+
+assert_mode() {
+  local path="$1"
+  local expected="$2"
+  local message="$3"
+
+  assert_eq "$(stat -c %a "$path")" "$expected" "$message"
+}
+
 write_git_config_values() {
   local file="$1"
   shift
@@ -217,6 +231,9 @@ assert_create_fails() {
   output=$(run_tool --help)
   assert_contains "$output" 'Usage: git-profile <command>' 'help should describe the command entrypoint'
   assert_contains "$output" 'read      Show detailed information for a saved git profile' 'help should list the read command'
+  assert_contains "$output" 'token     Print the active repository profile' 'help should list the token command'
+  assert_contains "$output" 'picotools.gitProfile' 'help should describe the repository marker'
+  assert_contains "$output" 'writes a secret to stdout' 'help should warn that token prints a secret'
   assert_contains "$output" '--debug' 'help should list debug mode'
 
   version=$(run_tool --version)
@@ -229,7 +246,7 @@ assert_create_fails() {
 @test "list prints debug details when enabled" {
   local output
 
-  printf 'personal\nJane Dev\njane@example.com\nno\nno\n' |
+  printf 'personal\nJane Dev\njane@example.com\nno\nno\n\n' |
     run_tool create >/dev/null 2>&1
 
   output=$(run_tool --debug list 2>&1)
@@ -242,7 +259,7 @@ assert_create_fails() {
 
   context_file="$(context_file_path personal)"
 
-  printf 'personal\nJane Dev\njane@example.com\nno\nno\n' |
+  printf 'personal\nJane Dev\njane@example.com\nno\nno\n\n' |
     run_tool create >/dev/null 2>&1
 
   assert_file_exists "$context_file" 'create should save the named context'
@@ -250,6 +267,7 @@ assert_create_fails() {
   output=$(run_tool list)
   assert_contains "$output" '| # ' 'list should print an index column'
   assert_contains "$output" '| Name' 'list should print a table header'
+  assert_contains "$output" '| PAT' 'list should print the PAT status column'
   assert_contains "$output" 'personal' 'list should include the context name'
   assert_contains "$output" 'Jane Dev' 'list should include the user name'
   assert_contains "$output" 'jane@example.com' 'list should include the email'
@@ -314,7 +332,7 @@ EOF
 
   touch "$ssh_key_path"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n%s\nyes\nyes\nABC123\n' "$ssh_key_path" |
+  printf 'work\nJane Dev\njane@example.com\nyes\n%s\nyes\nyes\nABC123\n\n' "$ssh_key_path" |
     run_tool create >/dev/null 2>&1
 
   assert_file_exists "$context_file" 'create should save the named context'
@@ -372,6 +390,7 @@ EOF
   assert_contains "$output" '| Name ' 'read should include the context name field'
   assert_contains "$output" '| User ' 'read should include the user field'
   assert_contains "$output" '| Email ' 'read should include the email field'
+  assert_contains "$output" '| PAT ' 'read should include the PAT field'
   assert_contains "$output" '| SSH ' 'read should include SSH enabled field'
   assert_contains "$output" '| SSH Key ' 'read should include the SSH key field'
   assert_contains "$output" "$ssh_key_path" 'read should include the SSH key path'
@@ -494,7 +513,7 @@ fi
 EOF
   chmod +x "$stub_bin/gpg"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nyes\n\n' |
+  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nyes\n\n\n' |
     PATH="$stub_bin:$PATH" \
       SSH_KEYGEN_LOG="$ssh_log" \
       SSH_KEYGEN_PATH="$ssh_key_path" \
@@ -546,7 +565,7 @@ touch "$SSH_KEYGEN_PATH"
 EOF
   chmod +x "$stub_bin/ssh-keygen"
 
-  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nno\n' |
+  printf 'work\nJane Dev\njane@example.com\nyes\n\nno\nno\n\n' |
     PATH="$stub_bin:$PATH" \
       SSH_KEYGEN_LOG="$ssh_log" \
       SSH_KEYGEN_PATH="$ssh_key_path" \
@@ -982,7 +1001,7 @@ EOF
   local output
 
   output=$(run_tool --help)
-  assert_contains "$output" 'clone     Clone a repository using a saved git profile' 'help should list the clone command'
+  assert_contains "$output" 'clone     Clone a repository and record picotools.gitProfile in the clone' 'help should list the clone command'
 }
 
 @test "clone with SSH profile uses the profile key" {
@@ -1004,7 +1023,7 @@ EOF
     tag.gpgsign false \
     core.autocrlf false \
     core.fileMode true \
-    core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
+    core.sshCommand "$(printf 'ssh -i %q -o IdentitiesOnly=yes' "$ssh_key_path")"
 
   real_git="$(command -v git)"
 
@@ -1025,9 +1044,40 @@ EOF
     "$TOOL" clone work "git@github.com:egose/picotools.git" 2>&1)
 
   assert_contains "$output" "Cloned 'git@github.com:egose/picotools.git' using profile 'work'." 'clone should confirm success'
-  assert_contains "$(<"$git_log")" 'clone git@github.com:egose/picotools.git' 'clone should pass the URL to git'
   assert_contains "$(<"$git_log")" 'clone' 'clone should invoke git clone'
+  assert_contains "$(<"$git_log")" 'git@github.com:egose/picotools.git' 'clone should pass the URL to git'
+  assert_contains "$(<"$git_log")" '--config picotools.gitProfile=work' 'clone with SSH should pass the profile marker through --config'
   assert_contains "$(<"$git_ssh_log")" "ssh -i $ssh_key_path -o IdentitiesOnly=yes" 'clone should set GIT_SSH_COMMAND with the profile key'
+}
+
+@test "clone with SSH profile preserves spaces in the key path" {
+  local stub_bin ssh_log ssh_key_path output
+
+  stub_bin="$TMP_HOME/bin"
+  ssh_log="$TMP_HOME/ssh.log"
+  ssh_key_path="$TMP_HOME/.ssh/work key"
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin" "$(dirname "$ssh_key_path")"
+  touch "$ssh_key_path"
+
+  printf 'work\nJane Dev\njane@example.com\nyes\n%s\nno\nno\n\n' "$ssh_key_path" |
+    run_tool create >/dev/null 2>&1
+
+  cat >"$stub_bin/ssh" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "\$@" > "$ssh_log"
+exit 1
+EOF
+  chmod +x "$stub_bin/ssh"
+
+  if output=$(PATH="$stub_bin:$PATH" "$TOOL" clone work "git@github.com:egose/picotools.git" 2>&1); then
+    fail 'clone should fail because the SSH command is stubbed to exit non-zero'
+  fi
+
+  assert_eq "$(sed -n '1p' "$ssh_log")" '-i' 'clone should pass -i to ssh'
+  assert_eq "$(sed -n '2p' "$ssh_log")" "$ssh_key_path" 'clone should preserve the spaced SSH key path as one ssh argument'
 }
 
 @test "clone without SSH profile runs plain git clone" {
@@ -1067,7 +1117,9 @@ EOF
     "$TOOL" clone personal "git@github.com:egose/picotools.git" 2>&1)
 
   assert_contains "$output" "Cloned 'git@github.com:egose/picotools.git' using profile 'personal'." 'clone should confirm success'
-  assert_contains "$(<"$git_log")" 'clone git@github.com:egose/picotools.git' 'clone should pass the URL to git'
+  assert_contains "$(<"$git_log")" 'clone' 'clone should invoke git clone'
+  assert_contains "$(<"$git_log")" 'git@github.com:egose/picotools.git' 'clone should pass the URL to git'
+  assert_contains "$(<"$git_log")" '--config picotools.gitProfile=personal' 'clone without SSH should pass the profile marker through --config'
   assert_eq "$(<"$git_ssh_log")" '' 'clone should not set GIT_SSH_COMMAND when SSH is disabled'
 }
 
@@ -1100,4 +1152,480 @@ EOF
   fi
 
   assert_contains "$output" 'Error: git URL is required' 'clone should report that URL is required'
+}
+
+@test "set writes the repository profile marker" {
+  local context_file repo
+
+  context_file="$(context_file_path work)"
+  repo="$TMP_HOME/repo"
+
+  mkdir -p "$PROFILE_DIR"
+  init_repo "$repo"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  run_set_in_repo "$repo"
+
+  assert_git_local_value "$repo" picotools.gitProfile work 'set should persist the active profile name'
+  assert_git_local_all_values "$repo" picotools.gitProfile work 'set should persist exactly one marker value'
+}
+
+@test "set replaces stale repository profile marker values" {
+  local work_file personal_file repo
+
+  work_file="$(context_file_path work)"
+  personal_file="$(context_file_path personal)"
+  repo="$TMP_HOME/repo"
+
+  mkdir -p "$PROFILE_DIR"
+  init_repo "$repo"
+
+  write_git_config_values "$work_file" \
+    user.name 'Jane Work' \
+    user.email 'jane@work.example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  write_git_config_values "$personal_file" \
+    user.name 'Jane Personal' \
+    user.email 'jane@personal.example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  append_local_git_config_values "$repo" \
+    picotools.gitProfile stale-one \
+    picotools.gitProfile stale-two
+
+  (
+    cd "$repo" || return 1
+    printf '1\n' | run_tool set >/dev/null 2>&1
+    printf '2\n' | run_tool set >/dev/null 2>&1
+  )
+
+  assert_git_local_value "$repo" picotools.gitProfile work 'set should overwrite stale marker values with the latest selection'
+  assert_git_local_all_values "$repo" picotools.gitProfile work 'set should leave exactly one marker value after switching profiles'
+}
+
+@test "clone with SSH profile persists the marker via git clone --config" {
+  local context_file stub_bin git_log ssh_key_path
+
+  context_file="$(context_file_path work)"
+  stub_bin="$TMP_HOME/bin"
+  git_log="$TMP_HOME/git.log"
+  ssh_key_path="$TMP_HOME/.ssh/id_ed25519_work"
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin" "$(dirname "$ssh_key_path")"
+  touch "$ssh_key_path"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true \
+    core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
+
+  real_git="$(command -v git)"
+
+  cat >"$stub_bin/git" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "\$*" >> "$git_log"
+if [ "\$1" = "config" ]; then exec "$real_git" "\$@"; fi
+mkdir -p "picotools"
+EOF
+  chmod +x "$stub_bin/git"
+
+  output=$(PATH="$stub_bin:$PATH" GIT_LOG="$git_log" \
+    "$TOOL" clone work "git@github.com:egose/picotools.git" 2>&1)
+
+  assert_contains "$(<"$git_log")" 'clone --config picotools.gitProfile=work git@github.com:egose/picotools.git' \
+    'clone with SSH should pass the profile marker through git clone --config'
+}
+
+@test "clone without SSH profile persists the marker via git clone --config" {
+  local context_file stub_bin git_log
+
+  context_file="$(context_file_path personal)"
+  stub_bin="$TMP_HOME/bin"
+  git_log="$TMP_HOME/git.log"
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  real_git="$(command -v git)"
+
+  cat >"$stub_bin/git" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "\$*" >> "$git_log"
+if [ "\$1" = "config" ]; then exec "$real_git" "\$@"; fi
+mkdir -p "picotools"
+EOF
+  chmod +x "$stub_bin/git"
+
+  output=$(PATH="$stub_bin:$PATH" GIT_LOG="$git_log" \
+    "$TOOL" clone personal "git@github.com:egose/picotools.git" 2>&1)
+
+  assert_contains "$(<"$git_log")" 'clone --config picotools.gitProfile=personal git@github.com:egose/picotools.git' \
+    'clone without SSH should pass the profile marker through git clone --config'
+}
+
+@test "clone persists the marker inside the cloned repository" {
+  local context_file remote_repo clone_parent clone_dir
+
+  context_file="$(context_file_path work)"
+  remote_repo="$TMP_HOME/remote.git"
+  clone_parent="$TMP_HOME/clones"
+
+  mkdir -p "$PROFILE_DIR" "$clone_parent"
+  git init -q --bare "$remote_repo"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  (
+    cd "$clone_parent" || return 1
+    run_tool clone work "$remote_repo" >/dev/null 2>&1
+  )
+
+  clone_dir="$clone_parent/remote"
+  assert_git_local_value "$clone_dir" picotools.gitProfile work 'clone should write the profile marker into the cloned repository local config'
+  assert_git_local_all_values "$clone_dir" picotools.gitProfile work 'clone should persist exactly one marker value in the cloned repository'
+}
+
+@test "create stores PAT in XDG data and does not leak it through config or summaries" {
+  local context_file token_file repo output debug_output
+  local token='ghp_profile_secret_sentinel'
+
+  context_file="$(context_file_path work)"
+  token_file="$(token_file_path work)"
+  repo="$TMP_HOME/repo"
+
+  init_repo "$repo"
+
+  printf 'work\nJane Dev\njane@example.com\nno\nno\n%s\n' "$token" |
+    run_tool create >/dev/null 2>&1
+
+  assert_file_exists "$token_file" 'create should store the PAT in the profile data directory'
+  assert_eq "$(tr -d '\r\n' <"$token_file")" "$token" 'create should store the exact PAT bytes in the token file'
+  assert_not_contains "$(<"$context_file")" "$token" 'create should not write the PAT into the saved profile config'
+
+  (
+    cd "$repo" || return 1
+    printf '1\n' | run_tool set >/dev/null 2>&1
+  )
+
+  assert_not_contains "$(<"$repo/.git/config")" "$token" 'set should not write the PAT into repository local git config'
+
+  output=$(run_tool list)
+  assert_contains "$output" '| PAT' 'list should include a PAT status column'
+  assert_contains "$output" ' yes ' 'list should show that the profile PAT is configured'
+  assert_not_contains "$output" "$token" 'list should not print the PAT value'
+
+  output=$(printf '1\nno\n' | run_tool read 2>&1)
+  assert_contains "$output" '| PAT ' 'read should show the PAT status field'
+  assert_contains "$output" 'yes' 'read should show that the PAT is configured'
+  assert_not_contains "$output" "$token" 'read should not print the PAT value'
+
+  debug_output=$(run_tool --debug list 2>&1)
+  assert_not_contains "$debug_output" "$token" 'debug list output should not print the PAT value'
+}
+
+@test "create without PAT leaves no token file and blank overwrite removes stale PAT" {
+  local token_file
+
+  token_file="$(token_file_path work)"
+
+  printf 'work\nJane Dev\njane@example.com\nno\nno\nold-token\n' |
+    run_tool create >/dev/null 2>&1
+  assert_file_exists "$token_file" 'create should store the initial token file when a PAT is provided'
+
+  printf 'work\nyes\nJane Dev\njane@example.com\nno\nno\n\n' |
+    run_tool create >/dev/null 2>&1
+
+  assert_file_not_exists "$token_file" 'overwriting with a blank PAT should remove the stale token file'
+}
+
+@test "create repairs permissive PAT directory and file modes" {
+  local token_file
+
+  token_file="$(token_file_path work)"
+
+  mkdir -p "$PROFILE_DATA_DIR"
+  chmod 755 "$PROFILE_DATA_DIR"
+  printf '%s\n' 'old-token' >"$token_file"
+  chmod 644 "$token_file"
+
+  printf 'work\nJane Dev\njane@example.com\nno\nno\nnew-token\n' |
+    run_tool create >/dev/null 2>&1
+
+  assert_mode "$PROFILE_DATA_DIR" 700 'create should enforce mode 0700 on the PAT directory'
+  assert_mode "$token_file" 600 'create should enforce mode 0600 on the PAT file'
+}
+
+@test "update supports add keep replace and remove PAT actions without exposing the value" {
+  local context_file token_file output
+  local first_token='ghp_first_update_token'
+  local second_token='ghp_second_update_token'
+
+  context_file="$(context_file_path work)"
+  token_file="$(token_file_path work)"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  output=$(printf '1\n10\n2\n%s\n' "$first_token" | run_tool update 2>&1)
+  assert_eq "$(tr -d '\r\n' <"$token_file")" "$first_token" 'update should add a PAT when requested'
+  assert_not_contains "$output" "$first_token" 'update should not print an added PAT'
+
+  output=$(printf '1\n10\n1\n' | run_tool update 2>&1)
+  assert_eq "$(tr -d '\r\n' <"$token_file")" "$first_token" 'update should keep the PAT when requested'
+  assert_not_contains "$output" "$first_token" 'update should not print a kept PAT'
+
+  output=$(printf '1\n10\n2\n%s\n' "$second_token" | run_tool update 2>&1)
+  assert_eq "$(tr -d '\r\n' <"$token_file")" "$second_token" 'update should replace the PAT when requested'
+  assert_not_contains "$output" "$first_token" 'update should not print the old PAT during replacement'
+  assert_not_contains "$output" "$second_token" 'update should not print the replacement PAT'
+
+  output=$(printf '1\n10\n3\n' | run_tool update 2>&1)
+  assert_file_not_exists "$token_file" 'update should remove the PAT when requested'
+  assert_not_contains "$output" "$second_token" 'update should not print the removed PAT'
+}
+
+@test "token prints the active repository profile PAT from the local marker only" {
+  local work_file personal_file work_token_file personal_token_file repo output
+
+  work_file="$(context_file_path work)"
+  personal_file="$(context_file_path personal)"
+  work_token_file="$(token_file_path work)"
+  personal_token_file="$(token_file_path personal)"
+  repo="$TMP_HOME/repo"
+
+  mkdir -p "$PROFILE_DATA_DIR"
+  init_repo "$repo"
+
+  write_git_config_values "$work_file" \
+    user.name 'Jane Dev' \
+    user.email 'shared@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  write_git_config_values "$personal_file" \
+    user.name 'Jane Dev' \
+    user.email 'shared@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+
+  printf '%s\n' 'work-token' >"$work_token_file"
+  printf '%s\n' 'personal-token' >"$personal_token_file"
+  chmod 600 "$work_token_file" "$personal_token_file"
+  chmod 700 "$PROFILE_DATA_DIR"
+
+  git config --global picotools.gitProfile personal
+  git -C "$repo" config --local picotools.gitProfile work
+
+  output=$(bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" --)
+
+  assert_eq "$output" 'work-token' 'token should print only the active repository profile PAT'
+}
+
+@test "token fails outside a git repository" {
+  assert_command_fails \
+    'Error: token must be run inside a Git repository' \
+    bash -c "cd \"$TMP_HOME\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" \
+    --
+}
+
+@test "token fails when the repository marker is missing" {
+  local repo
+
+  repo="$TMP_HOME/repo"
+  init_repo "$repo"
+
+  assert_command_fails \
+    'Error: no git profile is recorded in this repository' \
+    bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" \
+    --
+}
+
+@test "token fails when the repository profile no longer exists" {
+  local repo
+
+  repo="$TMP_HOME/repo"
+  init_repo "$repo"
+  git -C "$repo" config --local picotools.gitProfile missing
+
+  assert_command_fails \
+    "Error: repository git profile 'missing' does not exist" \
+    bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" \
+    --
+}
+
+@test "token fails when the active repository profile has no PAT" {
+  local context_file repo
+
+  context_file="$(context_file_path work)"
+  repo="$TMP_HOME/repo"
+
+  init_repo "$repo"
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+  git -C "$repo" config --local picotools.gitProfile work
+
+  assert_command_fails \
+    "Error: PAT not configured for profile 'work'" \
+    bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" \
+    --
+}
+
+@test "blank PAT files are treated as not configured" {
+  local context_file token_file repo output
+
+  context_file="$(context_file_path work)"
+  token_file="$(token_file_path work)"
+  repo="$TMP_HOME/repo"
+
+  mkdir -p "$PROFILE_DATA_DIR"
+  init_repo "$repo"
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+  : >"$token_file"
+  chmod 600 "$token_file"
+  git -C "$repo" config --local picotools.gitProfile work
+
+  if output=$(bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" -- 2>&1); then
+    fail 'token should fail when the PAT file is blank'
+  fi
+
+  assert_contains "$output" "Error: PAT not configured for profile 'work'" 'blank PAT files should be treated the same as a missing PAT'
+
+  output=$(printf '1\nno\n' | run_tool read 2>&1)
+  assert_contains "$output" '| PAT ' 'read should show the PAT status field'
+  assert_contains "$output" ' no ' 'read should show a blank PAT file as not configured'
+}
+
+@test "create rejects a symlink token path on write without changing its target" {
+  local token_file target output
+  local token='ghp_symlink_write_token'
+
+  token_file="$(token_file_path work)"
+  target="$TMP_HOME/outside-write.token"
+
+  mkdir -p "$PROFILE_DATA_DIR"
+  printf '%s\n' 'original-write-target' >"$target"
+  ln -s "$target" "$token_file"
+
+  if output=$(printf 'work\nJane Dev\njane@example.com\nno\nno\n%s\n' "$token" | run_tool create 2>&1); then
+    fail 'create should fail when the PAT token path is a symlink'
+  fi
+
+  assert_contains "$output" "refusing to write PAT for profile 'work'" 'create should explain why the symlink token path was rejected'
+  assert_eq "$(<"$target")" 'original-write-target' 'create should not modify the symlink target when rejecting a PAT write'
+  assert_not_contains "$output" "$token" 'create failure output should not print the rejected PAT'
+}
+
+@test "token rejects a symlink token path on read without printing the PAT" {
+  local context_file token_file target repo output
+  local token='ghp_symlink_read_token'
+
+  context_file="$(context_file_path work)"
+  token_file="$(token_file_path work)"
+  target="$TMP_HOME/outside-read.token"
+  repo="$TMP_HOME/repo"
+
+  init_repo "$repo"
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+  mkdir -p "$PROFILE_DATA_DIR"
+  printf '%s\n' "$token" >"$target"
+  ln -s "$target" "$token_file"
+  git -C "$repo" config --local picotools.gitProfile work
+
+  if output=$(bash -c "cd \"$repo\" && HOME=\"$TMP_HOME\" XDG_CONFIG_HOME=\"$XDG_CONFIG_HOME\" XDG_DATA_HOME=\"$XDG_DATA_HOME\" \"$TOOL\" token" -- 2>&1); then
+    fail 'token should fail when the PAT token path is a symlink'
+  fi
+
+  assert_contains "$output" "refusing to read PAT for profile 'work'" 'token should explain why the symlink token path was rejected'
+  assert_eq "$(<"$target")" "$token" 'token should not modify the symlink target when rejecting a PAT read'
+  assert_not_contains "$output" "$token" 'token failure output should not print the PAT value'
+}
+
+@test "delete rejects a symlink token path without changing its target" {
+  local context_file token_file target output
+  local token='ghp_symlink_delete_token'
+
+  context_file="$(context_file_path work)"
+  token_file="$(token_file_path work)"
+  target="$TMP_HOME/outside-delete.token"
+
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    commit.gpgsign false \
+    tag.gpgsign false \
+    core.autocrlf false \
+    core.fileMode true
+  mkdir -p "$PROFILE_DATA_DIR"
+  printf '%s\n' "$token" >"$target"
+  ln -s "$target" "$token_file"
+
+  if output=$(printf '1\ny\n' | run_tool delete 2>&1); then
+    fail 'delete should fail when the PAT token path is a symlink'
+  fi
+
+  assert_contains "$output" "refusing to delete PAT for profile 'work'" 'delete should explain why the symlink token path was rejected'
+  assert_file_exists "$context_file" 'delete should leave the profile file in place when PAT deletion is unsafe'
+  assert_eq "$(<"$target")" "$token" 'delete should not modify the symlink target when rejecting PAT deletion'
+  assert_not_contains "$output" "$token" 'delete failure output should not print the PAT value'
 }
