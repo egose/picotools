@@ -18,6 +18,19 @@ assert_eq() {
   fi
 }
 
+assert_contains() {
+  local haystack="$1"
+  local needle="$2"
+  local message="$3"
+
+  case "$haystack" in
+  *"$needle"*) ;;
+  *)
+    fail "$message (missing '$needle')"
+    ;;
+  esac
+}
+
 assert_not_contains() {
   local haystack="$1"
   local needle="$2"
@@ -105,6 +118,31 @@ secret123" 'secret prompt should display one asterisk per typed character while 
 
   expected_output=$'secretx\b \b\nAPI key: ******\nsecret'
   assert_eq "$output" "$expected_output" 'secret prompt should erase the last mask character when backspace is pressed'
+}
+
+@test "required secret prompt retries empty interactive input" {
+  run run_prompt_script '\nsecret123\n' 'picotools_prompt_secret_value "API key" "" true'
+
+  [ "$status" -eq 0 ] || fail "interactive required secret prompt should succeed after retry"
+
+  assert_contains "$output" 'Value is required.' 'required secret prompt should reject an empty interactive answer before retrying'
+  assert_contains "$output" 'secret123' 'required secret prompt should return the retried secret value'
+}
+
+@test "required secret prompt fails on EOF" {
+  run bash -lc '. "$1"; picotools_prompt_secret_value "API key" "" true 2>&1' bash "$PROMPT_SH" </dev/null
+
+  [ "$status" -ne 0 ] || fail "required secret prompt should fail when input ends"
+
+  assert_contains "$output" 'Error: input ended before required value was provided.' 'required secret prompt should explain EOF without a secret value'
+}
+
+@test "optional secret prompt accepts EOF as blank" {
+  run bash -lc '. "$1"; picotools_prompt_secret_value "API key" 2>&1' bash "$PROMPT_SH" </dev/null
+
+  [ "$status" -eq 0 ] || fail "optional secret prompt should still accept blank input"
+
+  assert_contains "$output" 'API key:' 'optional secret prompt should still render its prompt'
 }
 
 @test "single-select prompt ignores left and right arrows without corrupting output" {

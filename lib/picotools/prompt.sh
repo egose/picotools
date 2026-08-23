@@ -33,10 +33,12 @@ picotools_prompt_read_masked_value() {
   local prompt_text="${1:-}"
   local answer=''
   local key=''
+  local read_status=0
 
   printf '%s' "$prompt_text" >&2
   while true; do
     if ! key=$(picotools_prompt_read_key); then
+      read_status=1
       break
     fi
 
@@ -60,6 +62,7 @@ picotools_prompt_read_masked_value() {
   done
 
   printf '%s\n' "$answer"
+  return "$read_status"
 }
 
 picotools_prompt_read_key() {
@@ -152,6 +155,7 @@ picotools_prompt_secret_value() {
   local required="${3:-false}"
   local answer
   local interactive=false
+  local read_status=0
 
   if [ -t 0 ] && [ -t 2 ]; then
     interactive=true
@@ -160,15 +164,29 @@ picotools_prompt_secret_value() {
   while true; do
     if [ "$interactive" = true ]; then
       if [ -n "$default_value" ]; then
-        answer=$(picotools_prompt_read_masked_value "$label [$default_value]: ")
+        if answer=$(picotools_prompt_read_masked_value "$label [$default_value]: "); then
+          read_status=0
+        else
+          read_status=$?
+        fi
       else
-        answer=$(picotools_prompt_read_masked_value "$label: ")
+        if answer=$(picotools_prompt_read_masked_value "$label: "); then
+          read_status=0
+        else
+          read_status=$?
+        fi
       fi
     else
+      read_status=0
       if [ -n "$default_value" ]; then
-        answer=$(picotools_prompt_read_value "$label [$default_value]: " false true)
+        printf '%s' "$label [$default_value]: " >&2
       else
-        answer=$(picotools_prompt_read_value "$label: " false true)
+        printf '%s' "$label: " >&2
+      fi
+      if read -rs answer; then
+        read_status=0
+      else
+        read_status=$?
       fi
     fi
     printf '\n' >&2
@@ -177,6 +195,10 @@ picotools_prompt_secret_value() {
     fi
 
     if [ "$required" = true ] && [ -z "$answer" ]; then
+      if [ "$read_status" -ne 0 ]; then
+        echo 'Error: input ended before required value was provided.' >&2
+        return 1
+      fi
       echo 'Value is required.' >&2
       continue
     fi

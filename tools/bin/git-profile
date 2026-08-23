@@ -9,39 +9,77 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" box config debug prompt table ui version
+picotools_source_modules "$SCRIPT_DIR" box commands config debug git prompt table ui version
+
+GIT_PROFILE_LIB_DIR="${SCRIPT_DIR}/../lib/picotools/git-profile"
+if [ ! -d "$GIT_PROFILE_LIB_DIR" ]; then
+  GIT_PROFILE_LIB_DIR="${SCRIPT_DIR}/../../tools/lib/picotools/git-profile"
+fi
+for GIT_PROFILE_MODULE in profile resources token; do
+  if [ ! -f "$GIT_PROFILE_LIB_DIR/${GIT_PROFILE_MODULE}.sh" ]; then
+    echo "Error: missing git-profile module '${GIT_PROFILE_MODULE}.sh'" >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$GIT_PROFILE_LIB_DIR/${GIT_PROFILE_MODULE}.sh"
+done
+unset GIT_PROFILE_MODULE
 
 usage() {
   cat <<'EOF'
-Usage: git-profile <command>
+Usage: git-profile [--debug] <command>
 
 Commands:
-  create    Create a saved git profile with optional PAT storage
-  update    Update a saved git profile and its optional PAT
-  list      List saved git profiles and whether a PAT is configured
-  read      Show detailed information for a saved git profile
-  token     Print the active repository profile's PAT to stdout
-  commands  Print shell commands for saved git profiles
-  set       Apply a saved git profile and record picotools.gitProfile locally
-  clone     Clone a repository and record picotools.gitProfile in the clone
-  delete    Delete a saved git profile and its optional PAT
+  create                     Create a saved git profile with optional PAT storage
+  update                     Update a saved git profile and its optional PAT
+  list                       List saved git profiles and whether a PAT is configured
+  read [--commands]          Show detailed information for a saved git profile
+  token                      Print the active repository profile's PAT to stdout
+  commands                   Print shell commands for saved git profiles
+  set                        Apply a saved git profile and record picotools.gitProfile locally
+  clone [<profile> <url>]    Clone a repository and record picotools.gitProfile in the clone
+  delete                     Delete a saved git profile and its optional PAT
 
 Options:
-  --debug                   Print progress details to stderr
+  --debug                   Print progress details to stderr (global only; place before command)
   -h, --help, help          Show this help message
   -v, --version, version    Show the tool version
 
 Notes:
+  create, update, list, commands, delete, set, and token accept no command
+  arguments; read accepts only --commands. clone also supports
+  clone <profile> --url <url>; no clone arguments starts an interactive flow.
   Saved profile config lives under ${XDG_CONFIG_HOME:-$HOME/.config}/git-profile.
+  Saved profile files are tool-owned and reconstructed by create/update;
+  unmanaged keys or comments in those files are not preserved.
   Optional PATs live under ${XDG_DATA_HOME:-$HOME/.local/share}/git-profile
-  with 0700 directory and 0600 file permissions.
+  with 0700 directory and 0600 file permissions. PAT reads and status checks
+  fail closed when permissions drift; writes repair safe regular-file paths
+  and publish with same-directory atomic replacement.
+  Profile changes are validated before publish; failed PAT writes roll back
+  profile changes, and delete preflights profile/PAT state before key removal.
+  New SSH profiles store picotools.sshKeyPath and derive core.sshCommand;
+  legacy core.sshCommand parsing is limited to commands emitted by git-profile.
   `token` writes a secret to stdout; use it only in trusted pipelines or
   command substitution.
+  Operational commands require git. Generating SSH keys requires ssh-keygen;
+  generating or deleting GPG keys requires the configured GPG command.
 EOF
 }
 
 print_version() {
   picotools_print_version "$SCRIPT_DIR"
+}
+
+require_no_args() {
+  local command_name="$1"
+  shift
+
+  if [ "$#" -gt 0 ]; then
+    echo "Error: $command_name does not accept arguments: $1" >&2
+    usage >&2
+    exit 1
+  fi
 }
 
 debug_mode=false
@@ -56,7 +94,17 @@ debug_log() {
   fi
 }
 
+require_git_command() {
+  picotools_require_command git
+}
+
 GIT_CONTEXT_TMPFILES=()
+GIT_CONTEXT_CLEANUP_TRAP_REGISTERED=false
+# Referenced by the git-profile resource module after sourcing.
+# shellcheck disable=SC2034
+GIT_CONTEXT_GENERATED_SSH_KEY_PATHS=()
+# shellcheck disable=SC2034
+GIT_CONTEXT_GENERATED_GPG_KEYS=()
 
 cleanup_tmpfiles() {
   if [ "${#GIT_CONTEXT_TMPFILES[@]}" -gt 0 ]; then
@@ -64,171 +112,28 @@ cleanup_tmpfiles() {
   fi
 }
 
+cleanup_on_signal() {
+  local status="$1"
+
+  cleanup_tmpfiles
+  exit "$status"
+}
+
+register_cleanup_trap() {
+  if [ "$GIT_CONTEXT_CLEANUP_TRAP_REGISTERED" = 'true' ]; then
+    return 0
+  fi
+
+  trap 'cleanup_tmpfiles' EXIT
+  trap 'cleanup_on_signal 129' HUP
+  trap 'cleanup_on_signal 130' INT
+  trap 'cleanup_on_signal 143' TERM
+  GIT_CONTEXT_CLEANUP_TRAP_REGISTERED=true
+}
+
 register_tmpfile() {
+  register_cleanup_trap
   GIT_CONTEXT_TMPFILES+=("$1")
-}
-
-default_pull_rebase() {
-  printf '%s\n' false
-}
-
-default_rebase_autostash() {
-  printf '%s\n' false
-}
-
-default_push_default() {
-  printf '%s\n' simple
-}
-
-default_push_autosetupremote() {
-  printf '%s\n' false
-}
-
-default_core_editor() {
-  printf '%s\n' vim
-}
-
-default_ssh_add_on_start() {
-  printf '%s\n' false
-}
-
-default_gpg_program() {
-  printf '%s\n' gpg
-}
-
-context_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-profile"
-}
-
-data_dir() {
-  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/git-profile"
-}
-
-validate_context_name() {
-  local name="$1"
-
-  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
-    echo "Error: profile name must match [A-Za-z0-9._-]+" >&2
-    exit 1
-  fi
-}
-
-context_file() {
-  local name="$1"
-  printf '%s/%s.gitconfig\n' "$(context_dir)" "$name"
-}
-
-context_token_file() {
-  local name="$1"
-
-  validate_context_name "$name"
-  printf '%s/%s.token\n' "$(data_dir)" "$name"
-}
-
-ensure_context_dir() {
-  mkdir -p "$(context_dir)"
-}
-
-ensure_data_dir() {
-  local dir
-
-  dir=$(data_dir)
-  if [ -L "$dir" ]; then
-    echo "Error: git-profile data directory must not be a symbolic link: $dir" >&2
-    exit 1
-  fi
-
-  umask 077
-  mkdir -p "$dir"
-  chmod 700 "$dir"
-}
-
-context_token_configured() {
-  local name="$1"
-  local file
-  local token=''
-
-  file=$(context_token_file "$name")
-  if [ ! -f "$file" ] || [ -L "$file" ]; then
-    return 1
-  fi
-
-  token=$(tr -d '\r\n' <"$file")
-  [ -n "$token" ]
-}
-
-context_token_status() {
-  local name="$1"
-
-  if context_token_configured "$name"; then
-    printf '%s\n' yes
-  else
-    printf '%s\n' no
-  fi
-}
-
-require_safe_token_path() {
-  local name="$1"
-  local action="$2"
-  local file
-
-  file=$(context_token_file "$name")
-  if [ -L "$file" ]; then
-    echo "Error: refusing to $action PAT for profile '$name' because its token path is a symbolic link" >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$file"
-}
-
-read_context_token() {
-  local name="$1"
-  local file token
-
-  file=$(require_safe_token_path "$name" read)
-  if [ ! -f "$file" ]; then
-    echo "Error: PAT not configured for profile '$name'" >&2
-    exit 1
-  fi
-
-  token=$(tr -d '\r\n' <"$file")
-  if [ -z "$token" ]; then
-    echo "Error: PAT not configured for profile '$name'" >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$token"
-}
-
-write_context_token() {
-  local name="$1"
-  local token="$2"
-  local file
-
-  file=$(require_safe_token_path "$name" write)
-  ensure_data_dir
-  umask 077
-  printf '%s\n' "$token" >"$file"
-  chmod 600 "$file"
-}
-
-delete_context_token() {
-  local name="$1"
-  local file
-
-  file=$(require_safe_token_path "$name" delete)
-  rm -f "$file"
-}
-
-save_context_token_state() {
-  local name="$1"
-  local token="$2"
-
-  if [ -n "$token" ]; then
-    write_context_token "$name" "$token"
-  else
-    delete_context_token "$name"
-  fi
 }
 
 prompt_pat_update_action() {
@@ -276,41 +181,34 @@ prompt_pat_update_action() {
 prompt_update_field() {
   local allow_gpg_program="$1"
   local allow_ssh_add_on_start="$2"
-  local current_gpg_program="$3"
-  local current_autocrlf="$4"
-  local current_file_mode="$5"
-  local current_pull_rebase="$6"
-  local current_rebase_autostash="$7"
-  local current_push_default="$8"
-  local current_push_autosetupremote="$9"
-  local current_core_editor="${10}"
-  local current_ssh_add_on_start="${11}"
-  local current_pat_status="${12}"
+  local state_name="$3"
+  local current_pat_status="$4"
+  local -n profile_ref="$state_name"
   local selection
   local option_gpg_program option_ssh_add_on_start
   local -a options=()
 
   while true; do
     if [ "$allow_gpg_program" = 'yes' ]; then
-      option_gpg_program="GPG Program [$current_gpg_program]"
+      option_gpg_program="GPG Program [${profile_ref[gpg_program]}]"
     else
       option_gpg_program='GPG Program [-] (requires GPG signing enabled)'
     fi
     if [ "$allow_ssh_add_on_start" = 'yes' ]; then
-      option_ssh_add_on_start="SSH Add On Start [$current_ssh_add_on_start]"
+      option_ssh_add_on_start="SSH Add On Start [${profile_ref[ssh_add_on_start]}]"
     else
       option_ssh_add_on_start='SSH Add On Start [-] (requires SSH enabled)'
     fi
 
     options=(
       "$option_gpg_program"
-      "Autocrlf [$current_autocrlf]"
-      "FileMode [$current_file_mode]"
-      "Pull Rebase [$current_pull_rebase]"
-      "Rebase AutoStash [$current_rebase_autostash]"
-      "Push Default [$current_push_default]"
-      "Push AutoSetupRemote [$current_push_autosetupremote]"
-      "Core Editor [$current_core_editor]"
+      "Autocrlf [${profile_ref[autocrlf]}]"
+      "FileMode [${profile_ref[file_mode]}]"
+      "Pull Rebase [${profile_ref[pull_rebase]}]"
+      "Rebase AutoStash [${profile_ref[rebase_autostash]}]"
+      "Push Default [${profile_ref[push_default]}]"
+      "Push AutoSetupRemote [${profile_ref[push_autosetupremote]}]"
+      "Core Editor [${profile_ref[core_editor]}]"
       "$option_ssh_add_on_start"
       "PAT [$current_pat_status]"
       'Done'
@@ -377,102 +275,6 @@ prompt_update_field() {
   done
 }
 
-write_context_value() {
-  local file="$1"
-  local key="$2"
-  local value="$3"
-
-  picotools_git_config_set "$file" "$key" "$value"
-}
-
-read_context_value() {
-  local file="$1"
-  local key="$2"
-
-  picotools_git_config_get "$file" "$key"
-}
-
-read_context_value_optional() {
-  local file="$1"
-  local key="$2"
-
-  picotools_git_config_get_optional "$file" "$key"
-}
-
-read_context_value_with_default() {
-  local file="$1"
-  local key="$2"
-  local default_value="$3"
-  local value
-
-  picotools_git_config_get_default "$file" "$key" "$default_value"
-}
-
-read_managed_context_value() {
-  local file="$1"
-  local key="$2"
-
-  case "$key" in
-  commit.gpgsign | tag.gpgsign)
-    read_context_value_with_default "$file" "$key" false
-    ;;
-  core.autocrlf)
-    read_context_value_with_default "$file" "$key" false
-    ;;
-  core.fileMode)
-    read_context_value_with_default "$file" "$key" true
-    ;;
-  pull.rebase)
-    read_context_value_with_default "$file" "$key" "$(default_pull_rebase)"
-    ;;
-  rebase.autoStash)
-    read_context_value_with_default "$file" "$key" "$(default_rebase_autostash)"
-    ;;
-  push.default)
-    read_context_value_with_default "$file" "$key" "$(default_push_default)"
-    ;;
-  push.autoSetupRemote)
-    read_context_value_with_default "$file" "$key" "$(default_push_autosetupremote)"
-    ;;
-  core.editor)
-    read_context_value_with_default "$file" "$key" "$(default_core_editor)"
-    ;;
-  picotools.sshAddOnStart)
-    read_context_value_with_default "$file" "$key" "$(default_ssh_add_on_start)"
-    ;;
-  *)
-    read_context_value "$file" "$key"
-    ;;
-  esac
-}
-
-context_uses_gpg() {
-  local file="$1"
-
-  [ "$(read_managed_context_value "$file" commit.gpgsign)" = 'true' ]
-}
-
-public_ssh_key_path() {
-  local ssh_key_path="$1"
-
-  if [ -n "$ssh_key_path" ] && [ -f "$ssh_key_path.pub" ]; then
-    printf '%s\n' "$ssh_key_path.pub"
-  fi
-}
-
-print_public_ssh_key() {
-  local public_key_path="$1"
-
-  printf '\nPublic SSH Key (%s):\n' "$public_key_path"
-  printf '%s\n' "$(<"$public_key_path")"
-}
-
-context_name_from_file() {
-  local file="$1"
-
-  basename "$file" .gitconfig
-}
-
 write_local_value() {
   local key="$1"
   local value="$2"
@@ -487,32 +289,17 @@ unset_local_value() {
   git config --local --unset-all "$key" 2>/dev/null || true
 }
 
-saved_context_files() {
-  local dir
-
-  dir=$(context_dir)
-  if [ ! -d "$dir" ] || ! compgen -G "$dir/*.gitconfig" >/dev/null; then
-    return 1
-  fi
-
-  printf '%s\n' "$dir"/*.gitconfig | sort
-}
-
-display_context_value() {
-  picotools_display_value_or_dash "$1"
-}
-
 format_context_summary_row() {
   local file="$1"
   local index="$2"
-  local name ssh_enabled gpg_enabled pat_enabled user_name email ssh_command
+  local name ssh_enabled gpg_enabled pat_enabled user_name email ssh_key_path
 
   name=$(context_name_from_file "$file")
   user_name=$(git config -f "$file" --get user.name)
   email=$(git config -f "$file" --get user.email)
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
+  ssh_key_path=$(read_context_ssh_key_path "$file")
 
-  if [ -n "$ssh_command" ]; then
+  if [ -n "$ssh_key_path" ]; then
     ssh_enabled=yes
   else
     ssh_enabled=no
@@ -524,7 +311,9 @@ format_context_summary_row() {
     gpg_enabled=no
   fi
 
-  pat_enabled=$(context_token_status "$name")
+  if ! pat_enabled=$(context_token_status "$name"); then
+    return 1
+  fi
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$index" \
@@ -547,8 +336,8 @@ print_context_detail() {
   name=$(context_name_from_file "$file")
   user_name=$(read_context_value "$file" user.name)
   email=$(read_context_value "$file" user.email)
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  ssh_key_path=$(read_context_ssh_key_path "$file")
+  ssh_command=$(read_context_ssh_command "$file")
   signing_key=$(read_context_value_optional "$file" user.signingkey)
   gpg_program=$(read_context_value_optional "$file" gpg.program)
   commit_gpgsign=$(read_managed_context_value "$file" commit.gpgsign)
@@ -561,22 +350,24 @@ print_context_detail() {
   push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
   core_editor=$(read_managed_context_value "$file" core.editor)
   ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
-  pat_enabled=$(context_token_status "$name")
+  if ! pat_enabled=$(context_token_status "$name"); then
+    exit 1
+  fi
 
-  print_two_column_table \
+  picotools_print_two_column_table \
     $'Name	'"$name" \
     $'User	'"$user_name" \
     $'Email	'"$email" \
     $'PAT	'"$pat_enabled" \
     $'SSH	'"$([ -n "$ssh_command" ] && printf yes || printf no)" \
-    $'SSH Key	'"$(display_context_value "$ssh_key_path")" \
-    $'SSH Command	'"$(display_context_value "$ssh_command")" \
+    $'SSH Key	'"$(picotools_display_value_or_dash "$ssh_key_path")" \
+    $'SSH Command	'"$(picotools_display_value_or_dash "$ssh_command")" \
     $'SSH Add On Start	'"$ssh_add_on_start" \
     $'GPG	'"$([ "$commit_gpgsign" = 'true' ] && printf yes || printf no)" \
-    $'Signing Key	'"$(display_context_value "$signing_key")" \
+    $'Signing Key	'"$(picotools_display_value_or_dash "$signing_key")" \
     $'Commit GPG Sign	'"$commit_gpgsign" \
     $'Tag GPG Sign	'"$tag_gpgsign" \
-    $'GPG Program	'"$(display_context_value "$gpg_program")" \
+    $'GPG Program	'"$(picotools_display_value_or_dash "$gpg_program")" \
     $'Autocrlf	'"$autocrlf" \
     $'FileMode	'"$file_mode" \
     $'Pull Rebase	'"$pull_rebase" \
@@ -595,37 +386,16 @@ print_context_detail() {
   fi
 }
 
-print_two_column_table() {
-  picotools_print_two_column_table "$@"
-}
-
-print_ssh_agent_start_commands() {
-  printf '%s\n' "if [ -z \"\${SSH_AUTH_SOCK:-}\" ]; then"
-  printf '%s\n' "  eval \"\$(ssh-agent -s)\" >/dev/null"
-  printf '%s\n' "fi"
-}
-
-print_ssh_add_commands() {
-  local ssh_key_path="$1"
-
-  if [ -z "$ssh_key_path" ]; then
-    return 0
-  fi
-
-  printf 'ssh-add %q\n' "$ssh_key_path"
-}
-
 context_ssh_add_key_path() {
   local file="$1"
-  local ssh_add_on_start ssh_command ssh_key_path
+  local ssh_add_on_start ssh_key_path
 
   ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
   if [ "$ssh_add_on_start" != 'true' ]; then
     return 0
   fi
 
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  ssh_key_path=$(read_context_ssh_key_path "$file")
   printf '%s\n' "$ssh_key_path"
 }
 
@@ -642,257 +412,57 @@ print_context_commands() {
   print_ssh_add_commands "$ssh_key_path"
 }
 
-build_ssh_command() {
-  local ssh_key_path="$1"
-  local ssh_command
+save_context_and_token() {
+  local file="$1"
+  local name="$2"
+  local token_action="$3"
+  local pat_token="$4"
+  local state_name="$5"
+  local backup='' existed=no
 
-  printf -v ssh_command 'ssh -i %q -o IdentitiesOnly=yes' "$ssh_key_path"
-  printf '%s\n' "$ssh_command"
-}
-
-next_generated_ssh_key_path() {
-  local context_name="$1"
-  local ssh_dir normalized_name base_path ssh_key_path suffix
-
-  ssh_dir="$HOME/.ssh"
-  normalized_name=${context_name//[^A-Za-z0-9]/_}
-  normalized_name=${normalized_name,,}
-  base_path="$ssh_dir/id_ed25519_$normalized_name"
-  ssh_key_path="$base_path"
-  suffix=1
-
-  while [ -e "$ssh_key_path" ] || [ -e "$ssh_key_path.pub" ]; do
-    ssh_key_path="${base_path}_$suffix"
-    suffix=$((suffix + 1))
-  done
-
-  printf '%s\n' "$ssh_key_path"
-}
-
-extract_ssh_key_path() {
-  local ssh_command="$1"
-  local ssh_key_path
-
-  if [ -z "$ssh_command" ]; then
-    return 0
+  if ! preflight_context_token_state "$name" "$token_action" "$pat_token"; then
+    return 1
   fi
 
-  case "$ssh_command" in
-  'ssh -i '*" -o IdentitiesOnly=yes")
-    ssh_key_path=${ssh_command#'ssh -i '}
-    ssh_key_path=${ssh_key_path%' -o IdentitiesOnly=yes'}
+  if ! snapshot_context_file_state "$file" backup existed; then
+    return 1
+  fi
+
+  if ! save_context "$file" "$state_name"; then
+    restore_context_file_state "$file" "$backup" "$existed"
+    return 1
+  fi
+
+  case "$token_action" in
+  write)
+    if ! write_context_token "$name" "$pat_token"; then
+      restore_context_file_state "$file" "$backup" "$existed"
+      return 1
+    fi
+    ;;
+  delete)
+    if ! delete_context_token "$name"; then
+      restore_context_file_state "$file" "$backup" "$existed"
+      return 1
+    fi
+    ;;
+  keep)
     ;;
   *)
-    return 0
-    ;;
-  esac
-
-  case "$ssh_key_path" in
-  *"'"* | *'"'* | *"\$("* | *[\`]*)
-    return 0
-    ;;
-  esac
-
-  ssh_key_path=${ssh_key_path//\\/\\}
-  ssh_key_path=${ssh_key_path//\ / }
-  case "$ssh_key_path" in
-  *\\*)
-    return 0
-    ;;
-  esac
-
-  printf '%s\n' "$ssh_key_path"
-}
-
-require_existing_file() {
-  local path="$1"
-  local description="$2"
-
-  if [ ! -f "$path" ]; then
-    echo "Error: $description does not exist: $path" >&2
-    exit 1
-  fi
-}
-
-delete_ssh_key_files() {
-  local ssh_key_path="$1"
-
-  if [ -z "$ssh_key_path" ]; then
-    return 0
-  fi
-
-  rm -f "$ssh_key_path" "$ssh_key_path.pub"
-}
-
-delete_gpg_key() {
-  local signing_key="$1"
-  local gpg_program="${2:-gpg}"
-
-  if [ -z "$signing_key" ]; then
-    return 0
-  fi
-
-  "$gpg_program" --batch --yes --delete-secret-and-public-key "$signing_key"
-}
-
-generate_ssh_key() {
-  local email="$1"
-  local context_name="$2"
-  local ssh_key_path
-
-  ssh_key_path=$(next_generated_ssh_key_path "$context_name")
-  mkdir -p "$(dirname "$ssh_key_path")"
-
-  ssh-keygen -t ed25519 -C "$email" -f "$ssh_key_path" >&2
-  require_existing_file "$ssh_key_path" 'Generated SSH private key path'
-
-  printf '%s\n' "$ssh_key_path"
-}
-
-resolve_ssh_command() {
-  local email="$1"
-  local context_name="$2"
-  local current_path="${3:-}"
-  local label ssh_key_path
-
-  label='SSH private key path (leave blank to generate)'
-  if [ -n "$current_path" ]; then
-    label="$label [current: $current_path]"
-  fi
-
-  ssh_key_path=$(picotools_prompt_value "$label")
-  if [ -n "$ssh_key_path" ]; then
-    require_existing_file "$ssh_key_path" 'SSH private key path'
-  else
-    if ! ssh_key_path=$(generate_ssh_key "$email" "$context_name"); then
-      return 1
-    fi
-  fi
-
-  build_ssh_command "$ssh_key_path"
-}
-
-generate_signing_key() {
-  local user_name="$1"
-  local email="$2"
-  local signing_key
-  local batch_file
-  local status_file
-  local line
-
-  batch_file=$(mktemp)
-  status_file=$(mktemp)
-  register_tmpfile "$batch_file"
-  register_tmpfile "$status_file"
-  trap 'cleanup_tmpfiles' EXIT
-  {
-    printf '%s\n' 'Key-Type: RSA'
-    printf '%s\n' 'Key-Length: 3072'
-    printf '%s\n' 'Key-Usage: sign cert'
-    printf '%s\n' 'Subkey-Type: RSA'
-    printf '%s\n' 'Subkey-Length: 3072'
-    printf '%s\n' 'Subkey-Usage: encrypt'
-    printf '%s\n' "Name-Real: $user_name"
-    printf '%s\n' "Name-Email: $email"
-    printf '%s\n' 'Expire-Date: 0'
-    printf '%s\n' '%commit'
-  } >"$batch_file"
-
-  exec 3>"$status_file"
-  if ! gpg --batch --status-fd 3 --generate-key "$batch_file"; then
-    exec 3>&-
+    echo "Error: invalid token transaction action '$token_action'" >&2
+    restore_context_file_state "$file" "$backup" "$existed"
     return 1
-  fi
-  exec 3>&-
-
-  while IFS= read -r line; do
-    case "$line" in
-    '[GNUPG:] KEY_CREATED '*)
-      signing_key=${line##* }
-      ;;
-    esac
-  done <"$status_file"
-  if [ -z "$signing_key" ]; then
-    echo 'Error: failed to determine generated GPG signing key' >&2
-    return 1
-  fi
-
-  printf '%s\n' "$signing_key"
-}
-
-resolve_signing_key() {
-  local current_key="${1:-}"
-  local user_name="$2"
-  local email="$3"
-  local label signing_key
-
-  label='GPG signing key (leave blank to generate)'
-  if [ -n "$current_key" ]; then
-    label="$label [current: $current_key]"
-  fi
-
-  signing_key=$(picotools_prompt_value "$label")
-  if [ -z "$signing_key" ]; then
-    if ! signing_key=$(generate_signing_key "$user_name" "$email"); then
-      return 1
-    fi
-  fi
-
-  printf '%s\n' "$signing_key"
-}
-
-save_context() {
-  local file="$1"
-  local user_name="$2"
-  local email="$3"
-  local use_ssh="$4"
-  local ssh_command="$5"
-  local use_gpg="$6"
-  local signing_key="$7"
-  local gpg_program="$8"
-  local autocrlf="$9"
-  local file_mode="${10}"
-  local pull_rebase="${11}"
-  local rebase_autostash="${12}"
-  local push_default="${13}"
-  local push_autosetupremote="${14}"
-  local core_editor="${15}"
-  local ssh_add_on_start="${16}"
-
-  rm -f "$file"
-  debug_log "Saving profile file '$file'"
-
-  write_context_value "$file" user.name "$user_name"
-  write_context_value "$file" user.email "$email"
-
-  if [ "$use_ssh" = 'yes' ]; then
-    write_context_value "$file" core.sshCommand "$ssh_command"
-  fi
-
-  if [ "$use_gpg" = 'yes' ]; then
-    write_context_value "$file" user.signingkey "$signing_key"
-    write_context_value "$file" commit.gpgsign true
-    write_context_value "$file" tag.gpgsign true
-    write_context_value "$file" gpg.program "$gpg_program"
-  else
-    write_context_value "$file" commit.gpgsign false
-    write_context_value "$file" tag.gpgsign false
-  fi
-
-  write_context_value "$file" core.autocrlf "$autocrlf"
-  write_context_value "$file" core.fileMode "$file_mode"
-  write_context_value "$file" pull.rebase "$pull_rebase"
-  write_context_value "$file" rebase.autoStash "$rebase_autostash"
-  write_context_value "$file" push.default "$push_default"
-  write_context_value "$file" push.autoSetupRemote "$push_autosetupremote"
-  write_context_value "$file" core.editor "$core_editor"
-  write_context_value "$file" picotools.sshAddOnStart "$ssh_add_on_start"
+    ;;
+  esac
 }
 
 create_context() {
-  local name user_name email use_ssh use_gpg file autocrlf file_mode overwrite
-  local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
-  local ssh_command='' signing_key='' gpg_program='' ssh_add_on_start pat_token=''
+  local name file overwrite pat_token=''
+  local resolve_tmp
+  local -A profile=()
+
+  require_git_command
+  git_profile_state_defaults profile
 
   picotools_ui_section 'Create Git Profile'
   picotools_ui_step 1 3 'Choose profile identity'
@@ -910,69 +480,85 @@ create_context() {
     fi
   fi
 
-  user_name=$(picotools_prompt_value 'Git user name')
-  email=$(picotools_prompt_value 'Git email')
+  profile[user_name]=$(picotools_prompt_value 'Git user name')
+  profile[email]=$(picotools_prompt_value 'Git email')
   picotools_ui_step 2 3 'Configure SSH, signing, and PAT'
-  use_ssh=$(picotools_prompt_yes_no 'Use SSH connection?' no)
+  profile[use_ssh]=$(picotools_prompt_yes_no 'Use SSH connection?' no)
 
-  if [ "$use_ssh" = 'yes' ]; then
-    if ! ssh_command=$(resolve_ssh_command "$email" "$name"); then
+  if [ "${profile[use_ssh]}" = 'yes' ]; then
+    if ! resolve_tmp=$(mktemp); then
       exit 1
     fi
+    if ! resolve_ssh_key_path "${profile[email]}" "$name" >"$resolve_tmp"; then
+      rm -f "$resolve_tmp"
+      exit 1
+    fi
+    profile[ssh_key_path]=$(<"$resolve_tmp")
+    rm -f "$resolve_tmp"
     if [ "$(picotools_prompt_yes_no 'Add SSH key to agent on shell start?' no)" = 'yes' ]; then
-      ssh_add_on_start=true
+      profile[ssh_add_on_start]=true
     else
-      ssh_add_on_start=false
+      profile[ssh_add_on_start]=false
     fi
   else
-    ssh_add_on_start=false
+    profile[ssh_add_on_start]=false
   fi
 
-  use_gpg=$(picotools_prompt_yes_no 'Use GPG signing?' no)
+  profile[use_gpg]=$(picotools_prompt_yes_no 'Use GPG signing?' no)
 
-  if [ "$use_gpg" = 'yes' ]; then
-    if ! signing_key=$(resolve_signing_key '' "$user_name" "$email"); then
+  if [ "${profile[use_gpg]}" = 'yes' ]; then
+    if ! resolve_tmp=$(mktemp); then
       exit 1
     fi
-    gpg_program=$(default_gpg_program)
+    if ! resolve_signing_key '' "${profile[user_name]}" "${profile[email]}" >"$resolve_tmp"; then
+      rm -f "$resolve_tmp"
+      exit 1
+    fi
+    profile[signing_key]=$(<"$resolve_tmp")
+    rm -f "$resolve_tmp"
+    profile[gpg_program]=$(default_gpg_program)
   fi
 
   pat_token=$(picotools_prompt_secret_value 'GitHub PAT (optional; leave blank for none)')
 
-  autocrlf=false
-  file_mode=true
-  pull_rebase=$(default_pull_rebase)
-  rebase_autostash=$(default_rebase_autostash)
-  push_default=$(default_push_default)
-  push_autosetupremote=$(default_push_autosetupremote)
-  core_editor=$(default_core_editor)
   picotools_ui_step 3 3 'Save profile settings'
   picotools_ui_summary 'Review Git Profile' \
     "Profile: ${name}" \
-    "User: ${user_name}" \
-    "Email: ${email}" \
+    "User: ${profile[user_name]}" \
+    "Email: ${profile[email]}" \
     "PAT: $([ -n "$pat_token" ] && printf yes || printf no)" \
-    "SSH: ${use_ssh}" \
-    "GPG: ${use_gpg}"
+    "SSH: ${profile[use_ssh]}" \
+    "GPG: ${profile[use_gpg]}"
 
-  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
-  save_context_token_state "$name" "$pat_token"
+  if [ -n "$pat_token" ]; then
+    if ! save_context_and_token "$file" "$name" write "$pat_token" profile; then
+      rollback_generated_create_material
+      exit 1
+    fi
+  else
+    if ! save_context_and_token "$file" "$name" delete '' profile; then
+      rollback_generated_create_material
+      exit 1
+    fi
+  fi
 
   picotools_ui_summary 'Git Profile Saved' \
     "Profile: ${name}" \
-    "User: ${user_name}" \
-    "Email: ${email}" \
+    "User: ${profile[user_name]}" \
+    "Email: ${profile[email]}" \
     "PAT: $([ -n "$pat_token" ] && printf yes || printf no)" \
-    "SSH: ${use_ssh}" \
-    "GPG: ${use_gpg}"
+    "SSH: ${profile[use_ssh]}" \
+    "GPG: ${profile[use_gpg]}"
 
   echo "Saved profile '$name'."
 }
 
 list_contexts() {
-  local file
+  local file row
   local index=1
   local -a rows=()
+
+  require_git_command
 
   if ! saved_context_files >/dev/null; then
     echo 'No git profiles found.'
@@ -980,7 +566,10 @@ list_contexts() {
   fi
 
   while IFS= read -r file; do
-    rows+=("$(format_context_summary_row "$file" "$index")")
+    if ! row=$(format_context_summary_row "$file" "$index"); then
+      return 1
+    fi
+    rows+=("$row")
     index=$((index + 1))
   done < <(saved_context_files)
 
@@ -1005,8 +594,10 @@ read_context() {
     shift
   done
 
+  require_git_command
+
   if ! file=$(select_context_file); then
-    return 0
+    return 1
   fi
   debug_log "Reading profile from '$file'"
   if [ "$commands_only" = 'yes' ]; then
@@ -1018,6 +609,8 @@ read_context() {
 
 print_saved_context_commands() {
   local file ssh_key_path printed_header=no
+
+  require_git_command
 
   if ! saved_context_files >/dev/null; then
     return 0
@@ -1040,10 +633,9 @@ print_saved_context_commands() {
 
 print_context_public_key() {
   local file="$1"
-  local ssh_command ssh_key_path public_key_path
+  local ssh_key_path public_key_path
 
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  ssh_key_path=$(read_context_ssh_key_path "$file")
   public_key_path=$(public_ssh_key_path "$ssh_key_path")
 
   if [ -z "$public_key_path" ]; then
@@ -1055,7 +647,7 @@ print_context_public_key() {
 }
 
 select_context_file() {
-  local file name
+  local file name selection status
   local files=()
   local names=()
 
@@ -1065,15 +657,34 @@ select_context_file() {
     names+=("$name")
   done < <(saved_context_files || true)
 
-  picotools_prompt_select_mapped_value 'Profiles' 'Select profile' '' 'No git profiles found.' names files
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo 'No git profiles found.' >&2
+    return 1
+  fi
+
+  if selection=$(picotools_prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
+    printf '%s\n' "${files[$((selection - 1))]}"
+    return 0
+  else
+    status=$?
+  fi
+
+  if [ "$status" -eq 2 ]; then
+    picotools_cancel
+  fi
+  return 1
 }
 
 delete_context_file() {
   local file="$1"
   local confirm delete_ssh delete_gpg ssh_key_path signing_key gpg_program
   local name pat_configured
+  local cleanup_status=0
 
   name=$(context_name_from_file "$file")
+  if ! preflight_delete_context_profile "$file" "$name"; then
+    exit 1
+  fi
 
   confirm=$(picotools_prompt_yes_no "Delete '$name'?" no)
   if [ "$confirm" != 'yes' ]; then
@@ -1089,20 +700,22 @@ delete_context_file() {
 
   if [ -n "$signing_key" ]; then
     delete_gpg=$(picotools_prompt_yes_no "Delete GPG signing key '$signing_key'?" no)
-    if [ "$delete_gpg" = 'yes' ]; then
-      delete_gpg_key "$signing_key" "$gpg_program"
-    fi
   fi
 
-  ssh_key_path=$(extract_ssh_key_path "$(read_context_value_optional "$file" core.sshCommand)")
+  ssh_key_path=$(read_context_ssh_key_path "$file")
   if [ -n "$ssh_key_path" ]; then
     delete_ssh=$(picotools_prompt_yes_no "Delete SSH key files '$ssh_key_path' and '$ssh_key_path.pub'?" no)
-    if [ "$delete_ssh" = 'yes' ]; then
-      delete_ssh_key_files "$ssh_key_path"
-    fi
   fi
 
-  pat_configured=$(context_token_status "$name")
+  if ! pat_configured=$(context_token_status "$name" delete); then
+    exit 1
+  fi
+  if [ "${delete_gpg:-no}" = 'yes' ] && ! validate_gpg_signing_key_for_delete "$signing_key"; then
+    exit 1
+  fi
+  if [ "${delete_gpg:-no}" = 'yes' ]; then
+    picotools_require_command "$gpg_program"
+  fi
 
   picotools_ui_summary 'Review Profile Deletion' \
     "Profile: ${name}" \
@@ -1110,9 +723,24 @@ delete_context_file() {
     "Delete SSH material: ${delete_ssh:-no}" \
     "Delete GPG material: ${delete_gpg:-no}"
 
-  delete_context_token "$name"
+  if ! delete_context_token "$name"; then
+    exit 1
+  fi
   debug_log "Deleting profile file '$file'"
-  rm -f "$file"
+  rm -f -- "$file"
+
+  if [ "${delete_ssh:-no}" = 'yes' ] && ! delete_ssh_key_files "$ssh_key_path"; then
+    echo "Error: deleted profile '$name', but failed to delete SSH key files '$ssh_key_path' and '$ssh_key_path.pub'" >&2
+    cleanup_status=1
+  fi
+  if [ "${delete_gpg:-no}" = 'yes' ] && ! delete_gpg_key "$signing_key" "$gpg_program"; then
+    echo "Error: deleted profile '$name', but failed to delete GPG signing key '$signing_key'" >&2
+    cleanup_status=1
+  fi
+  if [ "$cleanup_status" -ne 0 ]; then
+    exit 1
+  fi
+
   picotools_ui_status ok "Deleted profile '$name'"
   echo 'Deleted profile.'
 }
@@ -1120,8 +748,9 @@ delete_context_file() {
 delete_context() {
   local file
 
+  require_git_command
   if ! file=$(select_context_file); then
-    return 0
+    return 1
   fi
   delete_context_file "$file"
 }
@@ -1129,6 +758,7 @@ delete_context() {
 ensure_git_repository() {
   local command_name="${1:-set}"
 
+  require_git_command
   if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" != 'true' ]; then
     echo "Error: $command_name must be run inside a Git repository" >&2
     exit 1
@@ -1137,41 +767,87 @@ ensure_git_repository() {
 
 apply_context() {
   local file="$1"
-  local name signing_key gpg_program ssh_command ssh_add_on_start
+  local name user_name email signing_key signing_key_present gpg_program gpg_program_present
+  local ssh_command ssh_command_present ssh_add_on_start commit_gpgsign tag_gpgsign
+  local autocrlf file_mode pull_rebase rebase_autostash push_default push_autosetupremote
+  local core_editor
+  local -A profile=()
 
   name=$(context_name_from_file "$file")
   debug_log "Applying profile values from '$file'"
-  write_local_value user.name "$(read_context_value "$file" user.name)"
-  write_local_value user.email "$(read_context_value "$file" user.email)"
-  write_local_value commit.gpgsign "$(read_managed_context_value "$file" commit.gpgsign)"
-  write_local_value tag.gpgsign "$(read_managed_context_value "$file" tag.gpgsign)"
-  write_local_value core.autocrlf "$(read_managed_context_value "$file" core.autocrlf)"
-  write_local_value core.fileMode "$(read_managed_context_value "$file" core.fileMode)"
-  write_local_value pull.rebase "$(read_managed_context_value "$file" pull.rebase)"
-  write_local_value rebase.autoStash "$(read_managed_context_value "$file" rebase.autoStash)"
-  write_local_value push.default "$(read_managed_context_value "$file" push.default)"
-  write_local_value push.autoSetupRemote "$(read_managed_context_value "$file" push.autoSetupRemote)"
-  write_local_value core.editor "$(read_managed_context_value "$file" core.editor)"
-  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
+
+  validate_profile_file_schema "$file" || return 1
+
+  read_profile_required_value "$file" user.name user_name || return 1
+  read_profile_required_value "$file" user.email email || return 1
+  ssh_command=$(read_context_ssh_command "$file")
+  if [ -n "$ssh_command" ]; then
+    ssh_command_present=yes
+  else
+    ssh_command_present=no
+  fi
+  read_context_value_presence "$file" user.signingkey signing_key signing_key_present || return 1
+  read_context_value_presence "$file" gpg.program gpg_program gpg_program_present || return 1
+  read_profile_default_value "$file" commit.gpgsign false commit_gpgsign || return 1
+  read_profile_default_value "$file" tag.gpgsign false tag_gpgsign || return 1
+  read_profile_default_value "$file" core.autocrlf false autocrlf || return 1
+  read_profile_default_value "$file" core.fileMode true file_mode || return 1
+  read_profile_default_value "$file" pull.rebase "$(default_pull_rebase)" pull_rebase || return 1
+  read_profile_default_value "$file" rebase.autoStash "$(default_rebase_autostash)" rebase_autostash || return 1
+  read_profile_default_value "$file" push.default "$(default_push_default)" push_default || return 1
+  read_profile_default_value "$file" push.autoSetupRemote "$(default_push_autosetupremote)" push_autosetupremote || return 1
+  read_profile_default_value "$file" core.editor "$(default_core_editor)" core_editor || return 1
+  read_profile_default_value "$file" picotools.sshAddOnStart "$(default_ssh_add_on_start)" ssh_add_on_start || return 1
+
+  if [ "$ssh_command_present" = 'yes' ]; then
+    validate_nonblank_profile_value "profile '$name'" core.sshCommand "$ssh_command" || return 1
+  fi
+  if [ "$signing_key_present" = 'yes' ]; then
+    validate_nonblank_profile_value "profile '$name'" user.signingkey "$signing_key" || return 1
+  fi
+  if [ "$gpg_program_present" = 'yes' ]; then
+    validate_nonblank_profile_value "profile '$name'" gpg.program "$gpg_program" || return 1
+  fi
+  git_profile_state_defaults profile
+  profile[user_name]="$user_name"
+  profile[email]="$email"
+  profile[autocrlf]="$autocrlf"
+  profile[file_mode]="$file_mode"
+  profile[pull_rebase]="$pull_rebase"
+  profile[rebase_autostash]="$rebase_autostash"
+  profile[push_default]="$push_default"
+  profile[push_autosetupremote]="$push_autosetupremote"
+  profile[core_editor]="$core_editor"
+  profile[ssh_add_on_start]="$ssh_add_on_start"
+  git_profile_state_validate_managed_values "profile '$name'" profile "$commit_gpgsign" "$tag_gpgsign" || return 1
+
+  write_local_value user.name "$user_name"
+  write_local_value user.email "$email"
+  write_local_value commit.gpgsign "$commit_gpgsign"
+  write_local_value tag.gpgsign "$tag_gpgsign"
+  write_local_value core.autocrlf "$autocrlf"
+  write_local_value core.fileMode "$file_mode"
+  write_local_value pull.rebase "$pull_rebase"
+  write_local_value rebase.autoStash "$rebase_autostash"
+  write_local_value push.default "$push_default"
+  write_local_value push.autoSetupRemote "$push_autosetupremote"
+  write_local_value core.editor "$core_editor"
   write_local_value picotools.sshAddOnStart "$ssh_add_on_start"
   write_local_value picotools.gitProfile "$name"
 
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  if [ -n "$ssh_command" ]; then
+  if [ "$ssh_command_present" = 'yes' ]; then
     write_local_value core.sshCommand "$ssh_command"
   else
     unset_local_value core.sshCommand
   fi
 
-  signing_key=$(read_context_value_optional "$file" user.signingkey)
-  if [ -n "$signing_key" ]; then
+  if [ "$signing_key_present" = 'yes' ]; then
     write_local_value user.signingkey "$signing_key"
   else
     unset_local_value user.signingkey
   fi
 
-  gpg_program=$(read_context_value_optional "$file" gpg.program)
-  if [ -n "$gpg_program" ]; then
+  if [ "$gpg_program_present" = 'yes' ]; then
     write_local_value gpg.program "$gpg_program"
   else
     unset_local_value gpg.program
@@ -1183,7 +859,7 @@ set_context() {
 
   ensure_git_repository
   if ! file=$(select_context_file); then
-    return 0
+    return 1
   fi
   set_context_file "$file"
 }
@@ -1199,81 +875,83 @@ set_context_file() {
 
 update_context_file() {
   local file="$1"
-  local name user_name email ssh_command use_ssh
-  local commit_gpgsign use_gpg signing_key gpg_program autocrlf file_mode
-  local pull_rebase rebase_autostash push_default push_autosetupremote core_editor
-  local ssh_add_on_start token_configured token_action=keep selected_token_action pat_token=''
+  local name commit_gpgsign token_configured token_action=keep selected_token_action pat_token=''
   local selected_field
+  local -A profile=()
+
+  git_profile_state_defaults profile
 
   name=$(context_name_from_file "$file")
   picotools_ui_section 'Update Git Profile'
   picotools_ui_step 1 2 'Select fields to update'
   debug_log "Updating profile '$name' from '$file'"
-  user_name=$(read_context_value "$file" user.name)
-  email=$(read_context_value "$file" user.email)
+  profile[user_name]=$(read_context_value "$file" user.name)
+  profile[email]=$(read_context_value "$file" user.email)
 
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  if [ -n "$ssh_command" ]; then
-    use_ssh=yes
+  profile[ssh_key_path]=$(read_context_ssh_key_path "$file")
+  if [ -n "${profile[ssh_key_path]}" ]; then
+    profile[use_ssh]=yes
   else
-    use_ssh=no
+    profile[use_ssh]=no
   fi
 
   commit_gpgsign=$(read_managed_context_value "$file" commit.gpgsign)
   if [ "$commit_gpgsign" = 'true' ]; then
-    use_gpg=yes
+    profile[use_gpg]=yes
   else
-    use_gpg=no
+    profile[use_gpg]=no
   fi
 
-  signing_key=$(read_context_value_optional "$file" user.signingkey)
-  gpg_program=$(read_context_value_optional "$file" gpg.program)
-  autocrlf=$(read_managed_context_value "$file" core.autocrlf)
-  file_mode=$(read_managed_context_value "$file" core.fileMode)
-  pull_rebase=$(read_managed_context_value "$file" pull.rebase)
-  rebase_autostash=$(read_managed_context_value "$file" rebase.autoStash)
-  push_default=$(read_managed_context_value "$file" push.default)
-  push_autosetupremote=$(read_managed_context_value "$file" push.autoSetupRemote)
-  core_editor=$(read_managed_context_value "$file" core.editor)
-  ssh_add_on_start=$(read_managed_context_value "$file" picotools.sshAddOnStart)
-  token_configured=$(context_token_status "$name")
+  profile[signing_key]=$(read_context_value_optional "$file" user.signingkey)
+  profile[gpg_program]=$(read_context_value_optional "$file" gpg.program)
+  profile[autocrlf]=$(read_managed_context_value "$file" core.autocrlf)
+  profile[file_mode]=$(read_managed_context_value "$file" core.fileMode)
+  profile[pull_rebase]=$(read_managed_context_value "$file" pull.rebase)
+  profile[rebase_autostash]=$(read_managed_context_value "$file" rebase.autoStash)
+  profile[push_default]=$(read_managed_context_value "$file" push.default)
+  profile[push_autosetupremote]=$(read_managed_context_value "$file" push.autoSetupRemote)
+  profile[core_editor]=$(read_managed_context_value "$file" core.editor)
+  profile[ssh_add_on_start]=$(read_managed_context_value "$file" picotools.sshAddOnStart)
+  if ! token_configured=$(context_token_status "$name"); then
+    exit 1
+  fi
 
   while true; do
-    if ! selected_field=$(prompt_update_field "$use_gpg" "$use_ssh" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start" "$token_configured"); then
+    if ! selected_field=$(prompt_update_field "${profile[use_gpg]}" "${profile[use_ssh]}" profile "$token_configured"); then
       picotools_cancel
       exit 1
     fi
 
     case "$selected_field" in
     gpg_program)
-      gpg_program=$(picotools_prompt_value 'gpg.program' "$gpg_program")
-      if [ -z "$gpg_program" ]; then
-        gpg_program=$(default_gpg_program)
+      profile[gpg_program]=$(picotools_prompt_value 'gpg.program' "${profile[gpg_program]}")
+      if [ -z "${profile[gpg_program]}" ]; then
+        profile[gpg_program]=$(default_gpg_program)
       fi
       ;;
     autocrlf)
-      autocrlf=$(picotools_prompt_value 'core.autocrlf' "$autocrlf")
+      profile[autocrlf]=$(picotools_prompt_value 'core.autocrlf' "${profile[autocrlf]}")
       ;;
     file_mode)
-      file_mode=$(picotools_prompt_value 'core.fileMode' "$file_mode")
+      profile[file_mode]=$(picotools_prompt_value 'core.fileMode' "${profile[file_mode]}")
       ;;
     pull_rebase)
-      pull_rebase=$(picotools_prompt_value 'pull.rebase' "$pull_rebase")
+      profile[pull_rebase]=$(picotools_prompt_value 'pull.rebase' "${profile[pull_rebase]}")
       ;;
     rebase_autostash)
-      rebase_autostash=$(picotools_prompt_value 'rebase.autoStash' "$rebase_autostash")
+      profile[rebase_autostash]=$(picotools_prompt_value 'rebase.autoStash' "${profile[rebase_autostash]}")
       ;;
     push_default)
-      push_default=$(picotools_prompt_value 'push.default' "$push_default")
+      profile[push_default]=$(picotools_prompt_value 'push.default' "${profile[push_default]}")
       ;;
     push_autosetupremote)
-      push_autosetupremote=$(picotools_prompt_value 'push.autoSetupRemote' "$push_autosetupremote")
+      profile[push_autosetupremote]=$(picotools_prompt_value 'push.autoSetupRemote' "${profile[push_autosetupremote]}")
       ;;
     core_editor)
-      core_editor=$(picotools_prompt_value 'core.editor' "$core_editor")
+      profile[core_editor]=$(picotools_prompt_value 'core.editor' "${profile[core_editor]}")
       ;;
     ssh_add_on_start)
-      ssh_add_on_start=$(picotools_prompt_value 'picotools.sshAddOnStart' "$ssh_add_on_start")
+      profile[ssh_add_on_start]=$(picotools_prompt_value 'picotools.sshAddOnStart' "${profile[ssh_add_on_start]}")
       ;;
     pat)
       if ! selected_token_action=$(prompt_pat_update_action "$token_configured"); then
@@ -1301,45 +979,52 @@ update_context_file() {
     esac
   done
 
-  if [ "$use_gpg" = 'yes' ] && [ -z "$gpg_program" ]; then
-    gpg_program=$(default_gpg_program)
+  if [ "${profile[use_gpg]}" = 'yes' ] && [ -z "${profile[gpg_program]}" ]; then
+    profile[gpg_program]=$(default_gpg_program)
   fi
 
   picotools_ui_summary 'Review Updated Profile' \
     "Profile: ${name}" \
-    "User: ${user_name}" \
-    "Email: ${email}" \
+    "User: ${profile[user_name]}" \
+    "Email: ${profile[email]}" \
     "PAT: ${token_configured}" \
-    "SSH: ${use_ssh}" \
-    "GPG: ${use_gpg}"
+    "SSH: ${profile[use_ssh]}" \
+    "GPG: ${profile[use_gpg]}"
 
-  save_context "$file" "$user_name" "$email" "$use_ssh" "$ssh_command" "$use_gpg" "$signing_key" "$gpg_program" "$autocrlf" "$file_mode" "$pull_rebase" "$rebase_autostash" "$push_default" "$push_autosetupremote" "$core_editor" "$ssh_add_on_start"
   case "$token_action" in
   add | replace)
-    save_context_token_state "$name" "$pat_token"
+    if ! save_context_and_token "$file" "$name" write "$pat_token" profile; then
+      exit 1
+    fi
     ;;
   remove)
-    delete_context_token "$name"
+    if ! save_context_and_token "$file" "$name" delete '' profile; then
+      exit 1
+    fi
     ;;
   keep)
+    if ! save_context_and_token "$file" "$name" keep '' profile; then
+      exit 1
+    fi
     ;;
   esac
   picotools_ui_step 2 2 'Save updated settings'
   picotools_ui_summary 'Git Profile Updated' \
     "Profile: ${name}" \
-    "User: ${user_name}" \
-    "Email: ${email}" \
+    "User: ${profile[user_name]}" \
+    "Email: ${profile[email]}" \
     "PAT: ${token_configured}" \
-    "SSH: ${use_ssh}" \
-    "GPG: ${use_gpg}"
+    "SSH: ${profile[use_ssh]}" \
+    "GPG: ${profile[use_gpg]}"
   echo "Updated profile '$name'."
 }
 
 update_context() {
   local file
 
+  require_git_command
   if ! file=$(select_context_file); then
-    return 0
+    return 1
   fi
   update_context_file "$file"
 }
@@ -1347,8 +1032,9 @@ update_context() {
 clone_profile_interactive() {
   local file url ssh_command ssh_key_path
 
+  require_git_command
   if ! file=$(select_context_file); then
-    return 0
+    return 1
   fi
 
   url=$(picotools_prompt_value 'Git URL')
@@ -1364,10 +1050,22 @@ clone_profile_cli() {
   local profile_name='' url='' file
 
   while [ "$#" -gt 0 ]; do
+    if [ -n "$profile_name" ] && [ -z "$url" ]; then
+      if [ "$1" = '--debug' ]; then
+        echo 'Error: --debug is a global option; place it before the command' >&2
+        usage >&2
+        exit 1
+      fi
+      url="$1"
+      shift
+      continue
+    fi
+
     case "$1" in
     --debug)
-      debug_mode=true
-      shift
+      echo 'Error: --debug is a global option; place it before the command' >&2
+      usage >&2
+      exit 1
       ;;
     --url)
       if [ "$#" -lt 2 ]; then
@@ -1385,9 +1083,6 @@ clone_profile_cli() {
     *)
       if [ -z "$profile_name" ]; then
         profile_name="$1"
-        shift
-      elif [ -z "$url" ]; then
-        url="$1"
         shift
       else
         echo "Error: unknown clone option '$1'" >&2
@@ -1411,6 +1106,7 @@ clone_profile_cli() {
     fi
   fi
 
+  require_git_command
   file=$(require_existing_profile_file "$profile_name")
   clone_with_profile "$file" "$url"
 }
@@ -1422,8 +1118,8 @@ clone_with_profile() {
   local -a clone_args=()
 
   name=$(context_name_from_file "$file")
-  ssh_command=$(read_context_value_optional "$file" core.sshCommand)
-  ssh_key_path=$(extract_ssh_key_path "$ssh_command")
+  ssh_key_path=$(read_context_ssh_key_path "$file")
+  ssh_command=$(read_context_ssh_command "$file")
 
   debug_log "Cloning '$url' with profile '$name'"
   clone_args=(--config "picotools.gitProfile=$name")
@@ -1434,9 +1130,9 @@ clone_with_profile() {
     else
       debug_log 'Using profile SSH command for clone'
     fi
-    GIT_SSH_COMMAND="$ssh_command" git clone "${clone_args[@]}" "$url"
+    GIT_SSH_COMMAND="$ssh_command" git clone "${clone_args[@]}" -- "$url"
   else
-    git clone "${clone_args[@]}" "$url"
+    git clone "${clone_args[@]}" -- "$url"
   fi
 
   echo "Cloned '$url' using profile '$name'."
@@ -1445,24 +1141,10 @@ clone_with_profile() {
 clone_profile() {
   if [ "$#" -eq 0 ]; then
     clone_profile_interactive
-    return 0
+    return $?
   fi
 
   clone_profile_cli "$@"
-}
-
-require_existing_profile_file() {
-  local profile_name="$1"
-  local file
-
-  validate_context_name "$profile_name"
-  file=$(context_file "$profile_name")
-  if [ ! -f "$file" ]; then
-    echo "Error: profile not found '$profile_name'" >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$file"
 }
 
 print_repository_token() {
@@ -1503,10 +1185,12 @@ main() {
     ;;
   create)
     shift
+    require_no_args create "$@"
     create_context "$@"
     ;;
   list)
     shift
+    require_no_args list "$@"
     list_contexts "$@"
     ;;
   read)
@@ -1515,18 +1199,22 @@ main() {
     ;;
   token)
     shift
+    require_no_args token "$@"
     print_repository_token "$@"
     ;;
   commands)
     shift
+    require_no_args commands "$@"
     print_saved_context_commands "$@"
     ;;
   delete)
     shift
+    require_no_args delete "$@"
     delete_context "$@"
     ;;
   set)
     shift
+    require_no_args set "$@"
     set_context "$@"
     ;;
   clone)
@@ -1535,6 +1223,7 @@ main() {
     ;;
   update)
     shift
+    require_no_args update "$@"
     update_context "$@"
     ;;
   *)

@@ -77,6 +77,22 @@ jobs:
 
         "$PWD/tmp/install/bin/git-profile" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-profile" --version)" = "$(cat VERSION)"
+        git_profile_home="$PWD/tmp/git-profile-home"
+        mkdir -p "$git_profile_home/.config" "$git_profile_home/.local/share"
+        HOME="$git_profile_home" \
+        XDG_CONFIG_HOME="$git_profile_home/.config" \
+        XDG_DATA_HOME="$git_profile_home/.local/share" \
+          "$PWD/tmp/install/bin/git-profile" list | grep -F 'No git profiles found.' >/dev/null
+        printf 'installed\nInstalled User\ninstalled@example.com\nno\nno\n\n' | \
+          HOME="$git_profile_home" \
+          XDG_CONFIG_HOME="$git_profile_home/.config" \
+          XDG_DATA_HOME="$git_profile_home/.local/share" \
+            "$PWD/tmp/install/bin/git-profile" create >/dev/null
+        printf '1\n' | \
+          HOME="$git_profile_home" \
+          XDG_CONFIG_HOME="$git_profile_home/.config" \
+          XDG_DATA_HOME="$git_profile_home/.local/share" \
+            "$PWD/tmp/install/bin/git-profile" read | grep -F 'Installed User' >/dev/null
 
         "$PWD/tmp/install/bin/pre-commit-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
