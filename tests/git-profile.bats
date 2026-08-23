@@ -510,7 +510,7 @@ EOF
     picotools.sshAddOnStart true \
     core.sshCommand "ssh -i $ssh_key_path -o IdentitiesOnly=yes"
 
-  output=$(printf '1\nno\n' | run_tool read 2>&1)
+  output=$(printf '1\nno\nno\n' | run_tool read 2>&1)
 
   assert_contains "$output" '| Field ' 'read should render a table header'
   assert_contains "$output" '| Name ' 'read should include the context name field'
@@ -544,6 +544,8 @@ EOF
   assert_contains "$output" 'nano' 'read should include core.editor value'
   assert_contains "$output" 'Display public SSH key? [y/N]:' 'read should prompt before displaying the public SSH key'
   assert_not_contains "$output" 'Public SSH Key (' 'read should not print the public SSH key when declined'
+  assert_contains "$output" 'Display public GPG key? [y/N]:' 'read should prompt before displaying the public GPG key'
+  assert_not_contains "$output" 'Public GPG Key (' 'read should not print the public GPG key when declined'
 }
 
 @test "read context can display public SSH key" {
@@ -571,6 +573,50 @@ EOF
   assert_contains "$output" 'Display public SSH key? [y/N]:' 'read should prompt before displaying the public SSH key'
   assert_contains "$output" "Public SSH Key ($ssh_key_path.pub):" 'read should print the public key header when requested'
   assert_contains "$output" "$public_key" 'read should print the public key contents when requested'
+}
+
+@test "read context can display public GPG key" {
+  local context_file stub_bin gpg_log output public_key
+
+  context_file="$(context_file_path work)"
+  stub_bin="$TMP_HOME/bin"
+  gpg_log="$TMP_HOME/gpg.log"
+  public_key=$'-----BEGIN PGP PUBLIC KEY BLOCK-----\npublic-key-body\n-----END PGP PUBLIC KEY BLOCK-----'
+
+  mkdir -p "$PROFILE_DIR" "$stub_bin"
+  write_git_config_values "$context_file" \
+    user.name 'Jane Dev' \
+    user.email 'jane@example.com' \
+    user.signingkey 'ABC123' \
+    commit.gpgsign true \
+    tag.gpgsign true \
+    gpg.program gpg2 \
+    core.autocrlf false \
+    core.fileMode true
+
+  cat >"$stub_bin/gpg2" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$@" > "$GPG_LOG"
+printf '%s\n' "$GPG_PUBLIC_KEY"
+EOF
+  chmod +x "$stub_bin/gpg2"
+
+  output=$(printf '1\nyes\n' |
+    PATH="$stub_bin:$PATH" \
+      GPG_LOG="$gpg_log" \
+      GPG_PUBLIC_KEY="$public_key" \
+      "$TOOL" read 2>&1)
+
+  assert_contains "$output" 'Display public GPG key? [y/N]:' 'read should prompt before displaying the public GPG key'
+  assert_contains "$output" 'Public GPG Key (ABC123):' 'read should print the public GPG key header when requested'
+  assert_contains "$output" '-----BEGIN PGP PUBLIC KEY BLOCK-----' 'read should print the exported public GPG key when requested'
+  assert_contains "$output" 'public-key-body' 'read should print the exported public GPG key body when requested'
+  assert_eq "$(sed -n '1p' "$gpg_log")" '--armor' 'read should request armored GPG export'
+  assert_eq "$(sed -n '2p' "$gpg_log")" '--export' 'read should request GPG public key export'
+  assert_eq "$(sed -n '3p' "$gpg_log")" '--' 'read should terminate GPG option parsing before the signing key'
+  assert_eq "$(sed -n '4p' "$gpg_log")" 'ABC123' 'read should pass the signing key as an operand'
 }
 
 @test "profile selection failures return non-zero status" {

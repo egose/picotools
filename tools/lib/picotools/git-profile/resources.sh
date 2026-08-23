@@ -20,6 +20,29 @@ print_public_ssh_key() {
   printf '%s\n' "$(<"$public_key_path")"
 }
 
+print_public_gpg_key() {
+  local signing_key="$1"
+  local gpg_program="${2:-}"
+  local public_key
+
+  if [ -z "$gpg_program" ]; then
+    gpg_program=$(default_gpg_program)
+  fi
+
+  picotools_require_command "$gpg_program"
+  if ! public_key=$("$gpg_program" --armor --export -- "$signing_key"); then
+    echo "Error: failed to export GPG public key '$signing_key'" >&2
+    return 1
+  fi
+  if [ -z "$public_key" ]; then
+    echo "Error: no GPG public key found for '$signing_key'" >&2
+    return 1
+  fi
+
+  printf '\nPublic GPG Key (%s):\n' "$signing_key"
+  printf '%s\n' "$public_key"
+}
+
 print_ssh_agent_start_commands() {
   printf '%s\n' "if [ -z \"\${SSH_AUTH_SOCK:-}\" ]; then"
   printf '%s\n' "  eval \"\$(ssh-agent -s)\" >/dev/null"

@@ -331,7 +331,7 @@ print_context_detail() {
   local name user_name email ssh_command ssh_key_path signing_key gpg_program
   local autocrlf file_mode pull_rebase rebase_autostash push_default
   local push_autosetupremote core_editor commit_gpgsign tag_gpgsign
-  local ssh_add_on_start pat_enabled public_key_path show_public_key
+  local ssh_add_on_start pat_enabled public_key_path show_public_key show_gpg_public_key
 
   name=$(context_name_from_file "$file")
   user_name=$(read_context_value "$file" user.name)
@@ -382,6 +382,13 @@ print_context_detail() {
     show_public_key=$(picotools_prompt_yes_no 'Display public SSH key?' no)
     if [ "$show_public_key" = 'yes' ]; then
       print_public_ssh_key "$public_key_path"
+    fi
+  fi
+
+  if [ "$prompt_public_key" = 'yes' ] && [ -n "$signing_key" ]; then
+    show_gpg_public_key=$(picotools_prompt_yes_no 'Display public GPG key?' no)
+    if [ "$show_gpg_public_key" = 'yes' ]; then
+      print_public_gpg_key "$signing_key" "$gpg_program"
     fi
   fi
 }
