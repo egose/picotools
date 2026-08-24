@@ -317,7 +317,7 @@ create_isolated_commit() {
   local title="$1"
   local files_ref_name="$2"
   local repo_root index_file parent tree commit file
-  local -a pathspecs=()
+  local -a pathspecs=() commit_tree_args=()
   local -n files_ref="$files_ref_name"
 
   ensure_apply_index_empty || return 1
@@ -351,14 +351,16 @@ create_isolated_commit() {
     return 1
   fi
   if [ -n "$parent" ]; then
-    if ! commit=$(git -C "$repo_root" commit-tree "$tree" -p "$parent" -m "$title"); then
+    commit_tree_args_for_config commit_tree_args "$repo_root" "$tree" "$title" "$parent" || return 1
+    if ! commit=$(git -C "$repo_root" commit-tree "${commit_tree_args[@]}"); then
       return 1
     fi
     if ! git -C "$repo_root" update-ref -m "git-commit: $title" HEAD "$commit" "$parent"; then
       return 1
     fi
   else
-    if ! commit=$(git -C "$repo_root" commit-tree "$tree" -m "$title"); then
+    commit_tree_args_for_config commit_tree_args "$repo_root" "$tree" "$title" || return 1
+    if ! commit=$(git -C "$repo_root" commit-tree "${commit_tree_args[@]}"); then
       return 1
     fi
     if ! git -C "$repo_root" update-ref -m "git-commit: $title" HEAD "$commit"; then
@@ -366,6 +368,39 @@ create_isolated_commit() {
     fi
   fi
   git -C "$repo_root" reset -q --mixed HEAD --
+}
+
+commit_tree_args_for_config() {
+  local output_ref_name="$1"
+  local repo_root="$2"
+  local tree="$3"
+  local title="$4"
+  local parent="${5:-}"
+  local signing_config status
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=("$tree")
+  if [ -n "$parent" ]; then
+    output_ref+=(-p "$parent")
+  fi
+  output_ref+=(-m "$title")
+
+  signing_config=$(git -C "$repo_root" config --bool --get commit.gpgSign 2>&1) || status=$?
+  status=${status:-0}
+  case "$status" in
+  0)
+    if [ "$signing_config" = 'true' ]; then
+      output_ref+=(-S)
+    fi
+    ;;
+  1)
+    ;;
+  *)
+    printf '%s\n' "$signing_config" >&2
+    return "$status"
+    ;;
+  esac
 }
 
 report_local_apply_failure() {
