@@ -218,6 +218,27 @@ for arg in "$@"; do
   fi
 done
 
+if [ "${GIT_STRIP_COMMIT_TREE_SIGNING:-false}" = 'true' ]; then
+  has_commit_tree=false
+  for arg in "$@"; do
+    if [ "$arg" = 'commit-tree' ]; then
+      has_commit_tree=true
+      break
+    fi
+  done
+fi
+
+if [ "${has_commit_tree:-false}" = 'true' ]; then
+  filtered_args=()
+  for arg in "$@"; do
+    case "$arg" in
+    -S | -S*) ;;
+    *) filtered_args+=("$arg") ;;
+    esac
+  done
+  exec "$REAL_GIT" "${filtered_args[@]}"
+fi
+
 exec "$REAL_GIT" "$@"
 EOF
   chmod +x "$wrapper_path"
@@ -255,6 +276,7 @@ run_tool_in_repo() {
     GIT_PROFILE_BIN="$GIT_PROFILE_STUB" \
     GIT_COMMIT_TREE_COUNT_FILE="$GIT_COMMIT_TREE_COUNT_FILE" \
     GIT_COMMIT_TREE_FAIL_AT="${GIT_COMMIT_TREE_FAIL_AT:-}" \
+    GIT_STRIP_COMMIT_TREE_SIGNING="${GIT_STRIP_COMMIT_TREE_SIGNING:-false}" \
     GIT_API_FAIL_CREATE="${GIT_API_FAIL_CREATE:-false}" \
     GIT_WRAPPER_LOG="$GIT_WRAPPER_LOG" \
     "$TOOL" "$@"
@@ -357,6 +379,26 @@ EOF
   second_commit_files=$(commit_files "$repo" HEAD)
   assert_eq "$first_commit_files" 'first.txt' 'first planned commit must contain only the first file'
   assert_eq "$second_commit_files" 'second.txt' 'second planned commit must contain only the later file'
+}
+
+@test "apply mode respects commit.gpgSign for isolated commits" {
+  local repo output wrapper_log
+
+  repo="$TMP_HOME/repo"
+  setup_state_repo "$repo"
+  git -C "$repo" config commit.gpgSign true
+  printf '%s\n' 'signed change' >>"$repo/README.md"
+
+  if ! output=$(GIT_STRIP_COMMIT_TREE_SIGNING=true \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    run_tool_in_repo "$repo" --apply 2>&1); then
+    fail "git-commit should apply when commit.gpgSign is enabled and commit-tree signing is stubbed ($output)"
+  fi
+
+  wrapper_log=$(<"$GIT_WRAPPER_LOG")
+  assert_contains "$wrapper_log" 'commit-tree' 'apply mode should create commits through commit-tree'
+  assert_contains "$wrapper_log" $'\n-S\n' 'commit-tree should receive -S when commit.gpgSign is true'
+  assert_eq "$(git -C "$repo" log -1 --pretty=%s)" 'feat: update readme' 'apply mode should still create the planned commit'
 }
 
 @test "injected commit 1 failure leaves no commits empty index and recovery guidance" {
