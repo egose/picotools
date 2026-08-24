@@ -1181,6 +1181,35 @@ create_initial_commit() {
   assert_contains "$output" 'Error: commit plan did not cover changed file: notes.txt' 'git-commit should reject single-commit plans that omit changed files'
 }
 
+@test "relaxed plan adds uncovered changed files to the last commit" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222_2
+  printf 'updated\n' >>"$repo/README.md"
+  printf 'new file\n' >"$repo/notes.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md"]}]}' \
+    "$TOOL" --relaxed-plan 2>&1); then
+    fail "git-commit should normalize an uncovered file when --relaxed-plan is used ($output)"
+  fi
+
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)README.md :\(top\,literal\)notes.txt' 'relaxed planning should add uncovered files to the last commit'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'relaxed planning should keep the generated commit title'
+  assert_not_contains "$output" 'Error: commit plan did not cover changed file' 'relaxed planning should not fail on uncovered changed files'
+}
+
 @test "limits commit planning to the selected file path scope" {
   local stub_path jq_stub repo ask_log output ask_payload
 
@@ -3210,6 +3239,40 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   assert_not_contains "$output" 'Raw model response:' 'git-commit should not print the raw model response for duplicate-file validation failures'
   assert_not_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should not report a JSON parse failure when the model returned valid but invalid-plan JSON'
   assert_contains "$(<"$ask_log")" 'Remove duplicate file assignments.' 'git-commit should keep the duplicate-file-specific retry guidance in the retry prompt'
+}
+
+@test "relaxed plan keeps duplicated files in their first commit only" {
+  local stub_path jq_stub repo output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  mkdir -p "$repo/src" "$repo/tests"
+  printf 'code change\n' >"$repo/src/app.txt"
+  printf 'test change\n' >"$repo/tests/app.txt"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(
+    cd "$repo" || return 1
+    PATH="$TMP_HOME:$PATH" \
+      MODEL_PROFILE_BIN="$stub_path" \
+      MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update app layout","files":["src/app.txt","tests/app.txt"]},{"type":"test","message":"add app coverage","files":["tests/app.txt"]}]}' \
+      "$TOOL" --relaxed-plan 2>&1
+  ); then
+    fail "git-commit should normalize duplicate file assignments when --relaxed-plan is used ($output)"
+  fi
+
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)src/app.txt :\(top\,literal\)tests/app.txt' 'relaxed planning should keep the duplicate file in the first commit'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update app layout')" 'relaxed planning should keep the first commit title'
+  assert_not_contains "$output" 'Commit 2:' 'relaxed planning should drop the now-empty duplicate-only commit'
+  assert_not_contains "$output" 'Error: commit plan assigned the same file to multiple commits' 'relaxed planning should not fail on duplicate file assignments'
 }
 
 @test "surfaces the underlying validation error after exhausting the commit plan retry budget" {

@@ -93,6 +93,7 @@ Options:
   --path-file PATH          Load additional scoped paths from a newline-delimited file; repeatable
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
+  --relaxed-plan            Normalize duplicate and uncovered planned files instead of failing
 
 Debug diagnostics:
   Model response excerpts are printed only with --debug. Excerpts redact values
@@ -173,7 +174,7 @@ require_dependencies() {
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model git_api_profile branch scope diff_output plan_json planned_fingerprint scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode current_dir
+  local config_values profile model additional_profile additional_model git_api_profile branch scope diff_output plan_json planned_fingerprint scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode relaxed_plan current_dir
   local -a config_lines=()
   local -a selected_paths=()
   # shellcheck disable=SC2034
@@ -190,6 +191,7 @@ run_commit_tool() {
   pr_base_branch="${run_options[pr_base_branch]:-}"
   pre_commit_retries="${run_options[pre_commit_retries]:-2}"
   debug_mode="${run_options[debug_mode]:-false}"
+  relaxed_plan="${run_options[relaxed_plan]:-false}"
 
   if [ "$debug_mode" = 'true' ]; then
     enable_debug_logging
@@ -236,7 +238,7 @@ run_commit_tool() {
 
   diff_output=$(collect_changes_diff changed_files)
   capture_workspace_fingerprint planned_fingerprint changed_files
-  request_validated_commit_plan plan_json "$profile" "$model" "$additional_profile" "$additional_model" "$branch" "$scope" changed_files "$diff_output" "$create_pr" "${pr_context[base_branch]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}" "${pr_context[existing_exists]:-false}" || return 1
+  request_validated_commit_plan plan_json "$profile" "$model" "$additional_profile" "$additional_model" "$branch" "$scope" changed_files "$diff_output" "$relaxed_plan" "$create_pr" "${pr_context[base_branch]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}" "${pr_context[existing_exists]:-false}" || return 1
   debug_log 'Printing commit plan preview'
   print_commit_plan "$plan_json" "$scope" changed_files || return 1
 
@@ -273,7 +275,7 @@ main() {
     shift
     configure_tool "$@"
     ;;
-  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --path | --path=* | --path-file | --path-file=* | --scope | --scope=* | --no-scope)
+  '' | --debug | --apply | --push | --pr | --pr=* | --pre-commit-retries | --pre-commit-retries=* | --path | --path=* | --path-file | --path-file=* | --scope | --scope=* | --no-scope | --relaxed-plan)
     run_commit_tool "$@"
     ;;
   *)

@@ -169,14 +169,26 @@ request_validated_commit_plan() {
   local scope="$7"
   local changed_files_ref_name="$8"
   local diff_output="$9"
-  local create_pr="${10}"
-  local resolved_pr_base_branch="${11:-}"
-  local existing_pr_title="${12:-}"
-  local existing_pr_body="${13:-}"
-  local existing_pr_exists="${14:-false}"
-  local system_message user_message raw_requested_plan_json requested_plan_json retry_message attempt max_attempts validation_error changed_files_json
+  local relaxed_plan=false
+  local create_pr resolved_pr_base_branch existing_pr_title existing_pr_body existing_pr_exists
+  local system_message user_message raw_requested_plan_json requested_plan_json normalized_plan_json retry_message attempt max_attempts validation_error changed_files_json
   # shellcheck disable=SC2178
   local -n output_ref="$output_ref_name"
+
+  if [ "$#" -ge 15 ]; then
+    relaxed_plan="${10}"
+    create_pr="${11}"
+    resolved_pr_base_branch="${12:-}"
+    existing_pr_title="${13:-}"
+    existing_pr_body="${14:-}"
+    existing_pr_exists="${15:-false}"
+  else
+    create_pr="${10:-false}"
+    resolved_pr_base_branch="${11:-}"
+    existing_pr_title="${12:-}"
+    existing_pr_body="${13:-}"
+    existing_pr_exists="${14:-false}"
+  fi
 
   debug_log 'Collecting workspace diff for commit planning'
   changed_files_json=$(changed_files_json_array "$changed_files_ref_name")
@@ -201,7 +213,15 @@ request_validated_commit_plan() {
     debug_log "Extracted commit plan JSON (${#requested_plan_json} chars)"
 
     if commit_plan_json_is_parseable "$requested_plan_json"; then
-      validation_error=$(run_commit_plan_validation "$requested_plan_json" "$changed_files_ref_name" "$create_pr" "$scope") && {
+      validation_error=$(run_commit_plan_validation "$requested_plan_json" "$changed_files_ref_name" "$create_pr" "$scope" "$relaxed_plan") && {
+        if [ "$relaxed_plan" = 'true' ]; then
+          normalized_plan_json=$(normalize_relaxed_commit_plan "$requested_plan_json" "$changed_files_ref_name") || return 1
+          if ! validation_error=$(run_commit_plan_validation "$normalized_plan_json" "$changed_files_ref_name" "$create_pr" "$scope" false); then
+            debug_log 'Normalized relaxed commit plan did not pass strict validation'
+            break
+          fi
+          requested_plan_json="$normalized_plan_json"
+        fi
         debug_log 'Validated commit plan JSON'
         # shellcheck disable=SC2034,SC2178
         output_ref="$requested_plan_json"
