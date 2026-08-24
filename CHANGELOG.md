@@ -1,3 +1,9 @@
+## [0.54.2](https://github.com/egose/picotools/compare/v0.54.1...v0.54.2) (2026-08-24)
+
+### Bug Fixes
+
+* add signing hint when commit-tree fails ([0212fe5](https://github.com/egose/picotools/commit/0212fe59af4f9286abec771eb7d9af6396f6e72e))
+
 ## [0.54.1](https://github.com/egose/picotools/compare/v0.54.0...v0.54.1) (2026-08-24)
 
 ### Bug Fixes
