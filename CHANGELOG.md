@@ -1,3 +1,21 @@
+## [0.53.0](https://github.com/egose/picotools/compare/v0.52.0...v0.53.0) (2026-08-24)
+
+### Features
+
+* add optional GPG public key display to profile details ([94e92ec](https://github.com/egose/picotools/commit/94e92ec8fa08209175abe8b289087d3c43ac0107))
+* harden commit planning, validation, and apply flow ([7b54310](https://github.com/egose/picotools/commit/7b543108890e986dc60f249a379333e0eba6e424))
+* harden git-profile storage, validation, and prompt handling ([e66b2dc](https://github.com/egose/picotools/commit/e66b2dc433cfaa4a257132b0b6299d78222fd7a7))
+* harden model-profile and git-clean-branches contracts ([49d61c9](https://github.com/egose/picotools/commit/49d61c97b1656e65acdbd33e3cfb7c3af433bffd))
+
+### Bug Fixes
+
+* avoid subshell command substitution in usage output ([dc57a68](https://github.com/egose/picotools/commit/dc57a689bc5b042f91da894b71e1a79d7449f8bb))
+
+### Documentation
+
+* document git-commit contracts and remediation notes ([635e6a2](https://github.com/egose/picotools/commit/635e6a2bf756d0d18045edce258764cb60666acf))
+* silence shellcheck false positives in test hooks ([86d6b88](https://github.com/egose/picotools/commit/86d6b88362f333db331aafe3b4b1f68bb48d4bd8))
+
 ## [0.52.0](https://github.com/egose/picotools/compare/v0.51.0...v0.52.0) (2026-08-19)
 
 ### Features
