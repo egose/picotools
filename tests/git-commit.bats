@@ -1600,6 +1600,33 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'chore: update readme')" 'git-commit should omit scope when branch name has no slash'
 }
 
+@test "omits unresolved placeholder branch scope" {
+  local stub_path jq_stub repo ask_log output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b 'feat/{{APP_NAME}}'
+  printf 'updated\n' >>"$repo/README.md"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"fix","message":"update readme","files":["README.md"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" "$(preview_git_commit_command 'fix: update readme')" 'git-commit should omit unresolved template branch scopes'
+  assert_contains "$(<"$ask_log")" $'Derived scope:\n(none)' 'git-commit should not send unresolved template branch scopes to the model'
+}
+
 @test "uses changed module name as scope in a monorepo when branch scope is unavailable" {
   local stub_path jq_stub repo output
 
@@ -1656,7 +1683,38 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'feat(ui): update ui module')" 'git-commit should prefer the leaf package name over the scoped package prefix'
   assert_contains "$(<"$ask_log")" $'Derived scope:\nui' 'git-commit should send the leaf package name as the derived scope in the planning prompt'
   assert_contains "$(<"$ask_log")" 'do not repeat that scope value or its parent package/org prefix' 'git-commit should tell the model to avoid repeating monorepo scope names in the message'
+  assert_contains "$(<"$ask_log")" 'Describe only the current changed files and diff. Do not reuse unrelated prior context, example text, placeholders, or pull request content unless it is provided in this prompt.' 'git-commit should tell the model not to reuse unrelated context or placeholders'
   assert_contains "$(<"$ask_log")" 'The final commit header, including the type/scope prefix, must not exceed 100 characters.' 'git-commit should tell the model about the commit header length limit'
+}
+
+@test "omits unresolved placeholder package scope" {
+  local stub_path jq_stub repo ask_log output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b dv
+  mkdir -p "$repo/packages/app/src"
+  printf 'packages:\n  - packages/*\n' >"$repo/pnpm-workspace.yaml"
+  printf '{"name":"@acme/{{APP_NAME}}"}\n' >"$repo/packages/app/package.json"
+  printf 'export const value = 1\n' >"$repo/packages/app/src/index.ts"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update app module","files":["pnpm-workspace.yaml","packages/app/package.json","packages/app/src/index.ts"]}]}' \
+    "$TOOL" 2>&1)
+
+  assert_contains "$output" "$(preview_git_commit_command 'feat: update app module')" 'git-commit should omit unresolved template package scopes'
+  assert_contains "$(<"$ask_log")" $'Derived scope:\n(none)' 'git-commit should not send unresolved template package scopes to the model'
 }
 
 @test "omits scope when monorepo changes span multiple modules" {

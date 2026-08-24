@@ -50,6 +50,7 @@ Rules:
 - Allowed types: feat, fix, docs, refactor, chore, perf, test, ci
 - The message must be the commit subject suffix only. Do not include the type or scope prefix.
 - The message must start with an imperative lower-case verb.
+- Describe only the current changed files and diff. Do not reuse unrelated prior context, example text, placeholders, or pull request content unless it is provided in this prompt.
 - The final commit header, including the type/scope prefix, must not exceed 100 characters.
 - When a scope is provided, do not repeat that scope value or its parent package/org prefix in the message unless it is required for clarity.
 - Prefer one commit unless the changes clearly belong to distinct tasks.

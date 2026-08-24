@@ -30,6 +30,29 @@ derive_scope_from_branch() {
   printf '%s\n' "$last_segment"
 }
 
+scope_is_placeholder() {
+  local scope="$1"
+
+  case "$scope" in
+  *'{{'* | *'}}'*)
+    return 0
+    ;;
+  esac
+
+  return 1
+}
+
+print_resolved_scope() {
+  local scope="$1"
+
+  if scope_is_placeholder "$scope"; then
+    printf '\n'
+    return 0
+  fi
+
+  printf '%s\n' "$scope"
+}
+
 repo_has_workspace_manifest() {
   local repo_root="$1"
   local manifest
@@ -197,15 +220,16 @@ resolve_scope() {
   fi
 
   if [ -n "$scope_override" ]; then
-    printf '%s\n' "$scope_override"
+    print_resolved_scope "$scope_override"
     return 0
   fi
 
   scope=$(derive_scope_from_branch "$branch")
   if [ -n "$scope" ]; then
-    printf '%s\n' "$scope"
+    print_resolved_scope "$scope"
     return 0
   fi
 
-  derive_scope_from_monorepo "$changed_files_ref_name"
+  scope=$(derive_scope_from_monorepo "$changed_files_ref_name")
+  print_resolved_scope "$scope"
 }
