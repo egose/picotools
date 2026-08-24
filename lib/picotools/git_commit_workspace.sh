@@ -5,8 +5,32 @@ if [ "${PICOTOOLS_GIT_COMMIT_WORKSPACE_SH_LOADED:-0}" -eq 1 ]; then
 fi
 PICOTOOLS_GIT_COMMIT_WORKSPACE_SH_LOADED=1
 
+# Contract: workspace helpers take scalar paths or caller-owned array namerefs,
+# emit requested values to stdout, and return nonzero with stderr diagnostics on
+# invalid paths or Git failures. Required callback/globals for prompt diff
+# helpers: debug_log and MAX_COMMIT_PLAN_* limits.
+
 git_repo_root() {
   git rev-parse --show-toplevel
+}
+
+git_literal_pathspec() {
+  local repo_relative_path="$1"
+
+  printf ':(top,literal)%s\n' "$repo_relative_path"
+}
+
+git_literal_pathspecs_into() {
+  local output_ref_name="$1"
+  shift
+  local file
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=()
+  for file in "$@"; do
+    output_ref+=("$(git_literal_pathspec "$file")")
+  done
 }
 
 resolve_scope_path() {
@@ -18,7 +42,7 @@ resolve_scope_path() {
   raw_path="${raw_path#:/}"
   if [ -z "$raw_path" ]; then
     echo 'Error: --path requires a non-empty file or directory path' >&2
-    exit 1
+    return 1
   fi
 
   if [[ "$raw_path" = /* ]]; then
@@ -32,7 +56,7 @@ resolve_scope_path() {
   leaf_name=$(basename "$absolute_path")
   parent_dir=$(cd "$parent_dir" 2>/dev/null && pwd -P) || {
     echo "Error: unable to resolve --path '$raw_path'" >&2
-    exit 1
+    return 1
   }
 
   if [ "$leaf_name" = '.' ]; then
@@ -50,61 +74,75 @@ resolve_scope_path() {
     ;;
   *)
     echo "Error: --path must stay inside the repository: $raw_path" >&2
-    exit 1
+    return 1
     ;;
   esac
 }
 
-filter_changed_files_to_scope() {
-  local changed_files="$1"
-  shift
+filter_changed_files_to_scope_into() {
+  local output_ref_name="$1"
+  local changed_files_ref_name="$2"
+  shift 2
   local file selected_path
   local -a selected_paths=("$@")
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+  local -n changed_files_ref="$changed_files_ref_name"
+
+  output_ref=()
 
   if [ "${#selected_paths[@]}" -eq 0 ]; then
-    printf '%s\n' "$changed_files"
+    output_ref=("${changed_files_ref[@]}")
     return 0
   fi
 
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
+  for file in "${changed_files_ref[@]}"; do
     for selected_path in "${selected_paths[@]}"; do
       if [ "$selected_path" = '.' ]; then
-        printf '%s\n' "$file"
+        output_ref+=("$file")
         break
       fi
 
       case "$file" in
       "$selected_path" | "$selected_path"/*)
-        printf '%s\n' "$file"
+        output_ref+=("$file")
         break
         ;;
       esac
     done
-  done <<<"$changed_files"
+  done
 }
 
 load_scope_paths_file() {
   local file_path="$1"
+  local output_ref_name="$2"
   local line
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=()
 
   if [ ! -f "$file_path" ]; then
     echo "Error: --path-file not found: $file_path" >&2
-    exit 1
+    return 1
   fi
 
   while IFS= read -r line || [ -n "$line" ]; do
     if [ -n "$line" ]; then
-      printf '%s\n' "$line"
+      output_ref+=("$line")
     fi
   done <"$file_path"
 }
 
-collect_changed_files() {
+collect_changed_files_into() {
+  local output_ref_name="$1"
   local repo_root file
   local has_head=false
   local -A seen=()
-  local -a files=()
+  # shellcheck disable=SC2178
+  local -n output_ref="$output_ref_name"
+
+  output_ref=()
 
   repo_root=$(git_repo_root)
 
@@ -113,43 +151,101 @@ collect_changed_files() {
   fi
 
   if [ "$has_head" = true ]; then
-    while IFS= read -r file; do
-      if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+    while IFS= read -r -d '' file; do
+      if [ -z "${seen[$file]:-}" ]; then
         seen[$file]=1
-        files+=("$file")
+        output_ref+=("$file")
       fi
-    done < <(git -C "$repo_root" diff --name-only HEAD --)
+    done < <(git -C "$repo_root" diff --name-only -z HEAD --)
   else
-    while IFS= read -r file; do
-      if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+    while IFS= read -r -d '' file; do
+      if [ -z "${seen[$file]:-}" ]; then
         seen[$file]=1
-        files+=("$file")
+        output_ref+=("$file")
       fi
-    done < <(git -C "$repo_root" diff --name-only --cached --)
+    done < <(git -C "$repo_root" diff --name-only -z --cached --)
   fi
 
-  while IFS= read -r file; do
-    if [ -n "$file" ] && [ -z "${seen[$file]:-}" ]; then
+  while IFS= read -r -d '' file; do
+    if [ -z "${seen[$file]:-}" ]; then
       seen[$file]=1
-      files+=("$file")
+      output_ref+=("$file")
     fi
-  done < <(git -C "$repo_root" ls-files --others --exclude-standard)
+  done < <(git -C "$repo_root" ls-files -z --others --exclude-standard)
+}
 
+collect_changed_files() {
+  local -a files=()
+
+  collect_changed_files_into files
   printf '%s\n' "${files[@]}"
 }
 
 changed_files_include_path() {
-  local changed_files="$1"
+  local changed_files_ref_name="$1"
   local target_path="$2"
   local file
+  local -n changed_files_ref="$changed_files_ref_name"
 
-  while IFS= read -r file; do
+  for file in "${changed_files_ref[@]}"; do
     if [ "$file" = "$target_path" ]; then
       return 0
     fi
-  done <<<"$changed_files"
+  done
 
   return 1
+}
+
+changed_files_json_array() {
+  local changed_files_ref_name="$1"
+  local file separator=''
+  local -n changed_files_ref="$changed_files_ref_name"
+
+  printf '['
+  for file in "${changed_files_ref[@]}"; do
+    printf '%s' "$separator"
+    json_escape_string "$file"
+    separator=','
+  done
+  printf ']\n'
+}
+
+json_escape_string() {
+  local text="$1"
+  local char escaped=''
+  local index
+
+  for ((index = 0; index < ${#text}; index++)); do
+    char="${text:index:1}"
+    case "$char" in
+    '"')
+      escaped+='\"'
+      ;;
+    \\)
+      escaped+="\\\\"
+      ;;
+    $'\n')
+      escaped+='\n'
+      ;;
+    $'\t')
+      escaped+='\t'
+      ;;
+    $'\r')
+      escaped+='\r'
+      ;;
+    $'\b')
+      escaped+='\b'
+      ;;
+    $'\f')
+      escaped+='\f'
+      ;;
+    *)
+      escaped+="$char"
+      ;;
+    esac
+  done
+
+  printf '"%s"' "$escaped"
 }
 
 file_size_bytes() {
@@ -179,12 +275,14 @@ tracked_file_diff_for_prompt() {
   local repo_root="$1"
   local file="$2"
   local has_head="$3"
-  local file_diff
+  local file_diff pathspec
+
+  pathspec=$(git_literal_pathspec "$file")
 
   if [ "$has_head" = true ]; then
-    file_diff=$(git -C "$repo_root" diff --no-ext-diff HEAD -- "$file")
+    file_diff=$(git -C "$repo_root" diff --no-ext-diff HEAD -- "$pathspec")
   else
-    file_diff=$(git -C "$repo_root" diff --no-ext-diff --cached -- "$file")
+    file_diff=$(git -C "$repo_root" diff --no-ext-diff --cached -- "$pathspec")
   fi
 
   if [ "${#file_diff}" -gt "$MAX_COMMIT_PLAN_FILE_DIFF_CHARS" ]; then
@@ -201,8 +299,10 @@ file_diff_for_prompt() {
   local repo_root="$1"
   local file="$2"
   local has_head="$3"
+  local pathspec
 
-  if git -C "$repo_root" ls-files --error-unmatch -- "$file" >/dev/null 2>&1; then
+  pathspec=$(git_literal_pathspec "$file")
+  if git -C "$repo_root" ls-files --error-unmatch -- "$pathspec" >/dev/null 2>&1; then
     tracked_file_diff_for_prompt "$repo_root" "$file" "$has_head"
     return 0
   fi
@@ -211,10 +311,12 @@ file_diff_for_prompt() {
 }
 
 collect_changes_diff() {
-  local changed_files="$1"
+  local changed_files_ref_name="$1"
   local repo_root file file_diff
   local has_head=false
   local diff_output=''
+  local -A untracked_file_set=()
+  local -n changed_files_ref="$changed_files_ref_name"
 
   repo_root=$(git_repo_root)
 
@@ -222,9 +324,16 @@ collect_changes_diff() {
     has_head=true
   fi
 
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    file_diff=$(file_diff_for_prompt "$repo_root" "$file" "$has_head")
+  while IFS= read -r -d '' file; do
+    untracked_file_set["$file"]=1
+  done < <(git -C "$repo_root" ls-files -z --others --exclude-standard)
+
+  for file in "${changed_files_ref[@]}"; do
+    if [ -n "${untracked_file_set[$file]:-}" ]; then
+      file_diff=$(added_file_diff_for_prompt "$repo_root" "$file")
+    else
+      file_diff=$(tracked_file_diff_for_prompt "$repo_root" "$file" "$has_head")
+    fi
     if [ -z "$file_diff" ]; then
       continue
     fi
@@ -239,7 +348,7 @@ collect_changes_diff() {
       diff_output+=$'\n[Stopped collecting additional diffs after reaching the prompt diff budget.]'
       break
     fi
-  done <<<"$changed_files"
+  done
 
   printf '%s\n' "$diff_output"
 }

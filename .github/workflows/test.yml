@@ -19,6 +19,7 @@ jobs:
 
     - name: Run unit tests
       run: |
+        npm run test:git-commit
         bats tests/*.bats
 
   install-test:
@@ -28,7 +29,15 @@ jobs:
 
     - name: Validate Bash Scripts
       run: |
-        bash -n bin/* tools/bin/* scripts/*.bash
+        npm run check:syntax
+
+    - name: Run Shellcheck
+      run: |
+        npm run check:shellcheck
+
+    - name: Check Formatting
+      run: |
+        npm run check:format
 
     - name: Smoke Test Install Layout
       run: |
@@ -107,6 +116,58 @@ jobs:
 
         "$PWD/tmp/install/bin/git-commit" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-commit" --version)" = "$(cat VERSION)"
+        for module in \
+          git_commit_config.sh \
+          git_commit_execution.sh \
+          git_commit_hooks.sh \
+          git_commit_model.sh \
+          git_commit_options.sh \
+          git_commit_plan.sh \
+          git_commit_prompt.sh \
+          git_commit_remote.sh \
+          git_commit_scope.sh \
+          git_commit_workspace.sh; do
+          test -f "$PWD/tmp/install/lib/picotools/$module"
+        done
+
+        git_commit_home="$PWD/tmp/git-commit-home"
+        git_commit_repo="$PWD/tmp/git-commit-repo"
+        git_commit_installed_bin="$PWD/tmp/install/bin/git-commit"
+        mkdir -p "$git_commit_home/.config/git-commit" "$git_commit_home/.local/share" "$git_commit_home/bin"
+        real_jq=$(asdf which jq 2>/dev/null || command -v jq)
+        ln -s "$real_jq" "$git_commit_home/bin/jq"
+        cat >"$git_commit_home/bin/model-profile" <<'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        case "${1:-}" in
+        ask)
+          printf '%s\n' '{"commits":[{"type":"feat","message":"update file","files":["file.txt"]}]}'
+          ;;
+        *)
+          exit 1
+          ;;
+        esac
+        EOF
+        chmod +x "$git_commit_home/bin/model-profile"
+        printf '[model]\n\tprofile = stub\n\tname = stub-model\n' >"$git_commit_home/.config/git-commit/config"
+        git init "$git_commit_repo" >/dev/null
+        git -C "$git_commit_repo" config user.name 'CI User'
+        git -C "$git_commit_repo" config user.email 'ci@example.com'
+        printf '%s\n' base >"$git_commit_repo/file.txt"
+        git -C "$git_commit_repo" add file.txt
+        git -C "$git_commit_repo" commit -m 'chore: initial commit' >/dev/null
+        printf '%s\n' change >"$git_commit_repo/file.txt"
+        preview_output=$(cd "$git_commit_repo" && \
+          HOME="$git_commit_home" \
+          XDG_CONFIG_HOME="$git_commit_home/.config" \
+          XDG_DATA_HOME="$git_commit_home/.local/share" \
+          MODEL_PROFILE_BIN="$git_commit_home/bin/model-profile" \
+          PATH="$git_commit_home/bin:$PATH" \
+            "$git_commit_installed_bin" --no-scope)
+        printf '%s\n' "$preview_output" | grep -F 'git add -A --' >/dev/null
+        printf '%s\n' "$preview_output" | grep -F 'git commit -m' >/dev/null
+        test -z "$(git -C "$git_commit_repo" status --short --untracked-files=no | grep '^M  ' || true)"
+        test "$(git -C "$git_commit_repo" rev-list --count HEAD)" = '1'
 
         "$PWD/tmp/install/bin/git-release-setup" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-release-setup" --version)" = "$(cat VERSION)"

@@ -13,7 +13,11 @@
     "url": "https://github.com/egose/picotools/issues"
   },
   "scripts": {
+    "check:format": "scripts/shfmt-diff.bash && git diff --check",
+    "check:shellcheck": "scripts/shellcheck.bash",
+    "check:syntax": "bash -n bin/* tools/bin/* lib/picotools/*.sh scripts/*.bash tests/helpers/*.bash tests/git-commit*.bats",
     "release": "release-it",
+    "test:git-commit": "bats tests/git-commit*.bats",
     "test:git-profile": "bats tests/git-profile*.bats",
     "test:model-profile": "bats tests/model-profile.bats",
     "changelog": "repo-toolkit-changelog",
