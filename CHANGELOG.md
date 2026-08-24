@@ -1,3 +1,9 @@
+## [0.54.1](https://github.com/egose/picotools/compare/v0.54.0...v0.54.1) (2026-08-24)
+
+### Bug Fixes
+
+* preserve commit signing in isolated commits ([1e5fc82](https://github.com/egose/picotools/commit/1e5fc82fad203d3ca73d67b63c16a5c005299d9a))
+
 ## [0.54.0](https://github.com/egose/picotools/compare/v0.53.1...v0.54.0) (2026-08-24)
 
 ### Features
