@@ -19,16 +19,27 @@ jobs:
 
     - name: Run unit tests
       run: |
-        bats tests/*.bats
+        npm test
 
   install-test:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
     - name: Validate Bash Scripts
       run: |
-        bash -n bin/* tools/bin/* scripts/*.bash
+        npm run check:syntax
+
+    - name: Run Shellcheck
+      run: |
+        npm run check:shellcheck
+
+    - name: Check Formatting
+      run: |
+        npm run check:format
 
     - name: Smoke Test Install Layout
       run: |
@@ -77,12 +88,128 @@ jobs:
 
         "$PWD/tmp/install/bin/git-profile" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-profile" --version)" = "$(cat VERSION)"
+        git_profile_home="$PWD/tmp/git-profile-home"
+        mkdir -p "$git_profile_home/.config" "$git_profile_home/.local/share"
+        HOME="$git_profile_home" \
+        XDG_CONFIG_HOME="$git_profile_home/.config" \
+        XDG_DATA_HOME="$git_profile_home/.local/share" \
+          "$PWD/tmp/install/bin/git-profile" list | grep -F 'No git profiles found.' >/dev/null
+        printf 'installed\nInstalled User\ninstalled@example.com\nno\nno\n\n' | \
+          HOME="$git_profile_home" \
+          XDG_CONFIG_HOME="$git_profile_home/.config" \
+          XDG_DATA_HOME="$git_profile_home/.local/share" \
+            "$PWD/tmp/install/bin/git-profile" create >/dev/null
+        printf '1\n' | \
+          HOME="$git_profile_home" \
+          XDG_CONFIG_HOME="$git_profile_home/.config" \
+          XDG_DATA_HOME="$git_profile_home/.local/share" \
+            "$PWD/tmp/install/bin/git-profile" read | grep -F 'Installed User' >/dev/null
 
         "$PWD/tmp/install/bin/pre-commit-upgrade" --help >/dev/null
         test "$("$PWD/tmp/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
 
         "$PWD/tmp/install/bin/model-profile" --help >/dev/null
         test "$("$PWD/tmp/install/bin/model-profile" --version)" = "$(cat VERSION)"
+        for module in provider.sh token.sh profile.sh http.sh; do
+          test -f "$PWD/tmp/install/lib/picotools/model-profile/$module"
+        done
+
+        model_profile_home="$PWD/tmp/model-profile-home"
+        model_profile_stub_bin="$model_profile_home/bin"
+        model_profile_installed_bin="$PWD/tmp/install/bin/model-profile"
+        model_profile_name='installed-openai'
+        model_profile_resource='installed-openai'
+        model_profile_token="ci-token-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
+        model_profile_prompt='installed request smoke'
+        mkdir -p "$model_profile_home/.config" "$model_profile_home/.local/share" "$model_profile_stub_bin"
+        real_jq=$(asdf which jq 2>/dev/null || command -v jq)
+        ln -s "$real_jq" "$model_profile_stub_bin/jq"
+        cat >"$model_profile_stub_bin/curl" <<'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        output_file=''
+        url=''
+        body=''
+
+        while [ "$#" -gt 0 ]; do
+          case "$1" in
+          --)
+            shift
+            if [ "$#" -gt 0 ]; then
+              url="$1"
+              shift
+            fi
+            ;;
+          -o)
+            output_file="$2"
+            shift 2
+            ;;
+          -w | --config | -H | --proxy | --noproxy | --max-redirs | --proto | --proto-redir | --connect-timeout | --max-time)
+            shift 2
+            ;;
+          --data-binary)
+            if [[ "$2" == @* ]]; then
+              body=$(<"${2#@}")
+            else
+              body="$2"
+            fi
+            shift 2
+            ;;
+          -* )
+            shift
+            ;;
+          *)
+            url="$1"
+            shift
+            ;;
+          esac
+        done
+
+        printf '%s\n' "$url" >"$MODEL_PROFILE_CURL_URL_LOG"
+        printf '%s' "$body" >"$MODEL_PROFILE_CURL_BODY_LOG"
+        printf '%s\n' '{"choices":[{"message":{"content":"stubbed installed answer"}}]}' >"$output_file"
+        printf '200'
+        EOF
+        chmod +x "$model_profile_stub_bin/curl"
+
+        HOME="$model_profile_home" \
+        XDG_CONFIG_HOME="$model_profile_home/.config" \
+        XDG_DATA_HOME="$model_profile_home/.local/share" \
+          "$model_profile_installed_bin" list >"$model_profile_home/empty-list.out"
+        grep -F 'No model profiles found.' "$model_profile_home/empty-list.out" >/dev/null
+
+        printf '%s\n1\n%s\ngpt-5\n%s\n' "$model_profile_name" "$model_profile_resource" "$model_profile_token" | \
+          HOME="$model_profile_home" \
+          XDG_CONFIG_HOME="$model_profile_home/.config" \
+          XDG_DATA_HOME="$model_profile_home/.local/share" \
+            "$model_profile_installed_bin" create >"$model_profile_home/create.out" 2>"$model_profile_home/create.err"
+        printf '1\n' | \
+          HOME="$model_profile_home" \
+          XDG_CONFIG_HOME="$model_profile_home/.config" \
+          XDG_DATA_HOME="$model_profile_home/.local/share" \
+            "$model_profile_installed_bin" read >"$model_profile_home/read.out" 2>"$model_profile_home/read.err"
+        grep -F "$model_profile_name" "$model_profile_home/read.out" >/dev/null
+        HOME="$model_profile_home" \
+        XDG_CONFIG_HOME="$model_profile_home/.config" \
+        XDG_DATA_HOME="$model_profile_home/.local/share" \
+          "$model_profile_installed_bin" models "$model_profile_name" | grep -F 'gpt-5' >/dev/null
+
+        MODEL_PROFILE_CURL_URL_LOG="$model_profile_home/request-url.log" \
+        MODEL_PROFILE_CURL_BODY_LOG="$model_profile_home/request-body.json" \
+        HOME="$model_profile_home" \
+        XDG_CONFIG_HOME="$model_profile_home/.config" \
+        XDG_DATA_HOME="$model_profile_home/.local/share" \
+        PATH="$model_profile_stub_bin:$PATH" \
+          "$model_profile_installed_bin" ask "$model_profile_name" --message "$model_profile_prompt" >"$model_profile_home/ask.out" 2>"$model_profile_home/ask.err"
+        grep -F 'stubbed installed answer' "$model_profile_home/ask.out" >/dev/null
+        expected_model_profile_url="https://${model_profile_resource}.openai.azure.com/openai/v1/chat/completions"
+        test "$(<"$model_profile_home/request-url.log")" = "$expected_model_profile_url"
+        "$real_jq" -e \
+          --arg model 'gpt-5' \
+          --arg message "$model_profile_prompt" \
+          '.model == $model and .messages[1].content == $message' \
+          "$model_profile_home/request-body.json" >/dev/null
 
         "$PWD/tmp/install/bin/git-api" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-api" --version)" = "$(cat VERSION)"
@@ -91,12 +218,91 @@ jobs:
 
         "$PWD/tmp/install/bin/git-commit" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-commit" --version)" = "$(cat VERSION)"
+        for module in \
+          git_commit_config.sh \
+          git_commit_execution.sh \
+          git_commit_hooks.sh \
+          git_commit_model.sh \
+          git_commit_options.sh \
+          git_commit_plan.sh \
+          git_commit_prompt.sh \
+          git_commit_remote.sh \
+          git_commit_scope.sh \
+          git_commit_workspace.sh; do
+          test -f "$PWD/tmp/install/lib/picotools/$module"
+        done
+
+        git_commit_home="$PWD/tmp/git-commit-home"
+        git_commit_repo="$PWD/tmp/git-commit-repo"
+        git_commit_installed_bin="$PWD/tmp/install/bin/git-commit"
+        mkdir -p "$git_commit_home/.config/git-commit" "$git_commit_home/.local/share" "$git_commit_home/bin"
+        real_jq=$(asdf which jq 2>/dev/null || command -v jq)
+        ln -s "$real_jq" "$git_commit_home/bin/jq"
+        cat >"$git_commit_home/bin/model-profile" <<'EOF'
+        #!/usr/bin/env bash
+        set -euo pipefail
+        case "${1:-}" in
+        ask)
+          printf '%s\n' '{"commits":[{"type":"feat","message":"update file","files":["file.txt"]}]}'
+          ;;
+        *)
+          exit 1
+          ;;
+        esac
+        EOF
+        chmod +x "$git_commit_home/bin/model-profile"
+        printf '[model]\n\tprofile = stub\n\tname = stub-model\n' >"$git_commit_home/.config/git-commit/config"
+        git init "$git_commit_repo" >/dev/null
+        git -C "$git_commit_repo" config user.name 'CI User'
+        git -C "$git_commit_repo" config user.email 'ci@example.com'
+        printf '%s\n' base >"$git_commit_repo/file.txt"
+        git -C "$git_commit_repo" add file.txt
+        git -C "$git_commit_repo" commit -m 'chore: initial commit' >/dev/null
+        printf '%s\n' change >"$git_commit_repo/file.txt"
+        preview_output=$(cd "$git_commit_repo" && \
+          HOME="$git_commit_home" \
+          XDG_CONFIG_HOME="$git_commit_home/.config" \
+          XDG_DATA_HOME="$git_commit_home/.local/share" \
+          MODEL_PROFILE_BIN="$git_commit_home/bin/model-profile" \
+          PATH="$git_commit_home/bin:$PATH" \
+            "$git_commit_installed_bin" --no-scope)
+        printf '%s\n' "$preview_output" | grep -F 'git add -A --' >/dev/null
+        printf '%s\n' "$preview_output" | grep -F 'git commit -m' >/dev/null
+        test -z "$(git -C "$git_commit_repo" status --short --untracked-files=no | grep '^M  ' || true)"
+        test "$(git -C "$git_commit_repo" rev-list --count HEAD)" = '1'
 
         "$PWD/tmp/install/bin/git-release-setup" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-release-setup" --version)" = "$(cat VERSION)"
 
         "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"
+        git_clean_branches_installed_bin="$PWD/tmp/install/bin/git-clean-branches"
+        git_clean_branches_remote="$PWD/tmp/git-clean-branches-remote.git"
+        git_clean_branches_repo="$PWD/tmp/git-clean-branches-repo"
+        git init --bare "$git_clean_branches_remote" >/dev/null
+        git init "$git_clean_branches_repo" >/dev/null
+        git -C "$git_clean_branches_repo" config user.name 'CI User'
+        git -C "$git_clean_branches_repo" config user.email 'ci@example.com'
+        git -C "$git_clean_branches_repo" checkout -b main >/dev/null
+        printf '%s\n' base >"$git_clean_branches_repo/README.md"
+        git -C "$git_clean_branches_repo" add README.md
+        git -C "$git_clean_branches_repo" commit -m 'chore: initial commit' >/dev/null
+        git -C "$git_clean_branches_repo" remote add origin "$git_clean_branches_remote"
+        git -C "$git_clean_branches_repo" push -u origin main >/dev/null
+        git -C "$git_clean_branches_remote" symbolic-ref HEAD refs/heads/main
+        git -C "$git_clean_branches_repo" remote set-head --auto origin >/dev/null 2>&1
+        git -C "$git_clean_branches_repo" checkout -b cleanup >/dev/null
+        printf '%s\n' cleanup >>"$git_clean_branches_repo/README.md"
+        git -C "$git_clean_branches_repo" add README.md
+        git -C "$git_clean_branches_repo" commit -m 'test cleanup branch' >/dev/null
+        git -C "$git_clean_branches_repo" push -u origin cleanup >/dev/null
+        git -C "$git_clean_branches_repo" checkout main >/dev/null
+        git -C "$git_clean_branches_repo" merge --no-ff -m 'merge cleanup branch' cleanup >/dev/null
+        git -C "$git_clean_branches_repo" push origin main >/dev/null
+        git_clean_branches_output=$(cd "$git_clean_branches_repo" && "$git_clean_branches_installed_bin" --yes)
+        printf '%s\n' "$git_clean_branches_output" | grep -F 'Cleanup summary:' >/dev/null
+        test -z "$(git -C "$git_clean_branches_repo" for-each-ref --format='%(refname)' refs/heads/cleanup)"
+        test -z "$(git -C "$git_clean_branches_remote" for-each-ref --format='%(refname)' refs/heads/cleanup)"
 
         "$PWD/tmp/install/bin/git-clean-task-pr" --help >/dev/null
         test "$("$PWD/tmp/install/bin/git-clean-task-pr" --version)" = "$(cat VERSION)"

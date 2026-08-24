@@ -1,18 +1,16 @@
 #!/usr/bin/env bats
 
+load 'helpers/git-commit'
+
 REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
 TOOL="$REPO_ROOT/tools/bin/git-commit"
 
 setup() {
-  TMP_HOME="$(mktemp -d)" || return 1
-  export TMP_HOME
-  export HOME="$TMP_HOME"
-  export XDG_CONFIG_HOME="$TMP_HOME/.config"
-  export GIT_COMMIT_CONFIG_DIR="$XDG_CONFIG_HOME/git-commit"
+  setup_git_commit_test_home
 }
 
 teardown() {
-  rm -rf "$TMP_HOME"
+  teardown_git_commit_test_home
 }
 
 fail() {
@@ -52,29 +50,21 @@ strip_box_borders() {
 }
 
 preview_git_add_command() {
-  if [ "$#" -eq 0 ]; then
-    printf 'git add -A :/\n'
-    return 0
-  fi
-
-  local file
-  printf 'git add --'
-  for file in "$@"; do
-    printf ' %q' ":/$file"
-  done
-  printf '\n'
-}
-
-preview_shell_squote() {
-  local text="$1"
-
-  printf "'%s'" "${text//\'/\'\\\'\'}"
+  (
+    # shellcheck source=../tools/bin/git-commit disable=SC1091
+    . "$TOOL"
+    print_git_add_command "$@"
+  )
 }
 
 preview_git_commit_command() {
   local title="$1"
 
-  printf 'git commit -m %s\n' "$(preview_shell_squote "$title")"
+  (
+    # shellcheck source=../tools/bin/git-commit disable=SC1091
+    . "$TOOL"
+    print_git_commit_command "$title"
+  )
 }
 
 decode_bash_word() {
@@ -177,15 +167,23 @@ ask)
   if [ "$debug_requested" = 'true' ] || [ "${MODEL_PROFILE_DEBUG:-false}" = 'true' ]; then
     printf '%s\n' '[model-profile] Stub debug enabled' >&2
   fi
-  if [ -n "${MODEL_PROFILE_ASK_ARGS_LOG:-}" ]; then
-    if [ "$debug_requested" = 'true' ]; then
-      printf '%s\n' "--debug $*" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
-    else
-      printf '%s\n' "$*" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
-    fi
-    if [ -n "$system_message_file" ]; then
-      printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
-    fi
+if [ -n "${MODEL_PROFILE_ASK_ARGS_LOG:-}" ]; then
+  printf '%s\n' 'ARGV_BEGIN' >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+  human_prefix=''
+  if [ "$debug_requested" = 'true' ]; then
+    printf '%q\n' --debug >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+    human_prefix='--debug '
+  fi
+  rendered=''
+  for arg in "$@"; do
+    printf '%q\n' "$arg" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+    printf -v rendered '%s%s%s' "$rendered" "${rendered:+ }" "$arg"
+  done
+  printf '%s\n' 'ARGV_END' >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+  printf '%s%s\n' "$human_prefix" "$rendered" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+  if [ -n "$system_message_file" ]; then
+    printf 'SYSTEM_MESSAGE_FILE_CONTENT=%s\n' "$(<"$system_message_file")" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
+  fi
     if [ -n "$message_file" ]; then
       printf 'MESSAGE_FILE_CONTENT=%s\n' "$(<"$message_file")" >>"$MODEL_PROFILE_ASK_ARGS_LOG"
     fi
@@ -224,6 +222,10 @@ EOF
 create_jq_stub() {
   local stub_path="$1"
 
+  create_jq_stub_from_real_jq "$stub_path"
+  return 0
+
+  # shellcheck disable=SC2317
   cat >"$stub_path" <<'EOF'
 #!/usr/bin/python3
 import json
@@ -237,6 +239,126 @@ if not args:
 
 data = json.load(sys.stdin)
 
+def jq_type(value):
+    if value is None:
+        return 'null'
+    if isinstance(value, bool):
+        return 'boolean'
+    if isinstance(value, (int, float)):
+        return 'number'
+    if isinstance(value, str):
+        return 'string'
+    if isinstance(value, list):
+        return 'array'
+    if isinstance(value, dict):
+        return 'object'
+    return 'unknown'
+
+def commit_at(index):
+    commits = data.get('commits') if isinstance(data, dict) else None
+    if not isinstance(commits, list) or index >= len(commits):
+        return None
+    return commits[index]
+
+def commit_value(index, key):
+    commit = commit_at(index)
+    if isinstance(commit, dict):
+        return commit.get(key)
+    return None
+
+def file_value(commit_index, file_index):
+    files = commit_value(commit_index, 'files')
+    if isinstance(files, list) and file_index < len(files):
+        return files[file_index]
+    return None
+
+if args[0] == '-e' and len(args) >= 2:
+    expr = args[1]
+
+    if expr == 'type == "object" and (.commits | type == "array")':
+        sys.exit(0 if isinstance(data, dict) and isinstance(data.get('commits'), list) else 1)
+
+    if expr == 'type == "object"':
+        sys.exit(0 if isinstance(data, dict) else 1)
+
+    if expr == 'type == "array"':
+        sys.exit(0 if isinstance(data, list) else 1)
+
+    if expr == 'length == 0':
+        sys.exit(0 if isinstance(data, list) and len(data) == 0 else 1)
+
+    if expr == '.[0] | type == "object"':
+        sys.exit(0 if isinstance(data, list) and data and isinstance(data[0], dict) else 1)
+
+    if expr == '.[0].html_url | type == "string" and length > 0':
+        value = data[0].get('html_url') if isinstance(data, list) and data and isinstance(data[0], dict) else None
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
+    if expr == '.[0].number | ((type == "number") or (type == "string" and length > 0))':
+        value = data[0].get('number') if isinstance(data, list) and data and isinstance(data[0], dict) else None
+        sys.exit(0 if isinstance(value, (int, float)) or (isinstance(value, str) and len(value) > 0) else 1)
+
+    if expr == '((.[0].title == null) or (.[0].title | type == "string"))':
+        value = data[0].get('title') if isinstance(data, list) and data and isinstance(data[0], dict) else None
+        sys.exit(0 if value is None or isinstance(value, str) else 1)
+
+    if expr == '((.[0].body == null) or (.[0].body | type == "string"))':
+        value = data[0].get('body') if isinstance(data, list) and data and isinstance(data[0], dict) else None
+        sys.exit(0 if value is None or isinstance(value, str) else 1)
+
+    if expr == '.html_url | type == "string" and length > 0':
+        value = data.get('html_url') if isinstance(data, dict) else None
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
+    if expr == 'has("commits") and (.commits | type == "array")':
+        sys.exit(0 if isinstance(data, dict) and 'commits' in data and isinstance(data.get('commits'), list) else 1)
+
+    if expr == 'has("pull_request") | not':
+        sys.exit(0 if isinstance(data, dict) and 'pull_request' not in data else 1)
+
+    if expr == '.pull_request == null':
+        sys.exit(0 if isinstance(data, dict) and data.get('pull_request') is None else 1)
+
+    if expr == '.pull_request | type == "object"':
+        sys.exit(0 if isinstance(data, dict) and isinstance(data.get('pull_request'), dict) else 1)
+
+    if expr == '.pull_request | has("title")':
+        pull_request = data.get('pull_request') if isinstance(data, dict) else None
+        sys.exit(0 if isinstance(pull_request, dict) and 'title' in pull_request else 1)
+
+    if expr == '.pull_request | has("body")':
+        pull_request = data.get('pull_request') if isinstance(data, dict) else None
+        sys.exit(0 if isinstance(pull_request, dict) and 'body' in pull_request else 1)
+
+    if expr == '.pull_request.title | type == "string" and length > 0':
+        pull_request = data.get('pull_request') if isinstance(data, dict) else None
+        value = pull_request.get('title') if isinstance(pull_request, dict) else None
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
+    if expr == '.pull_request.body | type == "string" and length > 0':
+        pull_request = data.get('pull_request') if isinstance(data, dict) else None
+        value = pull_request.get('body') if isinstance(pull_request, dict) else None
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\] \| type == "object"', expr)
+    if match:
+        sys.exit(0 if isinstance(commit_at(int(match.group(1))), dict) else 1)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.(type|message) \| type == "string" and length > 0', expr)
+    if match:
+        value = commit_value(int(match.group(1)), match.group(2))
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.files \| type == "array" and length > 0', expr)
+    if match:
+        files = commit_value(int(match.group(1)), 'files')
+        sys.exit(0 if isinstance(files, list) and len(files) > 0 else 1)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.files\[(\d+)\] \| type == "string" and length > 0', expr)
+    if match:
+        value = file_value(int(match.group(1)), int(match.group(2)))
+        sys.exit(0 if isinstance(value, str) and len(value) > 0 else 1)
+
 if args[0] == '-e' and len(args) >= 2 and args[1] == '.commits | type == "array"':
     sys.exit(0 if isinstance(data.get('commits'), list) else 1)
 
@@ -245,6 +367,24 @@ if args[0] == '-r' and len(args) >= 2:
 
     if expr == '.commits | length':
         print(len(data.get('commits', [])))
+        sys.exit(0)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.files \| length', expr)
+    if match:
+        files = commit_value(int(match.group(1)), 'files')
+        print(len(files) if isinstance(files, list) else 0)
+        sys.exit(0)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.type', expr)
+    if match:
+        value = commit_value(int(match.group(1)), 'type')
+        print(value if isinstance(value, str) else '')
+        sys.exit(0)
+
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.message', expr)
+    if match:
+        value = commit_value(int(match.group(1)), 'message')
+        print(value if isinstance(value, str) else '')
         sys.exit(0)
 
     match = re.fullmatch(r'\.commits\[(\d+)\]\.type // empty', expr)
@@ -267,6 +407,10 @@ if args[0] == '-r' and len(args) >= 2:
         sys.exit(0)
 
     if expr == '.html_url // empty':
+        print(data.get('html_url', ''))
+        sys.exit(0)
+
+    if expr == '.html_url':
         print(data.get('html_url', ''))
         sys.exit(0)
 
@@ -318,6 +462,14 @@ if args[0] == '-r' and len(args) >= 2:
         print('')
         sys.exit(0)
 
+    if expr == '.pull_request.title':
+        pull_request = data.get('pull_request', {})
+        if isinstance(pull_request, dict):
+            print(pull_request.get('title', ''))
+            sys.exit(0)
+        print('')
+        sys.exit(0)
+
     if expr == '.pull_request.title | if . == null then "null" else type end':
         pull_request = data.get('pull_request', {})
         value = None
@@ -347,6 +499,14 @@ if args[0] == '-r' and len(args) >= 2:
         print('')
         sys.exit(0)
 
+    if expr == '.pull_request.body':
+        pull_request = data.get('pull_request', {})
+        if isinstance(pull_request, dict):
+            print(pull_request.get('body', ''))
+            sys.exit(0)
+        print('')
+        sys.exit(0)
+
     if expr == '.pull_request.body | if . == null then "null" else type end':
         pull_request = data.get('pull_request', {})
         value = None
@@ -368,8 +528,18 @@ if args[0] == '-r' and len(args) >= 2:
             print('unknown')
         sys.exit(0)
 
+if args[0] == '-rj' and len(args) >= 2:
+    expr = args[1]
+    match = re.fullmatch(r'\.commits\[(\d+)\]\.files\[\]\? \| \. \+ "\\u0000"', expr)
+    if match:
+        index = int(match.group(1))
+        for item in data.get('commits', [])[index].get('files', []):
+            sys.stdout.write(item + '\0')
+        sys.exit(0)
+
 sys.exit(1)
 EOF
+  # shellcheck disable=SC2317
   chmod +x "$stub_path"
 }
 
@@ -384,7 +554,13 @@ token_stdin_requested=false
 stdin_payload=''
 
 if [ -n "${GIT_API_ARGS_LOG:-}" ]; then
-  printf '%s\n' "$*" >>"$GIT_API_ARGS_LOG"
+  printf '%s\n' 'ARGV_BEGIN' >>"$GIT_API_ARGS_LOG"
+  rendered=''
+  for arg in "$@"; do
+    printf '%q\n' "$arg" >>"$GIT_API_ARGS_LOG"
+    printf -v rendered '%s%s%s' "$rendered" "${rendered:+ }" "$arg"
+  done
+  printf '%s\n%s\n' 'ARGV_END' "$rendered" >>"$GIT_API_ARGS_LOG"
 fi
 
 while [ "$#" -gt 0 ]; do
@@ -418,16 +594,32 @@ repos/get)
   if [ "${GIT_API_REPOS_GET_FAIL:-false}" = 'true' ]; then
     exit 1
   fi
-  printf '%s\n' "${GIT_API_REPOS_GET_RESPONSE:-{\"default_branch\":\"main\"}}"
+  if [ -n "${GIT_API_REPOS_GET_RESPONSE:-}" ]; then
+    printf '%s\n' "$GIT_API_REPOS_GET_RESPONSE"
+  else
+    printf '%s\n' '{"default_branch":"main"}'
+  fi
   ;;
 pulls/list)
-  printf '%s\n' "${GIT_API_PULLS_LIST_RESPONSE:-[]}"
+  if [ -n "${GIT_API_PULLS_LIST_RESPONSE:-}" ]; then
+    printf '%s\n' "$GIT_API_PULLS_LIST_RESPONSE"
+  else
+    printf '%s\n' '[]'
+  fi
   ;;
 pulls/update)
-  printf '%s\n' "${GIT_API_PULLS_UPDATE_RESPONSE:-{\"html_url\":\"https://github.com/octo/demo/pull/77\"}}"
+  if [ -n "${GIT_API_PULLS_UPDATE_RESPONSE:-}" ]; then
+    printf '%s\n' "$GIT_API_PULLS_UPDATE_RESPONSE"
+  else
+    printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/77"}'
+  fi
   ;;
 pulls/create)
-  printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
+  if [ -n "${GIT_API_PULLS_CREATE_RESPONSE:-}" ]; then
+    printf '%s\n' "$GIT_API_PULLS_CREATE_RESPONSE"
+  else
+    printf '%s\n' '{"html_url":"https://github.com/octo/demo/pull/42"}'
+  fi
   ;;
 *)
   exit 1
@@ -445,7 +637,13 @@ create_git_profile_stub() {
 set -euo pipefail
 
 if [ -n "${GIT_PROFILE_ARGS_LOG:-}" ]; then
-  printf '%s\n' "$*" >>"$GIT_PROFILE_ARGS_LOG"
+  printf '%s\n' 'ARGV_BEGIN' >>"$GIT_PROFILE_ARGS_LOG"
+  rendered=''
+  for arg in "$@"; do
+    printf '%q\n' "$arg" >>"$GIT_PROFILE_ARGS_LOG"
+    printf -v rendered '%s%s%s' "$rendered" "${rendered:+ }" "$arg"
+  done
+  printf '%s\n%s\n' 'ARGV_END' "$rendered" >>"$GIT_PROFILE_ARGS_LOG"
 fi
 
 while [ "${1:-}" = '--debug' ]; do
@@ -484,7 +682,13 @@ if [ -n "${PRE_COMMIT_ATTEMPTS_FILE:-}" ]; then
 fi
 
 if [ -n "${PRE_COMMIT_LOG:-}" ]; then
-  printf '%s\n' "$*" >>"$PRE_COMMIT_LOG"
+  printf '%s\n' 'ARGV_BEGIN' >>"$PRE_COMMIT_LOG"
+  rendered=''
+  for arg in "$@"; do
+    printf '%q\n' "$arg" >>"$PRE_COMMIT_LOG"
+    printf -v rendered '%s%s%s' "$rendered" "${rendered:+ }" "$arg"
+  done
+  printf '%s\n%s\n' 'ARGV_END' "$rendered" >>"$PRE_COMMIT_LOG"
 fi
 
 if [ -n "${PRE_COMMIT_FAIL_FIRST:-}" ] && [ "$attempt" -le "$PRE_COMMIT_FAIL_FIRST" ]; then
@@ -510,7 +714,13 @@ if [ -n "${PRE_COMMIT_ATTEMPTS_FILE:-}" ]; then
 fi
 
 if [ -n "${PRE_COMMIT_LOG:-}" ]; then
-  printf 'attempt=%s args=%s\n' "$attempt" "$*" >>"$PRE_COMMIT_LOG"
+  printf 'attempt=%s ARGV_BEGIN\n' "$attempt" >>"$PRE_COMMIT_LOG"
+  rendered=''
+  for arg in "$@"; do
+    printf '%q\n' "$arg" >>"$PRE_COMMIT_LOG"
+    printf -v rendered '%s%s%s' "$rendered" "${rendered:+ }" "$arg"
+  done
+  printf 'ARGV_END\nattempt=%s args=%s\n' "$attempt" "$rendered" >>"$PRE_COMMIT_LOG"
 fi
 
 repo_root=$(git rev-parse --show-toplevel)
@@ -868,6 +1078,82 @@ create_initial_commit() {
   assert_contains "$output" 'Error: commit plan item 1 must start with an imperative lower-case verb' 'git-commit should validate commit message style locally'
 }
 
+@test "retries commit planning when the first plan has an invalid commit type" {
+  local stub_path jq_stub repo ask_log sequence_file index_file output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/model-responses.txt"
+  index_file="$TMP_HOME/model-response-index.txt"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf '%s\n' \
+    '{"commits":[{"type":"feature","message":"add readme","files":["README.md"]}]}' \
+    '{"commits":[{"type":"feat","message":"add readme","files":["README.md"]}]}' \
+    >"$sequence_file"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+    MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+    "$TOOL" 2>&1); then
+    fail "git-commit should retry and accept the corrected commit type ($output)"
+  fi
+
+  assert_eq "$(<"$index_file")" '2' 'git-commit should request exactly one correction retry for invalid types'
+  assert_contains "$(<"$ask_log")" 'Correction required:' 'retry request should include correction guidance'
+  assert_contains "$(<"$ask_log")" 'invalid commit type in plan: feature' 'retry request should include the validation error'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add readme')" 'corrected plan should be rendered'
+}
+
+@test "retries commit planning when the first plan has an invalid commit message" {
+  local stub_path jq_stub repo ask_log sequence_file index_file output
+
+  stub_path="$TMP_HOME/model-profile-stub"
+  jq_stub="$TMP_HOME/jq"
+  repo="$TMP_HOME/repo"
+  ask_log="$TMP_HOME/model-profile-ask.log"
+  sequence_file="$TMP_HOME/model-responses.txt"
+  index_file="$TMP_HOME/model-response-index.txt"
+  create_model_provider_stub "$stub_path"
+  create_jq_stub "$jq_stub"
+
+  init_repo "$repo"
+  create_initial_commit "$repo"
+  git -C "$repo" checkout -q -b feat/11222
+  printf 'updated\n' >>"$repo/README.md"
+  printf '%s\n' \
+    '{"commits":[{"type":"feat","message":"Updated readme","files":["README.md"]}]}' \
+    '{"commits":[{"type":"feat","message":"add readme","files":["README.md"]}]}' \
+    >"$sequence_file"
+
+  write_git_commit_config alpha-profile alpha-model
+
+  if ! output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+    MODEL_PROFILE_BIN="$stub_path" \
+    MODEL_PROFILE_ASK_ARGS_LOG="$ask_log" \
+    MODEL_PROFILE_ASK_RESPONSE_SEQUENCE_FILE="$sequence_file" \
+    MODEL_PROFILE_ASK_RESPONSE_INDEX_FILE="$index_file" \
+    "$TOOL" 2>&1); then
+    fail "git-commit should retry and accept the corrected commit message ($output)"
+  fi
+
+  assert_eq "$(<"$index_file")" '2' 'git-commit should request exactly one correction retry for invalid messages'
+  assert_contains "$(<"$ask_log")" 'Correction required:' 'retry request should include correction guidance'
+  assert_contains "$(<"$ask_log")" 'must start with an imperative lower-case verb' 'retry request should include the validation error'
+  assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add readme')" 'corrected plan should be rendered'
+}
+
 @test "fails when a single-commit plan does not cover all changed files" {
   local stub_path jq_stub repo output
 
@@ -1028,7 +1314,7 @@ create_initial_commit() {
     fail 'git-commit should fail when the model returns an empty commit plan'
   fi
 
-  assert_contains "$output" 'Error: commit plan must include at least one commit' 'git-commit should reject empty commit plans'
+  assert_contains "$output" 'Error: commit plan commits must be a nonempty array' 'git-commit should reject empty commit plans'
 }
 
 @test "falls back to the additional model profile on HTTP 429" {
@@ -1279,10 +1565,10 @@ create_initial_commit() {
   fi
 
   assert_contains "$output" 'Commit 1:' 'git-commit should print a header for the first grouped commit'
-  assert_contains "$output" 'git add -- :/src/app.txt' 'git-commit should print a repo-root grouped add command for the first commit'
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)src/app.txt' 'git-commit should print a repo-root grouped add command for the first commit'
   assert_contains "$output" "$(preview_git_commit_command 'fix(445566): update application logic')" 'git-commit should print the first grouped commit command'
   assert_contains "$output" 'Commit 2:' 'git-commit should print a header for the second grouped commit'
-  assert_contains "$output" 'git add -- :/tests/app.txt' 'git-commit should print a repo-root grouped add command for the second commit'
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)tests/app.txt' 'git-commit should print a repo-root grouped add command for the second commit'
   assert_contains "$output" "$(preview_git_commit_command 'test(445566): add coverage for application logic')" 'git-commit should print the second grouped commit command'
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'chore(init): initial commit' 'git-commit should not create grouped commits automatically'
@@ -1309,7 +1595,7 @@ create_initial_commit() {
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"chore","message":"update readme","files":["README.md"]}]}' \
-    "$TOOL" 2>&1)
+    "$TOOL" --apply 2>&1)
 
   assert_contains "$output" "$(preview_git_commit_command 'chore: update readme')" 'git-commit should omit scope when branch name has no slash'
 }
@@ -1450,8 +1736,8 @@ create_initial_commit() {
   assert_contains "$output" "$(preview_git_commit_command 'feat(override): update readme')" 'git-commit should accept --scope=value'
 }
 
-@test "truncates generated commit headers to 100 characters" {
-  local stub_path jq_stub repo output commit_command header
+@test "rejects generated commit headers over 100 characters" {
+  local stub_path jq_stub repo output
 
   stub_path="$TMP_HOME/model-profile-stub"
   jq_stub="$TMP_HOME/jq"
@@ -1466,17 +1752,14 @@ create_initial_commit() {
 
   write_git_commit_config alpha-profile alpha-model
 
-  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"refresh git, model, release, license, asdf, API, and route tools to use shared helpers and improved flows","files":["README.md"]}]}' \
-    "$TOOL" 2>&1)
-
-  commit_command=$(printf '%s\n' "$output" | strip_box_borders | grep 'git commit -m ' | head -n 1)
-  header=$(decode_bash_word "${commit_command#git commit -m }")
-
-  if [ "${#header}" -gt 100 ]; then
-    fail "git-commit should cap commit headers at 100 characters (got ${#header}: $header)"
+    "$TOOL" 2>&1); then
+    fail 'git-commit should reject commit plans with infeasible headers'
   fi
+
+  assert_contains "$output" 'Error: commit plan item 1 header must not exceed 100 characters' 'git-commit should reject headers that cannot fit without truncation'
 }
 
 @test "strips trailing numeric branch suffix from derived ticket scope" {
@@ -1552,7 +1835,7 @@ create_initial_commit() {
     PRE_COMMIT_LOG="$pre_commit_log" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add repository notes","files":["README.md","notes.txt"]}],"pull_request":{"title":"feat(11222): add repository notes","body":"## Summary\n- add repository notes"}}' \
-    "$TOOL" 2>&1)
+    "$TOOL" --apply 2>&1)
 
   assert_contains "$output" "$(preview_git_commit_command 'feat(11222): add repository notes')" 'git-commit should continue after successful pre-commit checks'
   assert_contains "$(<"$pre_commit_log")" 'hook-impl --hook-type pre-commit' 'git-commit should execute the installed pre-commit hook'
@@ -1585,7 +1868,7 @@ create_initial_commit() {
     PRE_COMMIT_FAIL_FIRST=2 \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
-    "$TOOL" 2>&1)
+    "$TOOL" --apply 2>&1)
 
   assert_contains "$output" "$(preview_git_commit_command 'feat(11222): update readme')" 'git-commit should continue after pre-commit succeeds on a retry'
   assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit up to three total attempts'
@@ -1613,6 +1896,7 @@ create_initial_commit() {
   install_pre_commit_hook "$repo"
   git -C "$repo" checkout -q -b feat/11222
   printf 'updated\n' >>"$repo/README.md"
+  printf 'pending refresh\n' >>"$repo/.secrets.baseline"
 
   write_git_commit_config alpha-profile alpha-model
 
@@ -1625,7 +1909,7 @@ create_initial_commit() {
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   assert_eq "$head_subject" 'feat(11222): refresh readme secrets metadata' 'git-commit should finish the commit after detect-secrets updates the baseline'
-  assert_eq "$(<"$pre_commit_attempts")" '3' 'git-commit should retry pre-commit once before the final git commit hook run'
+  assert_eq "$(<"$pre_commit_attempts")" '2' 'git-commit should retry pre-commit before isolated commit creation'
   assert_contains "$output" "Please \`git add .secrets.baseline\`, thank you." 'git-commit should surface the detect-secrets retry output'
   assert_contains "$(<"$pre_commit_log")" 'attempt=2 args=hook-impl --hook-type pre-commit' 'git-commit should rerun the pre-commit hook after the baseline changes'
   status_after=$(git -C "$repo" status --short)
@@ -1688,7 +1972,7 @@ create_initial_commit() {
     PRE_COMMIT_FAIL_FIRST=2 \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
-    "$TOOL" --pre-commit-retries 1 2>&1); then
+    "$TOOL" --apply --pre-commit-retries 1 2>&1); then
     fail 'git-commit should fail after the configured pre-commit retry limit is reached'
   fi
 
@@ -1718,7 +2002,7 @@ create_initial_commit() {
   if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"add script","files":["script.bash"]}]}' \
-    "$TOOL" 2>&1); then
+    "$TOOL" --apply 2>&1); then
     fail 'git-commit should fail when the installed pre-commit hook rejects the staged snapshot'
   fi
 
@@ -2089,7 +2373,7 @@ create_initial_commit() {
   assert_contains "$(<"$git_api_log")" 'body=## Summary' 'git-commit should use the required AI-provided PR body when the existing PR body is empty'
 }
 
-@test "falls back to the existing PR URL when pulls/update returns no html_url" {
+@test "fails when pulls/update returns no html_url" {
   local stub_path jq_stub git_api_stub git_api_log remote repo output
 
   stub_path="$TMP_HOME/model-profile-stub"
@@ -2110,16 +2394,18 @@ create_initial_commit() {
 
   write_git_commit_config alpha-profile alpha-model
 
-  output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
+  if output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
     MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}],"pull_request":{"title":"feat(11222): update readme","body":"## Summary\n- update readme"}}' \
     GIT_API_BIN="$git_api_stub" \
     GIT_API_ARGS_LOG="$git_api_log" \
     GIT_API_PULLS_LIST_RESPONSE='[{"number":77,"title":"feat(11222): prior","body":"prior body","html_url":"https://github.com/octo/demo/pull/77"}]' \
     GIT_API_PULLS_UPDATE_RESPONSE='{"html_url":""}' \
-    "$TOOL" --pr 2>&1)
+    "$TOOL" --pr 2>&1); then
+    fail 'git-commit should fail when pulls/update omits html_url'
+  fi
 
-  assert_contains "$(strip_ansi "$output")" 'Pull request updated: https://github.com/octo/demo/pull/77' 'git-commit should fall back to the existing PR URL when pulls/update omits html_url'
+  assert_contains "$output" 'Error: git-api pulls/update response missing html_url' 'git-commit should reject malformed pulls/update responses without printing the body'
 }
 
 @test "uses the configured git-api profile for pull request operations" {
@@ -2205,8 +2491,10 @@ create_initial_commit() {
   assert_not_contains "$(<"$git_api_log")" '--profile work' 'git-commit should not pass the configured git-api profile when a repository PAT is available'
   assert_eq "$(<"$git_api_stdin_log")" "$token
 $token
+$token
 $token" 'git-commit should pass the repository PAT over stdin to each PR-related git-api call'
-  assert_eq "$(<"$git_profile_log")" 'token' 'git-commit should resolve the repository PAT only once per PR run'
+  assert_contains "$(<"$git_profile_log")" $'ARGV_BEGIN\ntoken\nARGV_END' 'git-profile argv should be captured losslessly'
+  assert_contains "$(<"$git_profile_log")" 'token' 'git-commit should resolve the repository PAT only once per PR run'
   assert_not_contains "$(<"$git_api_log")" "$token" 'git-api argv should not contain the repository PAT'
   assert_not_contains "$output" "$token" 'git-commit debug output should not contain the repository PAT'
 }
@@ -2253,6 +2541,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   assert_contains "$(<"$git_api_log")" '--token-stdin pulls/update octo demo 77' 'git-commit should use stdin token auth when updating an existing pull request'
   assert_not_contains "$(<"$git_api_log")" '--profile work' 'git-commit should not pass the configured git-api profile when a repository PAT is available'
   assert_eq "$(<"$git_api_stdin_log")" "$token
+$token
 $token
 $token" 'git-commit should pass the repository PAT over stdin to each PR-related git-api call'
 }
@@ -2460,7 +2749,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
     fail 'git-commit should fail when the model returns invalid pull request fields'
   fi
 
-  assert_contains "$output" 'Error: pull_request.title must be a string when provided' 'git-commit should reject invalid pull request fields from the model'
+  assert_contains "$output" 'Error: pull_request.title must be a nonempty string' 'git-commit should reject invalid pull request fields from the model'
 }
 
 @test "fails when --pr planning response omits pull request metadata" {
@@ -2491,7 +2780,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
     fail 'git-commit should fail when --pr planning omits pull request metadata'
   fi
 
-  assert_contains "$output" 'Error: pull_request.title and pull_request.body are required when --pr is used' 'git-commit should require PR metadata in --pr mode'
+  assert_contains "$output" 'Error: pull_request must be an object when --pr is used' 'git-commit should require PR metadata in --pr mode'
 }
 
 @test "falls back to git metadata when git-api cannot resolve the default branch" {
@@ -2558,10 +2847,10 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after grouped apply mode'
   assert_contains "$output" 'Commit 1:' 'git-commit should print the first grouped commit plan before applying it'
-  assert_contains "$output" 'git add -- :/src/app.txt' 'git-commit should print the first grouped add command before applying it'
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)src/app.txt' 'git-commit should print the first grouped add command before applying it'
   assert_contains "$output" "$(preview_git_commit_command 'fix(445566): update application logic')" 'git-commit should print the first grouped commit command before applying it'
   assert_contains "$output" 'Commit 2:' 'git-commit should print the second grouped commit plan before applying it'
-  assert_contains "$output" 'git add -- :/tests/app.txt' 'git-commit should print the second grouped add command before applying it'
+  assert_contains "$output" 'git add -A -- :\(top\,literal\)tests/app.txt' 'git-commit should print the second grouped add command before applying it'
   assert_contains "$output" "$(preview_git_commit_command 'test(445566): add coverage for application logic')" 'git-commit should print the second grouped commit command before applying it'
   assert_contains "$output" 'fix(445566): update application logic' 'git-commit should show the first created grouped commit'
   assert_contains "$output" 'test(445566): add coverage for application logic' 'git-commit should show the second created grouped commit'
@@ -2644,7 +2933,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   assert_contains "$(strip_ansi "$output")" 'Pull request: https://github.com/octo/demo/pull/42' 'git-commit should still create the pull request in scoped PR mode'
 }
 
-@test "applies grouped commits when the model returns a unique basename for a new file" {
+@test "applies grouped commits when the model returns exact paths for duplicate basenames" {
   local stub_path jq_stub repo output head_subject previous_subject status_after
 
   stub_path="$TMP_HOME/model-profile-stub"
@@ -2664,16 +2953,16 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
 
   output=$(cd "$repo" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["tools/bin/asdf-upgrade"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
-  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should resolve the new file basename to its changed path'
+  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should apply the exact changed path'
   assert_eq "$previous_subject" 'docs(11222): update readme' 'git-commit should preserve earlier grouped commits'
   status_after=$(git -C "$repo" status --short)
-  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after applying basename-resolved commits'
-  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the basename-resolved commit title'
+  assert_eq "$status_after" '' 'git-commit should leave a clean worktree after applying exact-path commits'
+  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the exact-path commit title'
 }
 
 @test "applies grouped commits from a subdirectory using repo-root paths" {
@@ -2696,16 +2985,16 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
 
   output=$(cd "$repo/tools/bin" && PATH="$TMP_HOME:$PATH" \
     MODEL_PROFILE_BIN="$stub_path" \
-    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["asdf-upgrade"]}]}' \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"docs","message":"update readme","files":["README.md"]},{"type":"feat","message":"add asdf upgrade tool","files":["tools/bin/asdf-upgrade"]}]}' \
     "$TOOL" --apply 2>&1)
 
   head_subject=$(git -C "$repo" log -1 --pretty=%s)
   previous_subject=$(git -C "$repo" log -2 --pretty=%s | sed -n '2p')
-  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should stage basename-resolved files correctly from a subdirectory'
+  assert_eq "$head_subject" 'feat(11222): add asdf upgrade tool' 'git-commit should stage exact repo-root files correctly from a subdirectory'
   assert_eq "$previous_subject" 'docs(11222): update readme' 'git-commit should keep grouped commit order from a subdirectory'
   status_after=$(git -C "$repo" status --short)
   assert_eq "$status_after" '' 'git-commit should leave a clean worktree after subdirectory apply mode'
-  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the basename-resolved commit title from a subdirectory'
+  assert_contains "$output" 'feat(11222): add asdf upgrade tool' 'git-commit should show the exact-path commit title from a subdirectory'
 }
 
 @test "accepts a commit plan wrapped in a json markdown fence" {
@@ -2860,7 +3149,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   fi
 
   assert_contains "$output" 'Error: commit plan assigned the same file to multiple commits: tests/app.txt' 'git-commit should surface the duplicate-file validation error directly'
-  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response for duplicate-file validation failures'
+  assert_not_contains "$output" 'Raw model response:' 'git-commit should not print the raw model response for duplicate-file validation failures'
   assert_not_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should not report a JSON parse failure when the model returned valid but invalid-plan JSON'
   assert_contains "$(<"$ask_log")" 'Remove duplicate file assignments.' 'git-commit should keep the duplicate-file-specific retry guidance in the retry prompt'
 }
@@ -2908,9 +3197,9 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
     fail 'git-commit should fail when every commit plan attempt returns invalid pull request fields'
   fi
 
-  assert_contains "$output" 'Error: pull_request.title must be a string when provided' 'git-commit should surface the original validation error after exhausting commit plan retries'
-  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response after exhausting commit plan retries on validation errors'
-  assert_contains "$output" '"pull_request":{"title":{},"body":[]}' 'git-commit should show the invalid raw response body for validation failures'
+  assert_contains "$output" 'Error: pull_request.title must be a nonempty string' 'git-commit should surface the original validation error after exhausting commit plan retries'
+  assert_not_contains "$output" 'Raw model response:' 'git-commit should not print the raw model response after exhausting commit plan retries on validation errors'
+  assert_not_contains "$output" '"pull_request":{"title":{},"body":[]}' 'git-commit should not show the invalid raw response body for validation failures'
   assert_contains "$(<"$ask_log")" 'Correction required:' 'git-commit should retry the commit plan once before giving up on validation errors'
 }
 
@@ -2953,7 +3242,7 @@ $token" 'git-commit should pass the repository PAT over stdin to each PR-related
   fi
 
   assert_contains "$output" 'Error: model-profile ask did not return valid commit plan JSON' 'git-commit should surface the parseable-JSON error after exhausting commit plan retries'
-  assert_contains "$output" 'Raw model response:' 'git-commit should print the raw model response after exhausting commit plan retries on invalid JSON'
-  assert_contains "$output" 'I really cannot do this.' 'git-commit should show the final raw non-JSON response on invalid JSON failures'
+  assert_not_contains "$output" 'Raw model response:' 'git-commit should not print the raw model response after exhausting commit plan retries on invalid JSON'
+  assert_not_contains "$output" 'I really cannot do this.' 'git-commit should not show the final raw non-JSON response on invalid JSON failures'
   assert_contains "$(<"$ask_log")" 'Return ONLY the JSON object with the exact shape requested' 'git-commit should ask the model for clean JSON after a parseable-JSON failure'
 }

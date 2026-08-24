@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2317,SC2329 # Helper functions are invoked indirectly through traps and sourced modules.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,17 +12,29 @@ fi
 . "$LOAD_SH"
 picotools_source_modules "$SCRIPT_DIR" box commands config debug prompt table ui version
 
-MODEL_PROFILE_TMPFILES=()
+MODEL_PROFILE_LIB_DIR="${SCRIPT_DIR}/../lib/picotools/model-profile"
+if [ ! -d "$MODEL_PROFILE_LIB_DIR" ]; then
+  MODEL_PROFILE_LIB_DIR="${SCRIPT_DIR}/../../tools/lib/picotools/model-profile"
+fi
+for MODEL_PROFILE_MODULE in provider token profile http; do
+  if [ ! -f "$MODEL_PROFILE_LIB_DIR/${MODEL_PROFILE_MODULE}.sh" ]; then
+    echo "Error: missing model-profile module '${MODEL_PROFILE_MODULE}.sh'" >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$MODEL_PROFILE_LIB_DIR/${MODEL_PROFILE_MODULE}.sh"
+done
+unset MODEL_PROFILE_MODULE
 
 usage() {
   cat <<'EOF'
-Usage: model-profile <command>
+Usage: model-profile [--debug] <command> [--debug] [command options] [--] [operands]
 
 Commands:
   create    Create a saved model profile
   update    Update a saved model profile
   list      List saved model profiles
-  read      Show detailed information for a saved model profile
+  read      Prompt for and show details for one saved model profile
   profiles  List saved model profile names
   models    List configured models for a profile
   ask       Send a prompt to a model profile
@@ -33,6 +46,27 @@ Options:
   -v, --version, version    Show the tool version
   --debug                   Print request debug steps to stderr
 
+Dependencies:
+  Git is required for profile persistence commands. curl and jq are required
+  only by request commands: ask and test.
+
+Grammar:
+  Global --debug is accepted before or immediately after any command. Commands
+  reject unknown options, missing option values, duplicate singleton options,
+  extra operands, and conflicting message sources before prompting or storage
+  access. The -- separator ends option parsing for command operands; options
+  after -- are treated as operands.
+
+Arity:
+  create, update, list, read, profiles, delete  No operands
+  models <profile>                              Exactly one operand
+  ask                                           Interactive prompt
+  ask <profile> --message TEXT                  Non-interactive prompt
+  ask <profile> --user-message TEXT             Alias for --message
+  ask <profile> --message-file PATH             File-backed prompt
+  test                                          Interactive connection test
+  test <profile>                                Non-interactive connection test
+
 Ask:
   model-profile ask
   model-profile ask <profile> --message TEXT [--model MODEL] [--system-message TEXT]
@@ -43,9 +77,36 @@ Test:
   model-profile test
   model-profile test <profile> [--model MODEL]
 
+Exit status:
+  0  Success
+  1  Validation, storage, helper, or transport error; no profiles available;
+     invalid selection; EOF before required input
+  2  Explicit cancellation
+
 Environment:
-  MODEL_PROFILE_DEBUG=true          Deprecated fallback for --debug
-  MODEL_PROFILE_CURL_MAX_TIME=<s>   Set curl --max-time for ask requests
+  MODEL_PROFILE_DEBUG=true                  Deprecated fallback for --debug
+  MODEL_PROFILE_CURL_CONNECT_TIMEOUT=<s>    Connect timeout, default 10, max 120
+  MODEL_PROFILE_CURL_MAX_TIME=<s>           Total request timeout, default 60, max 600
+  MODEL_PROFILE_MAX_PAYLOAD_BYTES=<bytes>   Request payload cap, default 1048576, max 10485760
+  MODEL_PROFILE_MAX_RESPONSE_BYTES=<bytes>  Response body cap, default 1048576, max 10485760
+  MODEL_PROFILE_MAX_DIAGNOSTIC_BYTES=<bytes> Error diagnostic cap, default 4096, max 65536
+
+HTTP policy:
+  Requests ignore .curlrc, do not use proxies, use HTTPS only, and do not
+  follow redirects. Message files must be readable regular files; symlinks,
+  FIFOs, devices, and other special files are rejected.
+
+Storage policy:
+  Profile metadata is stored under ${XDG_CONFIG_HOME:-$HOME/.config}/model-profile
+  and API keys under ${XDG_DATA_HOME:-$HOME/.local/share}/model-profile. API key
+  reads fail closed unless the key directory is mode 0700 and key files are
+  mode 0600. create, update, and delete stage complete validated state before
+  same-directory atomic publication and roll back on token/profile failures.
+
+Custom endpoints:
+  Must be HTTPS URLs with a DNS hostname or public IPv4 literal. Userinfo,
+  fragments, query strings, HTTP, localhost, private, loopback, and link-local
+  address literals are rejected before API keys are read.
 EOF
 }
 
@@ -54,9 +115,20 @@ print_version() {
 }
 
 debug_mode=false
+MODEL_PROFILE_TMPFILES=()
+MODEL_PROFILE_EXPLICIT_DEBUG=false
+MODEL_PROFILE_CLI_COMMAND=''
+MODEL_PROFILE_CLI_PROFILE_NAME=''
+MODEL_PROFILE_CLI_MODEL=''
+MODEL_PROFILE_CLI_INTERACTIVE=false
+MODEL_PROFILE_CLI_USER_MESSAGE=''
+MODEL_PROFILE_CLI_USER_MESSAGE_FILE=''
+MODEL_PROFILE_CLI_SYSTEM_MESSAGE='You are a helpful assistant.'
+MODEL_PROFILE_CLI_SYSTEM_MESSAGE_FILE=''
 
 enable_debug_logging() {
   debug_mode=true
+  MODEL_PROFILE_EXPLICIT_DEBUG=true
 }
 
 legacy_debug_enabled() {
@@ -73,9 +145,75 @@ debug_log() {
   fi
 }
 
+print_model_profile_table() {
+  local header_row="$1"
+  shift
+  local -a rows=("$@")
+  local -a headers=() widths=() fields=()
+  local row index value padding
+
+  if picotools_table_stderr_is_pretty; then
+    picotools_print_table "$header_row" "${rows[@]}"
+    return 0
+  fi
+
+  IFS=$'\t' read -r -a headers <<<"$header_row"
+  for index in "${!headers[@]}"; do
+    widths[index]=${#headers[index]}
+  done
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r -a fields <<<"$row"
+    for index in "${!headers[@]}"; do
+      value=${fields[index]:-}
+      if [ "${#value}" -gt "${widths[index]}" ]; then
+        widths[index]=${#value}
+      fi
+    done
+  done
+
+  for index in "${!headers[@]}"; do
+    padding=$(printf '%*s' "$((widths[index] + 2))" '')
+    printf '+%s' "${padding// /-}"
+  done
+  printf '+\n'
+
+  for index in "${!headers[@]}"; do
+    printf '| %s' "${headers[index]}"
+    printf '%*s ' "$((widths[index] - ${#headers[index]}))" ''
+  done
+  printf '|\n'
+
+  for index in "${!headers[@]}"; do
+    padding=$(printf '%*s' "$((widths[index] + 2))" '')
+    printf '+%s' "${padding// /-}"
+  done
+  printf '+\n'
+
+  for row in "${rows[@]}"; do
+    IFS=$'\t' read -r -a fields <<<"$row"
+    for index in "${!headers[@]}"; do
+      value=${fields[index]:-}
+      printf '| %s' "$value"
+      printf '%*s ' "$((widths[index] - ${#value}))" ''
+    done
+    printf '|\n'
+  done
+
+  for index in "${!headers[@]}"; do
+    padding=$(printf '%*s' "$((widths[index] + 2))" '')
+    printf '+%s' "${padding// /-}"
+  done
+  printf '+\n'
+}
+
+print_model_profile_two_column_table() {
+  print_model_profile_table $'Field\tValue' "$@"
+}
+
 cleanup_tmpfiles() {
   if [ "${#MODEL_PROFILE_TMPFILES[@]}" -gt 0 ]; then
-    rm -f "${MODEL_PROFILE_TMPFILES[@]}"
+    rm -rf "${MODEL_PROFILE_TMPFILES[@]}"
   fi
 }
 
@@ -83,566 +221,346 @@ register_tmpfile() {
   MODEL_PROFILE_TMPFILES+=("$1")
 }
 
-args_include_debug_flag() {
-  local arg
+cleanup_tmpfiles_on_signal() {
+  local signal="$1"
 
-  for arg in "$@"; do
-    if [ "$arg" = '--debug' ]; then
-      return 0
-    fi
-  done
-
-  return 1
+  transaction_rollback_active || true
+  cleanup_tmpfiles
+  trap - EXIT "$signal"
+  kill -s "$signal" "$$"
 }
 
+trap 'cleanup_tmpfiles' EXIT
+trap 'cleanup_tmpfiles_on_signal HUP' HUP
+trap 'cleanup_tmpfiles_on_signal INT' INT
+trap 'cleanup_tmpfiles_on_signal TERM' TERM
+
 warn_deprecated_debug_env() {
-  if legacy_debug_enabled && ! args_include_debug_flag "$@"; then
+  if legacy_debug_enabled && [ "$MODEL_PROFILE_EXPLICIT_DEBUG" != true ]; then
     echo 'Warning: MODEL_PROFILE_DEBUG is deprecated; use --debug instead.' >&2
   fi
 }
 
-curl_max_time() {
-  local value="${MODEL_PROFILE_CURL_MAX_TIME:-}"
-
-  if [ -z "$value" ]; then
-    return 1
-  fi
-
-  if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-    echo 'Error: MODEL_PROFILE_CURL_MAX_TIME must be a non-negative integer' >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$value"
+cli_error() {
+  echo "Error: $1" >&2
 }
 
-config_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/model-profile"
+cli_missing_value() {
+  cli_error "$1 requires a value"
 }
 
-data_dir() {
-  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/model-profile"
-}
+cli_reject_no_arg_command_args() {
+  local command="$1"
+  shift
+  local parsing_options=true
 
-ensure_storage_dirs() {
-  picotools_require_command git
-  mkdir -p "$(config_dir)" "$(data_dir)"
-}
-
-validate_profile_name() {
-  local name="$1"
-
-  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+([[:space:]][A-Za-z0-9._-]+)*$ ]]; then
-    echo "Error: profile name may contain letters, numbers, spaces, dots, underscores, and hyphens" >&2
-    exit 1
-  fi
-}
-
-validate_provider_type() {
-  local provider_type="$1"
-
-  case "$provider_type" in
-  azure-openai | azure-cognitive-services | gemini | custom) ;;
-  *)
-    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini, custom" >&2
-    exit 1
-    ;;
-  esac
-}
-
-provider_type_label() {
-  local provider_type="$1"
-
-  case "$provider_type" in
-  azure-openai)
-    printf '%s\n' 'Azure OpenAI'
-    ;;
-  azure-cognitive-services)
-    printf '%s\n' 'Azure Cognitive Services'
-    ;;
-  gemini)
-    printf '%s\n' 'Gemini'
-    ;;
-  custom)
-    printf '%s\n' 'Custom'
-    ;;
-  *)
-    printf '%s\n' "$provider_type"
-    ;;
-  esac
-}
-
-provider_type_from_selection() {
-  local selection="$1"
-
-  case "$selection" in
-  1)
-    printf '%s\n' 'azure-openai'
-    ;;
-  2)
-    printf '%s\n' 'azure-cognitive-services'
-    ;;
-  3)
-    printf '%s\n' 'gemini'
-    ;;
-  4)
-    printf '%s\n' 'custom'
-    ;;
-  *)
-    return 1
-    ;;
-  esac
-}
-
-provider_type_default_selection() {
-  local provider_type="${1:-}"
-
-  case "$provider_type" in
-  azure-openai)
-    printf '%s\n' '1'
-    ;;
-  azure-cognitive-services)
-    printf '%s\n' '2'
-    ;;
-  gemini)
-    printf '%s\n' '3'
-    ;;
-  custom)
-    printf '%s\n' '4'
-    ;;
-  *)
-    printf '%s\n' '1'
-    ;;
-  esac
-}
-
-profile_file() {
-  local name="$1"
-  printf '%s/%s.conf\n' "$(config_dir)" "$name"
-}
-
-token_file() {
-  local name="$1"
-  printf '%s/%s.token\n' "$(data_dir)" "$name"
-}
-
-saved_profile_files() {
-  local dir
-
-  dir=$(config_dir)
-  if [ ! -d "$dir" ] || ! compgen -G "$dir/*.conf" >/dev/null; then
-    return 1
-  fi
-
-  printf '%s\n' "$dir"/*.conf | sort
-}
-
-profile_name_from_file() {
-  local file="$1"
-  basename "$file" .conf
-}
-
-write_profile_value() {
-  local file="$1"
-  local key="$2"
-  local value="$3"
-
-  picotools_require_command git
-  picotools_git_config_set "$file" "$key" "$value"
-}
-
-unset_profile_value() {
-  local file="$1"
-  local key="$2"
-
-  picotools_require_command git
-  picotools_git_config_unset_all "$file" "$key"
-}
-
-read_profile_value() {
-  local file="$1"
-  local key="$2"
-
-  picotools_require_command git
-  picotools_git_config_get "$file" "$key"
-}
-
-read_profile_value_optional() {
-  local file="$1"
-  local key="$2"
-
-  picotools_require_command git
-  picotools_git_config_get_optional "$file" "$key"
-}
-
-display_value() {
-  picotools_display_value_or_dash "$1"
-}
-
-normalize_models_value() {
-  local value="$1"
-  local -a parts=()
-  local -a normalized_parts=()
-  local part normalized_part joined=''
-
-  IFS=',' read -r -a parts <<<"$value"
-
-  for part in "${parts[@]}"; do
-    normalized_part=${part#"${part%%[![:space:]]*}"}
-    normalized_part=${normalized_part%"${normalized_part##*[![:space:]]}"}
-
-    if [ -n "$normalized_part" ]; then
-      normalized_parts+=("$normalized_part")
+  while [ "$#" -gt 0 ]; do
+    if [ "$parsing_options" = true ]; then
+      case "$1" in
+      --debug)
+        enable_debug_logging
+        shift
+        continue
+        ;;
+      --)
+        parsing_options=false
+        shift
+        continue
+        ;;
+      --*)
+        cli_error "unknown $command option '$1'"
+        return 1
+        ;;
+      esac
     fi
+
+    cli_error "$command does not accept operands: $1"
+    return 1
+  done
+}
+
+parse_models_cli() {
+  local parsing_options=true
+
+  while [ "$#" -gt 0 ]; do
+    if [ "$parsing_options" = true ]; then
+      case "$1" in
+      --debug)
+        enable_debug_logging
+        shift
+        continue
+        ;;
+      --)
+        parsing_options=false
+        shift
+        continue
+        ;;
+      --*)
+        cli_error "unknown models option '$1'"
+        return 1
+        ;;
+      esac
+    fi
+
+    if [ -n "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+      cli_error "models accepts exactly one profile operand"
+      return 1
+    fi
+    MODEL_PROFILE_CLI_PROFILE_NAME="$1"
+    shift
   done
 
-  for part in "${normalized_parts[@]}"; do
-    if [ -n "$joined" ]; then
-      joined+=','
+  if [ -z "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+    cli_error 'models requires a profile name'
+    return 1
+  fi
+}
+
+parse_test_cli() {
+  local parsing_options=true seen_model=false saw_cli_arg=false
+
+  while [ "$#" -gt 0 ]; do
+    if [ "$parsing_options" = true ]; then
+      case "$1" in
+      --debug)
+        enable_debug_logging
+        shift
+        continue
+        ;;
+      --model)
+        saw_cli_arg=true
+        if [ "$#" -lt 2 ]; then
+          cli_missing_value --model
+          return 1
+        fi
+        if [ "$seen_model" = true ]; then
+          cli_error 'duplicate --model option'
+          return 1
+        fi
+        seen_model=true
+        MODEL_PROFILE_CLI_MODEL="$2"
+        shift 2
+        continue
+        ;;
+      --)
+        parsing_options=false
+        shift
+        continue
+        ;;
+      --*)
+        cli_error "unknown test option '$1'"
+        return 1
+        ;;
+      esac
     fi
-    joined+="$part"
+
+    saw_cli_arg=true
+    if [ -n "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+      cli_error "test accepts exactly one profile operand"
+      return 1
+    fi
+    MODEL_PROFILE_CLI_PROFILE_NAME="$1"
+    shift
   done
 
-  printf '%s\n' "$joined"
+  if [ -z "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+    if [ "$saw_cli_arg" = true ]; then
+      cli_error 'test requires a profile name when options are provided'
+      return 1
+    fi
+    MODEL_PROFILE_CLI_INTERACTIVE=true
+  fi
 }
 
-provider_models_value() {
-  local file="$1"
-  read_profile_value_optional "$file" provider.models
-}
+parse_ask_cli() {
+  local parsing_options=true seen_model=false seen_system=false seen_user=false saw_cli_arg=false option
 
-provider_resource_name_value() {
-  local file="$1"
-  read_profile_value_optional "$file" provider.resourceName
-}
+  while [ "$#" -gt 0 ]; do
+    if [ "$parsing_options" = true ]; then
+      case "$1" in
+      --debug)
+        enable_debug_logging
+        shift
+        continue
+        ;;
+      --model)
+        saw_cli_arg=true
+        if [ "$#" -lt 2 ]; then
+          cli_missing_value --model
+          return 1
+        fi
+        if [ "$seen_model" = true ]; then
+          cli_error 'duplicate --model option'
+          return 1
+        fi
+        seen_model=true
+        MODEL_PROFILE_CLI_MODEL="$2"
+        shift 2
+        continue
+        ;;
+      --system-message | --system-message-file)
+        saw_cli_arg=true
+        option="$1"
+        if [ "$#" -lt 2 ]; then
+          cli_missing_value "$option"
+          return 1
+        fi
+        if [ "$seen_system" = true ]; then
+          cli_error 'conflicting or duplicate system message options'
+          return 1
+        fi
+        seen_system=true
+        if [ "$option" = '--system-message' ]; then
+          MODEL_PROFILE_CLI_SYSTEM_MESSAGE="$2"
+          MODEL_PROFILE_CLI_SYSTEM_MESSAGE_FILE=''
+        else
+          MODEL_PROFILE_CLI_SYSTEM_MESSAGE=''
+          MODEL_PROFILE_CLI_SYSTEM_MESSAGE_FILE="$2"
+        fi
+        shift 2
+        continue
+        ;;
+      --message | --user-message | --message-file | --user-message-file)
+        saw_cli_arg=true
+        option="$1"
+        if [ "$#" -lt 2 ]; then
+          cli_missing_value "$option"
+          return 1
+        fi
+        if [ "$seen_user" = true ]; then
+          cli_error 'conflicting or duplicate user message options'
+          return 1
+        fi
+        seen_user=true
+        if [ "$option" = '--message' ] || [ "$option" = '--user-message' ]; then
+          MODEL_PROFILE_CLI_USER_MESSAGE="$2"
+          MODEL_PROFILE_CLI_USER_MESSAGE_FILE=''
+        else
+          MODEL_PROFILE_CLI_USER_MESSAGE=''
+          MODEL_PROFILE_CLI_USER_MESSAGE_FILE="$2"
+        fi
+        shift 2
+        continue
+        ;;
+      --)
+        parsing_options=false
+        shift
+        continue
+        ;;
+      --*)
+        cli_error "unknown ask option '$1'"
+        return 1
+        ;;
+      esac
+    fi
 
-provider_endpoint_url_value() {
-  local file="$1"
-  read_profile_value_optional "$file" provider.endpointUrl
-}
+    saw_cli_arg=true
+    if [ -n "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+      cli_error "ask accepts exactly one profile operand"
+      return 1
+    fi
+    MODEL_PROFILE_CLI_PROFILE_NAME="$1"
+    shift
+  done
 
-provider_has_resource_name() {
-  local provider_type="$1"
-
-  case "$provider_type" in
-  azure-openai | azure-cognitive-services)
+  if [ -z "$MODEL_PROFILE_CLI_PROFILE_NAME" ]; then
+    if [ "$saw_cli_arg" = true ]; then
+      cli_error 'ask requires a profile name when options are provided'
+      return 1
+    fi
+    MODEL_PROFILE_CLI_INTERACTIVE=true
     return 0
-    ;;
-  esac
-
-  return 1
-}
-
-provider_has_endpoint_url() {
-  local provider_type="$1"
-
-  case "$provider_type" in
-  custom)
-    return 0
-    ;;
-  esac
-
-  return 1
-}
-
-normalize_endpoint_url_value() {
-  local value="$1"
-
-  value=${value#"${value%%[![:space:]]*}"}
-  value=${value%"${value##*[![:space:]]}"}
-
-  if [ -n "$value" ] && [[ "$value" != */ ]]; then
-    value+='/'
   fi
 
-  printf '%s\n' "$value"
-}
-
-provider_endpoint() {
-  local provider_type="$1"
-  local resource_name="$2"
-  local endpoint_url="${3:-}"
-
-  case "$provider_type" in
-  azure-openai)
-    if [ -z "$resource_name" ]; then
-      return 0
-    fi
-    printf 'https://%s.openai.azure.com/\n' "$resource_name"
-    ;;
-  azure-cognitive-services)
-    if [ -z "$resource_name" ]; then
-      return 0
-    fi
-    printf 'https://%s.cognitiveservices.azure.com/\n' "$resource_name"
-    ;;
-  custom)
-    printf '%s\n' "$endpoint_url"
-    ;;
-  esac
-}
-
-provider_openai_base_url() {
-  local provider_type="$1"
-  local resource_name="$2"
-  local endpoint_url="${3:-}"
-
-  case "$provider_type" in
-  azure-openai)
-    printf 'https://%s.openai.azure.com/openai/v1/\n' "$resource_name"
-    ;;
-  azure-cognitive-services)
-    printf 'https://%s.cognitiveservices.azure.com/openai/v1/\n' "$resource_name"
-    ;;
-  gemini)
-    printf '%s\n' 'https://generativelanguage.googleapis.com/v1beta/openai/'
-    ;;
-  custom)
-    printf '%s\n' "$endpoint_url"
-    ;;
-  *)
-    echo "Error: unsupported provider type '$provider_type'" >&2
-    exit 1
-    ;;
-  esac
-}
-
-read_token() {
-  local name="$1"
-  local file
-
-  file=$(token_file "$name")
-  if [ ! -f "$file" ]; then
-    echo "Error: API key not found for profile '$name'" >&2
-    exit 1
-  fi
-
-  tr -d '\r\n' <"$file"
-}
-
-require_existing_profile_file() {
-  local name="$1"
-  local file
-
-  file=$(profile_file "$name")
-  if [ ! -f "$file" ]; then
-    echo "Error: profile not found: $name" >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$file"
-}
-
-require_ask_tools() {
-  picotools_require_commands curl jq
-}
-
-select_profile_model() {
-  local file="$1"
-  local selection
-  local model_list
-  local -a model_items=()
-
-  model_list=$(provider_models_value "$file")
-  IFS=',' read -r -a model_items <<<"$model_list"
-
-  if [ "${#model_items[@]}" -eq 0 ]; then
-    echo 'Error: no models configured for the selected profile' >&2
-    exit 1
-  fi
-
-  if ! selection=$(picotools_prompt_select_index 'Models' 'Select model' 1 false "${model_items[@]}"); then
+  if [ "$seen_user" != true ]; then
+    cli_error 'ask requires --message, --user-message, --message-file, or --user-message-file'
     return 1
   fi
-
-  printf '%s\n' "${model_items[$((selection - 1))]}"
 }
 
-default_profile_model() {
-  local file="$1"
-  local model_list
-  local -a model_items=()
+parse_model_profile_cli() {
+  MODEL_PROFILE_EXPLICIT_DEBUG=false
+  MODEL_PROFILE_CLI_COMMAND=''
+  MODEL_PROFILE_CLI_PROFILE_NAME=''
+  MODEL_PROFILE_CLI_MODEL=''
+  MODEL_PROFILE_CLI_INTERACTIVE=false
+  MODEL_PROFILE_CLI_USER_MESSAGE=''
+  MODEL_PROFILE_CLI_USER_MESSAGE_FILE=''
+  MODEL_PROFILE_CLI_SYSTEM_MESSAGE='You are a helpful assistant.'
+  MODEL_PROFILE_CLI_SYSTEM_MESSAGE_FILE=''
 
-  model_list=$(provider_models_value "$file")
-  IFS=',' read -r -a model_items <<<"$model_list"
-
-  if [ "${#model_items[@]}" -eq 0 ] || [ -z "${model_items[0]}" ]; then
-    echo 'Error: no models configured for the selected profile' >&2
-    exit 1
-  fi
-
-  printf '%s\n' "${model_items[0]}"
-}
-
-profile_has_model() {
-  local file="$1"
-  local requested_model="$2"
-  local model_list
-  local model_item
-  local -a model_items=()
-
-  model_list=$(provider_models_value "$file")
-  IFS=',' read -r -a model_items <<<"$model_list"
-
-  for model_item in "${model_items[@]}"; do
-    if [ "$model_item" = "$requested_model" ]; then
-      return 0
-    fi
+  while [ "${1:-}" = '--debug' ]; do
+    enable_debug_logging
+    shift
   done
 
-  return 1
-}
-
-provider_chat_completion() {
-  local file="$1"
-  local model="$2"
-  local system_message="$3"
-  local user_message="$4"
-  local name provider_type resource_name endpoint_url base_url token payload_file tmpfile system_message_file user_message_file http_code response_text error_message payload_size response_size max_time
-  local -a curl_args=()
-
-  name=$(profile_name_from_file "$file")
-  provider_type=$(read_profile_value "$file" provider.type)
-  resource_name=$(provider_resource_name_value "$file")
-  endpoint_url=$(provider_endpoint_url_value "$file")
-  base_url=$(provider_openai_base_url "$provider_type" "$resource_name" "$endpoint_url")
-  token=$(read_token "$name")
-  printf '\033[1;34m[model-profile]\033[0m Sending request to %s model %s\n' "$name" "$model" >&2
-  debug_log "Preparing chat completion request for profile '$name' model '$model'"
-  debug_log "Provider type: $provider_type"
-  debug_log "Request URL: ${base_url}chat/completions"
-  payload_file=$(mktemp)
-  system_message_file=$(mktemp)
-  user_message_file=$(mktemp)
-  register_tmpfile "$payload_file"
-  register_tmpfile "$system_message_file"
-  register_tmpfile "$user_message_file"
-  trap 'cleanup_tmpfiles' EXIT
-  printf '%s' "$system_message" >"$system_message_file"
-  printf '%s' "$user_message" >"$user_message_file"
-  jq -n \
-    --arg model "$model" \
-    --rawfile system_message "$system_message_file" \
-    --rawfile user_message "$user_message_file" \
-    '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
-  rm -f "$system_message_file" "$user_message_file"
-  tmpfile=$(mktemp)
-  register_tmpfile "$tmpfile"
-  payload_size=$(wc -c <"$payload_file")
-  debug_log "Payload size: ${payload_size} bytes"
-
-  curl_args=(
-    -sS
-    -o "$tmpfile"
-    -w '%{http_code}'
-    -H 'Content-Type: application/json'
-    -H "Authorization: Bearer $token"
-    --data-binary "@$payload_file"
-  )
-
-  if max_time=$(curl_max_time); then
-    curl_args+=(--max-time "$max_time")
-    debug_log "Using curl --max-time ${max_time}s"
-  fi
-
-  debug_log 'Starting HTTP request'
-
-  http_code=$(picotools_ui_run_with_progress "Requesting model response from ${name}" curl "${curl_args[@]}" "${base_url}chat/completions") || {
-    exit 1
-  }
-
-  rm -f "$payload_file"
-  debug_log "HTTP request completed with status $http_code"
-
-  if [[ "$http_code" != 2* ]]; then
-    error_message=$(jq -r '.error.message // .message // empty' <"$tmpfile" 2>/dev/null || true)
-    rm -f "$tmpfile"
-    if [ -n "$error_message" ]; then
-      echo "Error: $error_message" >&2
-    else
-      echo "Error: request failed with HTTP $http_code" >&2
-    fi
-    exit 1
-  fi
-
-  response_text=$(jq -r '.choices[0].message.content // empty' <"$tmpfile")
-  response_size=$(wc -c <"$tmpfile")
-  rm -f "$tmpfile"
-  debug_log "Response size: ${response_size} bytes"
-
-  if [ -z "$response_text" ]; then
-    echo 'Error: response did not contain message content' >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$response_text"
-}
-
-token_exists() {
-  local name="$1"
-
-  [ -f "$(token_file "$name")" ]
-}
-
-write_token() {
-  local name="$1"
-  local token="$2"
-  local file
-
-  file=$(token_file "$name")
-  mkdir -p "$(dirname "$file")"
-  umask 077
-  printf '%s\n' "$token" >"$file"
-}
-
-delete_token() {
-  local name="$1"
-  rm -f "$(token_file "$name")"
+  case "${1:-}" in
+  -h | --help | help | '')
+    MODEL_PROFILE_CLI_COMMAND=help
+    [ "$#" -le 1 ] || {
+      cli_error 'help does not accept operands'
+      return 1
+    }
+    ;;
+  -v | --version | version)
+    MODEL_PROFILE_CLI_COMMAND=version
+    [ "$#" -le 1 ] || {
+      cli_error 'version does not accept operands'
+      return 1
+    }
+    ;;
+  create | update | list | read | profiles | delete)
+    MODEL_PROFILE_CLI_COMMAND="$1"
+    shift
+    cli_reject_no_arg_command_args "$MODEL_PROFILE_CLI_COMMAND" "$@" || return 1
+    ;;
+  models)
+    MODEL_PROFILE_CLI_COMMAND=models
+    shift
+    parse_models_cli "$@" || return 1
+    ;;
+  ask)
+    MODEL_PROFILE_CLI_COMMAND=ask
+    shift
+    parse_ask_cli "$@" || return 1
+    ;;
+  test)
+    MODEL_PROFILE_CLI_COMMAND='test'
+    shift
+    parse_test_cli "$@" || return 1
+    ;;
+  *)
+    cli_error "unknown command '$1'"
+    return 1
+    ;;
+  esac
 }
 
 prompt_provider_type() {
   local current_value="${1:-}"
   local selection default_selection provider_type
-  local -a labels=(
-    'Azure OpenAI'
-    'Azure Cognitive Services'
-    'Gemini'
-    'Custom'
-  )
+  local status
+  local -a labels=()
 
   default_selection=$(provider_type_default_selection "$current_value")
+  while IFS= read -r provider_type; do
+    labels+=("$provider_type")
+  done <<<"$(provider_prompt_labels)"
 
   while true; do
-    if selection=$(picotools_prompt_select_value 'Provider types' 'Select provider type' "$default_selection" "${labels[@]}"); then
+    if selection=$(picotools_prompt_select_index 'Provider types' 'Select provider type' "$default_selection" false "${labels[@]}"); then
       :
     else
-      if [ "$?" -eq 2 ]; then
-        return 1
+      status=$?
+      if [ "$status" -eq 2 ]; then
+        return 2
       fi
 
       echo 'Please choose 1, 2, 3, or 4.' >&2
       continue
     fi
 
-    case "$selection" in
-    'Azure OpenAI')
-      provider_type='azure-openai'
-      ;;
-    'Azure Cognitive Services')
-      provider_type='azure-cognitive-services'
-      ;;
-    'Gemini')
-      provider_type='gemini'
-      ;;
-    'Custom')
-      provider_type='custom'
-      ;;
-    *)
-      provider_type=''
-      ;;
-    esac
-
-    if [ -n "$provider_type" ]; then
+    if provider_type=$(provider_type_from_selection "$selection"); then
       printf '%s\n' "$provider_type"
       return 0
     fi
@@ -660,6 +578,7 @@ prompt_profile_fields() {
 
   if provider_has_resource_name "$provider_type"; then
     resource_name=$(picotools_prompt_value 'Resource name' "$current_resource_name" true)
+    resource_name=$(trim_spaces "$resource_name")
   fi
 
   if provider_has_endpoint_url "$provider_type"; then
@@ -670,64 +589,69 @@ prompt_profile_fields() {
   models=$(picotools_prompt_value 'Models (comma-separated)' "$current_models" true)
   models=$(normalize_models_value "$models")
 
+  if ! validate_profile_schema_values candidate "$provider_type" "$resource_name" "$endpoint_url" "$models"; then
+    return 1
+  fi
+
   printf '%s\001%s\001%s\n' "$resource_name" "$endpoint_url" "$models"
 }
 
-save_profile() {
-  local file="$1"
-  local provider_type="$2"
-  local resource_name="$3"
-  local endpoint_url="$4"
-  local models="$5"
-
-  rm -f "$file"
-  write_profile_value "$file" provider.type "$provider_type"
-
-  if [ -n "$resource_name" ]; then
-    write_profile_value "$file" provider.resourceName "$resource_name"
-  fi
-
-  if [ -n "$endpoint_url" ]; then
-    write_profile_value "$file" provider.endpointUrl "$endpoint_url"
-  fi
-
-  if [ -n "$models" ]; then
-    write_profile_value "$file" provider.models "$models"
-  fi
-}
-
 select_profile_file() {
-  local file name
+  local file name files_output selection status
   local files=()
   local names=()
 
+  if files_output=$(saved_profile_files); then
+    :
+  else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      return 1
+    fi
+    files_output=''
+  fi
+
   while IFS= read -r file; do
+    if [ -z "$file" ]; then
+      continue
+    fi
     files+=("$file")
     name=$(profile_name_from_file "$file")
     names+=("$name")
-  done < <(saved_profile_files || true)
+  done <<<"$files_output"
 
-  picotools_prompt_select_mapped_value 'Profiles' 'Select profile' '' 'No model profiles found.' names files
+  if [ "${#names[@]}" -eq 0 ]; then
+    echo 'No model profiles found.' >&2
+    return 1
+  fi
+
+  if selection=$(picotools_prompt_select_index 'Profiles' 'Select profile' '' false "${names[@]}"); then
+    printf '%s\n' "${files[$((selection - 1))]}"
+    return 0
+  else
+    status=$?
+    return "$status"
+  fi
 }
 
 format_profile_summary_row() {
   local file="$1"
   local index="$2"
-  local name provider_type resource_name endpoint_url location models token_status
+  local name provider_type resource_name endpoint_url location models token_status status
 
-  name=$(profile_name_from_file "$file")
-  provider_type=$(read_profile_value "$file" provider.type)
-  resource_name=$(provider_resource_name_value "$file")
-  endpoint_url=$(provider_endpoint_url_value "$file")
+  read_valid_profile_record "$file" name provider_type resource_name endpoint_url models || return 1
   location="$resource_name"
   if [ -z "$location" ]; then
     location="$endpoint_url"
   fi
-  models=$(provider_models_value "$file")
 
   if token_exists "$name"; then
     token_status=yes
   else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      return 1
+    fi
     token_status=no
   fi
 
@@ -742,23 +666,23 @@ format_profile_summary_row() {
 
 print_profile_detail() {
   local file="$1"
-  local name provider_type resource_name endpoint_url endpoint models token_status token_path
+  local name provider_type resource_name endpoint_url endpoint models token_status token_path status
 
-  name=$(profile_name_from_file "$file")
-  provider_type=$(read_profile_value "$file" provider.type)
-  resource_name=$(provider_resource_name_value "$file")
-  endpoint_url=$(provider_endpoint_url_value "$file")
+  read_valid_profile_record "$file" name provider_type resource_name endpoint_url models || return 1
   endpoint=$(provider_endpoint "$provider_type" "$resource_name" "$endpoint_url")
-  models=$(provider_models_value "$file")
   token_path=$(token_file "$name")
 
   if token_exists "$name"; then
     token_status=yes
   else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      return 1
+    fi
     token_status=no
   fi
 
-  picotools_print_two_column_table \
+  print_model_profile_two_column_table \
     $'Name	'"$name" \
     $'Type	'"$(provider_type_label "$provider_type")" \
     $'Resource Name	'"$(display_value "$resource_name")" \
@@ -771,29 +695,36 @@ print_profile_detail() {
 }
 
 create_profile() {
-  local name file overwrite provider_type token resource_name endpoint_url models selected_fields
+  local name file overwrite provider_type token resource_name endpoint_url models selected_fields status
 
   picotools_ui_section 'Create Model Profile'
   picotools_ui_step 1 3 'Name the profile'
   name=$(picotools_prompt_value 'Profile name' '' true)
   validate_profile_name "$name"
   ensure_storage_dirs
-  file=$(profile_file "$name")
+  file=$(require_writable_profile_file "$name") || return 1
 
   if [ -f "$file" ]; then
     overwrite=$(picotools_prompt_yes_no "Profile '$name' already exists. Overwrite?" no)
     if [ "$overwrite" != 'yes' ]; then
       picotools_cancel
-      exit 1
+      return 2
     fi
   fi
 
-  if ! provider_type=$(prompt_provider_type); then
+  if provider_type=$(prompt_provider_type); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
     picotools_cancel
-    exit 1
+    return 1
   fi
   picotools_ui_step 2 3 'Choose provider and models'
-  selected_fields=$(prompt_profile_fields "$provider_type")
+  selected_fields=$(prompt_profile_fields "$provider_type") || return 1
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
   token=$(picotools_prompt_secret_value 'API key' '' true)
 
@@ -802,8 +733,9 @@ create_profile() {
     "Profile: ${name}" \
     "Provider: $(provider_type_label "$provider_type")" \
     "Models: ${models}"
-  save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
-  write_token "$name" "$token"
+  if ! publish_profile_transaction "$name" "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models" write "$token"; then
+    return 1
+  fi
   picotools_ui_summary 'Model Profile Saved' \
     "Profile: ${name}" \
     "Provider: $(provider_type_label "$provider_type")" \
@@ -812,47 +744,67 @@ create_profile() {
 }
 
 list_profiles() {
-  local file
+  local file files_output row status
   local index=1
   local -a rows=()
 
-  if ! saved_profile_files >/dev/null; then
+  if files_output=$(saved_profile_files); then
+    :
+  else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      return 1
+    fi
     echo 'No model profiles found.'
     return 0
   fi
 
   while IFS= read -r file; do
-    rows+=("$(format_profile_summary_row "$file" "$index")")
+    row=$(format_profile_summary_row "$file" "$index") || return 1
+    rows+=("$row")
     index=$((index + 1))
-  done < <(saved_profile_files)
+  done <<<"$files_output"
 
-  picotools_print_table $'#	Name	Type	Resource	Models	Token' "${rows[@]}"
+  print_model_profile_table $'#	Name	Type	Resource	Models	Token' "${rows[@]}"
 }
 
 read_profile() {
-  local file
+  local file status
 
-  if ! file=$(select_profile_file); then
-    return 0
+  if file=$(select_profile_file); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
+    return 1
   fi
   print_profile_detail "$file"
 }
 
 list_profile_names() {
-  local file
+  local file files_output status
 
-  if ! saved_profile_files >/dev/null; then
+  if files_output=$(saved_profile_files); then
+    :
+  else
+    status=$?
+    if [ "$status" -ne 1 ]; then
+      return 1
+    fi
     return 0
   fi
 
   while IFS= read -r file; do
     profile_name_from_file "$file"
-  done < <(saved_profile_files)
+  done <<<"$files_output"
 }
 
 list_profile_models() {
   local profile_name="${1:-}"
-  local file model_list
+  local file name provider_type resource_name endpoint_url model_list
   local model_item
   local -a model_items=()
 
@@ -861,8 +813,8 @@ list_profile_models() {
     exit 1
   fi
 
-  file=$(require_existing_profile_file "$profile_name")
-  model_list=$(provider_models_value "$file")
+  file=$(require_existing_profile_file "$profile_name") || return 1
+  read_valid_profile_record "$file" name provider_type resource_name endpoint_url model_list || return 1
   IFS=',' read -r -a model_items <<<"$model_list"
 
   for model_item in "${model_items[@]}"; do
@@ -873,8 +825,9 @@ list_profile_models() {
 update_profile_file() {
   local file="$1"
   local name provider_type resource_name endpoint_url models selected_fields
-  local update_token token
+  local update_token token status
 
+  require_valid_profile_file "$file" || return 1
   name=$(profile_name_from_file "$file")
   picotools_ui_section 'Update Model Profile'
   picotools_ui_step 1 2 'Choose provider settings'
@@ -883,20 +836,26 @@ update_profile_file() {
   endpoint_url=$(provider_endpoint_url_value "$file")
   models=$(provider_models_value "$file")
 
-  if ! provider_type=$(prompt_provider_type "$provider_type"); then
+  if provider_type=$(prompt_provider_type "$provider_type"); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
     picotools_cancel
-    exit 1
+    return 1
   fi
-  selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$endpoint_url" "$models")
+  selected_fields=$(prompt_profile_fields "$provider_type" "$resource_name" "$endpoint_url" "$models") || return 1
   IFS=$'\001' read -r resource_name endpoint_url models <<<"$selected_fields"
-
-  save_profile "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models"
 
   picotools_ui_step 2 2 'Review and save token changes'
   update_token=$(picotools_prompt_yes_no 'Update API key?' no)
   if [ "$update_token" = 'yes' ]; then
     token=$(picotools_prompt_secret_value 'API key' '' true)
-    write_token "$name" "$token"
+  else
+    token=''
   fi
 
   picotools_ui_summary 'Review Updated Model Profile' \
@@ -904,6 +863,16 @@ update_profile_file() {
     "Provider: $(provider_type_label "$provider_type")" \
     "Models: ${models}" \
     "Token updated: ${update_token}"
+
+  if [ "$update_token" = 'yes' ]; then
+    if ! publish_profile_transaction "$name" "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models" write "$token"; then
+      return 1
+    fi
+  else
+    if ! publish_profile_transaction "$name" "$file" "$provider_type" "$resource_name" "$endpoint_url" "$models" keep; then
+      return 1
+    fi
+  fi
 
   picotools_ui_summary 'Model Profile Updated' \
     "Profile: ${name}" \
@@ -916,52 +885,81 @@ delete_profile_file() {
   local file="$1"
   local name confirm
 
+  require_valid_profile_file "$file" || return 1
   name=$(profile_name_from_file "$file")
   confirm=$(picotools_prompt_yes_no "Delete '$name'?" no)
   if [ "$confirm" != 'yes' ]; then
     picotools_cancel
-    exit 1
+    return 2
   fi
 
   picotools_ui_summary 'Review Model Profile Deletion' \
     "Profile: ${name}" \
     'Token file: will be removed'
 
-  rm -f "$file"
-  delete_token "$name"
+  if ! delete_profile_transaction "$name" "$file"; then
+    return 1
+  fi
   picotools_ui_status ok "Deleted model profile '${name}'"
   echo 'Deleted model profile.'
 }
 
 update_profile() {
-  local file
+  local file status
 
-  if ! file=$(select_profile_file); then
-    return 0
+  if file=$(select_profile_file); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
+    return 1
   fi
   update_profile_file "$file"
 }
 
 delete_profile() {
-  local file
+  local file status
 
-  if ! file=$(select_profile_file); then
-    return 0
+  if file=$(select_profile_file); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
+    return 1
   fi
   delete_profile_file "$file"
 }
 
 ask_provider_interactive() {
-  local file model system_message user_message
+  local file model status system_message user_message
 
   require_ask_tools
   picotools_ui_section 'Ask Model'
   picotools_ui_step 1 2 'Choose profile and model'
-  if ! file=$(select_profile_file); then
-    return 0
+  if file=$(select_profile_file); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
+    return 1
   fi
-  if ! model=$(select_profile_model "$file"); then
-    return 0
+  if model=$(select_profile_model "$file"); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+    fi
+    return "$status"
   fi
   picotools_ui_step 2 2 'Enter prompt content'
   system_message=$(picotools_prompt_value 'System message' 'You are a helpful assistant.')
@@ -970,112 +968,42 @@ ask_provider_interactive() {
 }
 
 ask_provider_cli() {
-  local profile_name='' file model='' system_message='You are a helpful assistant.' user_message=''
+  local profile_name="$MODEL_PROFILE_CLI_PROFILE_NAME"
+  local file model="$MODEL_PROFILE_CLI_MODEL"
+  local system_message="$MODEL_PROFILE_CLI_SYSTEM_MESSAGE"
+  local user_message="$MODEL_PROFILE_CLI_USER_MESSAGE"
+  local system_message_file="$MODEL_PROFILE_CLI_SYSTEM_MESSAGE_FILE"
+  local user_message_file="$MODEL_PROFILE_CLI_USER_MESSAGE_FILE"
 
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-    --debug)
-      enable_debug_logging
-      shift
-      ;;
-    --model)
-      if [ "$#" -lt 2 ]; then
-        echo 'Error: --model requires a value' >&2
-        exit 1
-      fi
-      model="$2"
-      shift 2
-      ;;
-    --system-message)
-      if [ "$#" -lt 2 ]; then
-        echo 'Error: --system-message requires a value' >&2
-        exit 1
-      fi
-      system_message="$2"
-      shift 2
-      ;;
-    --system-message-file)
-      if [ "$#" -lt 2 ]; then
-        echo 'Error: --system-message-file requires a value' >&2
-        exit 1
-      fi
-      if [ ! -r "$2" ]; then
-        echo "Error: cannot read file: $2" >&2
-        exit 1
-      fi
-      system_message=$(<"$2")
-      shift 2
-      ;;
-    --message | --user-message)
-      if [ "$#" -lt 2 ]; then
-        echo "Error: $1 requires a value" >&2
-        exit 1
-      fi
-      user_message="$2"
-      shift 2
-      ;;
-    --message-file | --user-message-file)
-      if [ "$#" -lt 2 ]; then
-        echo "Error: $1 requires a value" >&2
-        exit 1
-      fi
-      if [ ! -r "$2" ]; then
-        echo "Error: cannot read file: $2" >&2
-        exit 1
-      fi
-      user_message=$(<"$2")
-      shift 2
-      ;;
-    --*)
-      echo "Error: unknown ask option '$1'" >&2
-      usage >&2
-      exit 1
-      ;;
-    *)
-      if [ -z "$profile_name" ]; then
-        profile_name="$1"
-        shift
-      else
-        echo "Error: unknown ask option '$1'" >&2
-        usage >&2
-        exit 1
-      fi
-      ;;
-    esac
-  done
-
-  if [ -z "$profile_name" ]; then
-    echo 'Error: ask requires a profile name' >&2
-    exit 1
+  if [ -n "$system_message_file" ]; then
+    require_safe_message_file "$system_message_file" system
   fi
-
-  if [ -z "$user_message" ]; then
-    echo 'Error: ask requires --message or --user-message' >&2
-    exit 1
+  if [ -n "$user_message_file" ]; then
+    require_safe_message_file "$user_message_file" user
   fi
 
   require_ask_tools
-  file=$(require_existing_profile_file "$profile_name")
+  file=$(require_existing_profile_file "$profile_name") || return 1
 
   if [ -n "$model" ]; then
     if ! profile_has_model "$file" "$model"; then
       echo "Error: model not configured for profile '$profile_name': $model" >&2
-      exit 1
+      return 1
     fi
   else
-    model=$(default_profile_model "$file")
+    model=$(default_profile_model "$file") || return 1
   fi
 
-  provider_chat_completion "$file" "$model" "$system_message" "$user_message"
+  provider_chat_completion "$file" "$model" "$system_message" "$user_message" "$system_message_file" "$user_message_file"
 }
 
 ask_provider() {
-  if [ "$#" -eq 0 ]; then
+  if [ "$MODEL_PROFILE_CLI_INTERACTIVE" = true ]; then
     ask_provider_interactive
-    return 0
+    return $?
   fi
 
-  ask_provider_cli "$@"
+  ask_provider_cli
 }
 
 connection_test_system_message() {
@@ -1112,147 +1040,111 @@ test_profile_file() {
   local model="$2"
   local response
 
-  response=$(provider_chat_completion "$file" "$model" "$(connection_test_system_message)" "$(connection_test_user_message)")
+  response=$(provider_chat_completion "$file" "$model" "$(connection_test_system_message)" "$(connection_test_user_message)") || return 1
   print_connection_test_result "$file" "$model" "$response"
 }
 
 test_profile_interactive() {
-  local file model
+  local file model status
 
   require_ask_tools
-  if ! file=$(select_profile_file); then
-    return 0
+  if file=$(select_profile_file); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+      return 2
+    fi
+    return 1
   fi
-  if ! model=$(select_profile_model "$file"); then
-    return 0
+  if model=$(select_profile_model "$file"); then
+    :
+  else
+    status=$?
+    if [ "$status" -eq 2 ]; then
+      picotools_cancel
+    fi
+    return "$status"
   fi
 
   test_profile_file "$file" "$model"
 }
 
 test_profile_cli() {
-  local profile_name='' file model=''
-
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-    --debug)
-      enable_debug_logging
-      shift
-      ;;
-    --model)
-      if [ "$#" -lt 2 ]; then
-        echo 'Error: --model requires a value' >&2
-        exit 1
-      fi
-      model="$2"
-      shift 2
-      ;;
-    --*)
-      echo "Error: unknown test option '$1'" >&2
-      usage >&2
-      exit 1
-      ;;
-    *)
-      if [ -z "$profile_name" ]; then
-        profile_name="$1"
-        shift
-      else
-        echo "Error: unknown test option '$1'" >&2
-        usage >&2
-        exit 1
-      fi
-      ;;
-    esac
-  done
-
-  if [ -z "$profile_name" ]; then
-    echo 'Error: test requires a profile name' >&2
-    exit 1
-  fi
+  local profile_name="$MODEL_PROFILE_CLI_PROFILE_NAME"
+  local file model="$MODEL_PROFILE_CLI_MODEL"
 
   require_ask_tools
-  file=$(require_existing_profile_file "$profile_name")
+  file=$(require_existing_profile_file "$profile_name") || return 1
 
   if [ -n "$model" ]; then
     if ! profile_has_model "$file" "$model"; then
       echo "Error: model not configured for profile '$profile_name': $model" >&2
-      exit 1
+      return 1
     fi
   else
-    model=$(default_profile_model "$file")
+    model=$(default_profile_model "$file") || return 1
   fi
 
   test_profile_file "$file" "$model"
 }
 
 test_profile() {
-  if [ "$#" -eq 0 ]; then
+  if [ "$MODEL_PROFILE_CLI_INTERACTIVE" = true ]; then
     test_profile_interactive
-    return 0
+    return $?
   fi
 
-  test_profile_cli "$@"
+  test_profile_cli
 }
 
 main() {
-  while [ "${1:-}" = '--debug' ]; do
-    enable_debug_logging
-    shift
-  done
+  if ! parse_model_profile_cli "$@"; then
+    exit 1
+  fi
 
-  warn_deprecated_debug_env "$@"
+  warn_deprecated_debug_env
 
-  case "${1:-}" in
-  -h | --help | help | '')
+  case "$MODEL_PROFILE_CLI_COMMAND" in
+  help)
     usage
     exit 0
     ;;
-  -v | --version | version)
+  version)
     print_version
     exit 0
     ;;
   create)
-    shift
-    create_profile "$@"
+    create_profile
     ;;
   update)
-    shift
-    update_profile "$@"
+    update_profile
     ;;
   list)
-    shift
-    list_profiles "$@"
+    list_profiles
     ;;
   read)
-    shift
-    read_profile "$@"
+    read_profile
     ;;
   profiles)
-    shift
-    list_profile_names "$@"
+    list_profile_names
     ;;
   models)
-    shift
-    list_profile_models "$@"
+    list_profile_models "$MODEL_PROFILE_CLI_PROFILE_NAME"
     ;;
   ask)
-    shift
-    ask_provider "$@"
+    ask_provider
     ;;
   test)
-    shift
-    test_profile "$@"
+    test_profile
     ;;
   delete)
-    shift
-    delete_profile "$@"
-    ;;
-  *)
-    echo "Error: unknown command '$1'" >&2
-    usage >&2
-    exit 1
+    delete_profile
     ;;
   esac
+
+  exit 0
 }
 
 main "$@"

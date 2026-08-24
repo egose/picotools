@@ -9,19 +9,43 @@ fi
 # shellcheck source=../../lib/picotools/load.sh
 # shellcheck disable=SC1091
 . "$LOAD_SH"
-picotools_source_modules "$SCRIPT_DIR" box commands git_commit_model git_commit_plan git_commit_workspace prompt ui version
+picotools_source_modules "$SCRIPT_DIR" \
+  box \
+  commands \
+  git_commit_workspace \
+  git_commit_plan \
+  git_commit_model \
+  git_commit_config \
+  git_commit_options \
+  git_commit_scope \
+  git_commit_hooks \
+  git_commit_prompt \
+  git_commit_execution \
+  git_commit_remote \
+  prompt \
+  ui \
+  version
 
 # shellcheck disable=SC2034
 ALLOWED_TYPES='feat fix docs refactor chore perf test ci'
+# shellcheck disable=SC2034
 PRE_COMMIT_CONFIG_FILE='.pre-commit-config.yaml'
+# shellcheck disable=SC2034
 MAX_COMMIT_PLAN_CHANGED_FILES_CHARS=250000
+# shellcheck disable=SC2034
 MAX_COMMIT_PLAN_DIFF_CHARS=50000
 # shellcheck disable=SC2034
 MAX_COMMIT_PLAN_FILE_DIFF_CHARS=16384
 # shellcheck disable=SC2034
 MAX_COMMIT_PLAN_ADDED_FILE_BYTES=65536
+# shellcheck disable=SC2034
 MAX_COMMIT_PLAN_EXISTING_PR_BODY_CHARS=20000
+# shellcheck disable=SC2034
 MAX_COMMIT_HEADER_LENGTH=100
+# shellcheck disable=SC2034
+MAX_COMMIT_MODEL_RESPONSE_BYTES=1048576
+# shellcheck disable=SC2034
+MAX_COMMIT_MODEL_DIAGNOSTIC_BYTES=4096
 GIT_COMMIT_TMPFILES=()
 # shellcheck disable=SC2034
 LAST_RAW_COMMIT_PLAN_RESPONSE=''
@@ -36,6 +60,22 @@ Commands:
 Without a command, `git-commit` analyzes the current git workspace, asks the
 configured model for conventional commit suggestions, and creates one or more
 commits.
+
+Default preview mode validates and prints a planned command preview only. It may
+read repository files and call the configured model provider, but it does not
+stage files, create commits, push branches, create or update pull requests, or
+execute repository-controlled hooks.
+
+`--apply` revalidates the selected path set and content before mutation, then
+creates exactly the planned local commits. `--push` pushes only after successful
+local commits. `--pr` opens or updates a pull request only after a successful
+push. Failures are not rolled back automatically; earlier local commits and any
+successful push remain for manual recovery.
+
+`--path` and `--path-file` limit planning, preliminary hook checks, staging, and
+commits to exact repository-relative paths. Paths are passed to Git as literal
+top-anchored pathspecs, so spaces, shell metacharacters, glob characters,
+leading colons, tabs, newlines, and non-ASCII filenames are matched literally.
 
 In `--pr` mode, authentication precedence is: the PAT owned by the repository's
 `picotools.gitProfile` marker, then the configured `git-api.profile`, then
@@ -53,6 +93,30 @@ Options:
   --path-file PATH          Load additional scoped paths from a newline-delimited file; repeatable
   --scope <value>           Override commit scope for generated titles
   --no-scope                Omit scope from generated titles
+
+Debug diagnostics:
+  Model response excerpts are printed only with --debug. Excerpts redact values
+  from TOKEN, SECRET, PASSWORD, PAT, and KEY environment variables, JSON-escape
+  terminal/control bytes, and truncate to 4096 bytes by default.
+
+Hook behavior:
+  Preview mode does not execute repository-controlled hooks. Apply mode may run
+  the repository's executable pre-commit hook as a preliminary check using a
+  temporary index containing only the selected paths, then git-commit creates
+  isolated commits without invoking git commit hooks. Out-of-scope preliminary
+  hook worktree mutations are rejected.
+
+Stale plans and recovery:
+  Apply mode fails before committing if selected files or content changed after
+  planning, or if the real index is not in the expected empty state. Commit,
+  push, and PR failures preserve the completed side effects and print recovery
+  guidance instead of resetting local or remote state.
+
+Push and PR topology:
+  Pull requests resolve fetch and push repositories separately. Fork heads are
+  qualified as <owner>:<branch> when required; same-repository heads keep the
+  branch name. Existing-PR lookup and malformed API responses fail closed before
+  planning or mutation.
 
 Repository context:
   `git-profile set` and `git-profile clone` record the active profile as the
@@ -88,124 +152,10 @@ enable_debug_logging() {
   GIT_COMMIT_DEBUG=true
 }
 
-config_dir() {
-  printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/git-commit"
-}
-
-config_file() {
-  printf '%s/config\n' "$(config_dir)"
-}
-
-ensure_config_dir() {
-  mkdir -p "$(config_dir)"
-}
-
-git_api_profiles_dir() {
-  printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/git-api/profiles"
-}
-
-list_git_api_profiles() {
-  local profiles_dir
-  local profile_dir
-
-  profiles_dir=$(git_api_profiles_dir)
-  for profile_dir in "$profiles_dir"/*; do
-    [ -d "$profile_dir" ] || continue
-    [ -f "$profile_dir/token" ] || continue
-    basename "$profile_dir"
-  done
-}
-
-write_config_value() {
-  local key="$1"
-  local value="$2"
-
-  ensure_config_dir
-  git config -f "$(config_file)" "$key" "$value"
-}
-
-unset_config_value() {
-  local key="$1"
-
-  if [ -f "$(config_file)" ]; then
-    git config -f "$(config_file)" --unset-all "$key" 2>/dev/null || true
-  fi
-}
-
-read_config_value_optional() {
-  local key="$1"
-
-  git config -f "$(config_file)" --get "$key" 2>/dev/null || true
-}
-
-model_profile_command() {
-  picotools_resolve_tool_command "$SCRIPT_DIR" MODEL_PROFILE_BIN model-profile
-}
-
-git_api_command() {
-  picotools_resolve_tool_command "$SCRIPT_DIR" GIT_API_BIN git-api
-}
-
-git_profile_command() {
-  picotools_resolve_tool_command "$SCRIPT_DIR" GIT_PROFILE_BIN git-profile
-}
-
-run_git_api() {
-  local tool
-  local repository_token="${GIT_COMMIT_GIT_API_TOKEN:-}"
-  local configured_profile="${GIT_COMMIT_GIT_API_PROFILE:-}"
-
-  tool=$(git_api_command)
-  if [ -n "$repository_token" ]; then
-    if debug_enabled; then
-      printf '%s' "$repository_token" | "$tool" --debug --token-stdin "$@"
-      return $?
-    fi
-
-    printf '%s' "$repository_token" | "$tool" --token-stdin "$@"
-    return $?
-  fi
-
-  if debug_enabled; then
-    if [ -n "$configured_profile" ]; then
-      "$tool" --debug --profile "$configured_profile" "$@"
-      return $?
-    fi
-    "$tool" --debug "$@"
-    return $?
-  fi
-
-  if [ -n "$configured_profile" ]; then
-    "$tool" --profile "$configured_profile" "$@"
-    return $?
-  fi
-
-  "$tool" "$@"
-}
-
-run_git_profile() {
-  local tool
-
-  tool=$(git_profile_command)
-  "$tool" "$@"
-}
-
-run_model_profile() {
-  local tool
-
-  tool=$(model_profile_command)
-  if debug_enabled; then
-    "$tool" --debug "$@"
-    return $?
-  fi
-
-  "$tool" "$@"
-}
-
 require_git_repository() {
   if [ "$(git rev-parse --is-inside-work-tree 2>/dev/null || true)" != 'true' ]; then
     echo 'Error: git-commit must be run inside a Git repository' >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -215,1678 +165,40 @@ require_dependencies() {
   for tool in git jq; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       echo "Error: required tool not found: $tool" >&2
-      exit 1
-    fi
-  done
-
-  model_profile_command >/dev/null
-}
-
-require_runtime_dependencies() {
-  require_git_repository
-  require_dependencies
-}
-
-configure_tool() {
-  local profile model additional_profile='' additional_model='' git_api_profile=''
-  local -a profiles=()
-  local -a models=()
-  local -a additional_profiles=()
-  local -a git_api_profiles=()
-  local candidate_profile
-
-  picotools_ui_section 'Configure Git Commit'
-  picotools_ui_step 1 3 'Choose primary model profile'
-  model_profile_command >/dev/null
-  mapfile -t profiles < <(run_model_profile profiles)
-  if [ "${#profiles[@]}" -eq 0 ]; then
-    echo 'Error: no model profiles found' >&2
-    exit 1
-  fi
-
-  if ! profile=$(picotools_prompt_select_value 'Profiles' 'Select profile' 1 "${profiles[@]}"); then
-    picotools_cancel
-    exit 1
-  fi
-  mapfile -t models < <(run_model_profile models "$profile")
-  if [ "${#models[@]}" -eq 0 ]; then
-    echo "Error: no models configured for profile '$profile'" >&2
-    exit 1
-  fi
-
-  if ! model=$(picotools_prompt_select_value 'Models' 'Select model' 1 "${models[@]}"); then
-    picotools_cancel
-    exit 1
-  fi
-
-  for candidate_profile in "${profiles[@]}"; do
-    if [ "$candidate_profile" != "$profile" ]; then
-      additional_profiles+=("$candidate_profile")
-    fi
-  done
-
-  if [ "${#additional_profiles[@]}" -gt 0 ]; then
-    picotools_ui_step 2 3 'Choose optional fallback profile'
-    if ! additional_profile=$(picotools_prompt_select_optional_value 'Additional Profile (Optional)' 'Select additional profile' 'None' 1 "${additional_profiles[@]}"); then
-      picotools_cancel
-      exit 1
-    fi
-
-    if [ -n "$additional_profile" ]; then
-      mapfile -t models < <(run_model_profile models "$additional_profile")
-      if [ "${#models[@]}" -eq 0 ]; then
-        echo "Error: no models configured for profile '$additional_profile'" >&2
-        exit 1
-      fi
-
-      if ! additional_model=$(picotools_prompt_select_value 'Additional Models' 'Select additional model' 1 "${models[@]}"); then
-        picotools_cancel
-        exit 1
-      fi
-    fi
-  fi
-
-  mapfile -t git_api_profiles < <(list_git_api_profiles)
-  if [ "${#git_api_profiles[@]}" -gt 0 ]; then
-    picotools_ui_step 3 3 'Choose optional git-api profile'
-    if ! git_api_profile=$(picotools_prompt_select_optional_value 'git-api Profile (Optional)' 'Select git-api profile' 'None' 1 "${git_api_profiles[@]}"); then
-      picotools_cancel
-      exit 1
-    fi
-  fi
-
-  picotools_ui_summary 'Review Git Commit Configuration' \
-    "Primary profile: ${profile}" \
-    "Primary model: ${model}" \
-    "Fallback profile: ${additional_profile:--}" \
-    "Fallback model: ${additional_model:--}" \
-    "git-api profile: ${git_api_profile:--}"
-
-  write_config_value model.profile "$profile"
-  write_config_value model.name "$model"
-  if [ -n "$git_api_profile" ]; then
-    write_config_value git-api.profile "$git_api_profile"
-  else
-    unset_config_value git-api.profile
-  fi
-  if [ -n "$additional_profile" ] && [ -n "$additional_model" ]; then
-    write_config_value model.additional.profile "$additional_profile"
-    write_config_value model.additional.name "$additional_model"
-    if [ -n "$git_api_profile" ]; then
-      echo "Configured git-commit with profile '$profile' and model '$model', plus additional profile '$additional_profile' and model '$additional_model', using git-api profile '$git_api_profile'."
-      return 0
-    fi
-
-    echo "Configured git-commit with profile '$profile' and model '$model', plus additional profile '$additional_profile' and model '$additional_model'."
-    return 0
-  fi
-
-  unset_config_value model.additional.profile
-  unset_config_value model.additional.name
-  picotools_ui_summary 'Git Commit Configured' \
-    "Profile: ${profile}" \
-    "Model: ${model}" \
-    "git-api: ${git_api_profile:--}"
-  if [ -n "$git_api_profile" ]; then
-    echo "Configured git-commit with profile '$profile' and model '$model', using git-api profile '$git_api_profile'."
-    return 0
-  fi
-
-  echo "Configured git-commit with profile '$profile' and model '$model'."
-}
-
-load_configuration() {
-  local profile model additional_profile additional_model git_api_profile
-
-  profile=$(read_config_value_optional model.profile)
-  model=$(read_config_value_optional model.name)
-  additional_profile=$(read_config_value_optional model.additional.profile)
-  additional_model=$(read_config_value_optional model.additional.name)
-  git_api_profile=$(read_config_value_optional git-api.profile)
-
-  if [ -z "$profile" ] || [ -z "$model" ]; then
-    echo 'Warning: git-commit is not configured. Run git-commit configure.' >&2
-    exit 1
-  fi
-
-  printf '%s\n%s\n%s\n%s\n%s\n' "$profile" "$model" "$additional_profile" "$additional_model" "$git_api_profile"
-}
-
-ensure_changes_exist() {
-  local status
-
-  status=$(git status --porcelain)
-  if [ -z "$status" ]; then
-    echo 'Error: no file changes found in the current git workspace' >&2
-    exit 1
-  fi
-}
-
-ensure_no_staged_changes() {
-  local staged_status unstage_changes
-
-  staged_status=$(git diff --cached --name-only)
-  if [ -n "$staged_status" ]; then
-    unstage_changes=$(picotools_prompt_yes_no 'Staged changes detected. Unstage them with git restore --staged :/?' no)
-    if [ "$unstage_changes" = 'yes' ]; then
-      git restore --staged :/
-      return 0
-    fi
-
-    echo 'Error: git-commit requires no pre-staged changes. Unstage them first.' >&2
-    exit 1
-  fi
-}
-
-current_branch_name() {
-  local branch
-
-  branch=$(git branch --show-current)
-  if [ -z "$branch" ]; then
-    echo 'Error: detached HEAD is not supported' >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$branch"
-}
-
-github_repo_from_remote_url() {
-  local remote_url="$1"
-  local repo=''
-
-  case "$remote_url" in
-  git@github.com:*)
-    repo=${remote_url#git@github.com:}
-    repo=${repo%.git}
-    ;;
-  ssh://git@github.com/*)
-    repo=${remote_url#ssh://git@github.com/}
-    repo=${repo%.git}
-    ;;
-  https://github.com/*.git)
-    repo=${remote_url#https://github.com/}
-    repo=${repo%.git}
-    ;;
-  https://github.com/*)
-    repo=${remote_url#https://github.com/}
-    ;;
-  esac
-
-  if [ -z "$repo" ]; then
-    echo "Error: unsupported GitHub remote URL: ${remote_url:-<missing>}" >&2
-    exit 1
-  fi
-
-  printf '%s\n' "$repo"
-}
-
-github_repo_from_remote() {
-  local remote="$1"
-  local remote_url
-
-  remote_url=$(git remote get-url "$remote" 2>/dev/null || true)
-  if [ -z "$remote_url" ]; then
-    echo "Error: unable to determine URL for remote '$remote'" >&2
-    exit 1
-  fi
-
-  github_repo_from_remote_url "$remote_url"
-}
-
-derive_scope_from_branch() {
-  local branch="$1"
-  local last_segment
-
-  if [[ "$branch" != */* ]]; then
-    printf '\n'
-    return 0
-  fi
-
-  last_segment=${branch##*/}
-  # Drop a trailing split suffix from ticket-style branches, e.g.
-  # chore/ABC-9876_2 -> ABC-9876
-  # feat/my-feature -> my-feature (no change)
-  if [[ "$last_segment" =~ ^(.+)_([0-9]+)$ ]]; then
-    last_segment=${BASH_REMATCH[1]}
-  fi
-
-  # Keep just the leading numeric ticket when the branch uses a plain number,
-  # e.g. feat/11222 -> 11222 or fix/445566_2 -> 445566.
-  # feat/my-feature does not match here, so it falls through unchanged.
-  if [[ "$last_segment" =~ ^([0-9]+)([_-].*)?$ ]]; then
-    printf '%s\n' "${BASH_REMATCH[1]}"
-    return 0
-  fi
-
-  printf '%s\n' "$last_segment"
-}
-
-repo_has_workspace_manifest() {
-  local repo_root="$1"
-  local manifest
-
-  for manifest in pnpm-workspace.yaml lerna.json nx.json turbo.json rush.json go.work; do
-    if [ -f "$repo_root/$manifest" ]; then
-      return 0
-    fi
-  done
-
-  return 1
-}
-
-package_json_declares_workspaces() {
-  local repo_root="$1"
-  local package_json="$repo_root/package.json"
-
-  if [ ! -f "$package_json" ]; then
-    return 1
-  fi
-
-  grep -Eq '"workspaces"[[:space:]]*:' "$package_json"
-}
-
-count_nested_module_manifests() {
-  local repo_root="$1"
-  local path count=0
-
-  while IFS= read -r path; do
-    [ -n "$path" ] || continue
-    case "$path" in
-    package.json | pyproject.toml | go.mod | Cargo.toml)
-      continue
-      ;;
-    */package.json | */pyproject.toml | */go.mod | */Cargo.toml)
-      count=$((count + 1))
-      if [ "$count" -ge 2 ]; then
-        printf '%s\n' "$count"
-        return 0
-      fi
-      ;;
-    esac
-  done < <(git -C "$repo_root" ls-files --cached --others --exclude-standard -- '*/package.json' '*/pyproject.toml' '*/go.mod' '*/Cargo.toml')
-
-  printf '%s\n' "$count"
-}
-
-repo_is_monorepo() {
-  local repo_root="$1"
-  local nested_manifest_count
-
-  if repo_has_workspace_manifest "$repo_root" || package_json_declares_workspaces "$repo_root"; then
-    return 0
-  fi
-
-  nested_manifest_count=$(count_nested_module_manifests "$repo_root")
-  [ "$nested_manifest_count" -ge 2 ]
-}
-
-module_dir_for_file() {
-  local repo_root="$1"
-  local file="$2"
-  local dir parent
-
-  case "$file" in
-  */*)
-    dir=${file%/*}
-    ;;
-  *)
-    return 1
-    ;;
-  esac
-
-  while [ -n "$dir" ] && [ "$dir" != '.' ]; do
-    if [ -f "$repo_root/$dir/package.json" ] || [ -f "$repo_root/$dir/pyproject.toml" ] || [ -f "$repo_root/$dir/go.mod" ] || [ -f "$repo_root/$dir/Cargo.toml" ]; then
-      printf '%s\n' "$dir"
-      return 0
-    fi
-
-    parent=${dir%/*}
-    if [ "$parent" = "$dir" ]; then
-      break
-    fi
-    dir="$parent"
-  done
-
-  return 1
-}
-
-package_name_from_manifest() {
-  local package_json="$1"
-  local line
-  local name_pattern='"name"[[:space:]]*:[[:space:]]*"([^"]+)"'
-
-  [ -f "$package_json" ] || return 1
-
-  while IFS= read -r line; do
-    if [[ "$line" =~ $name_pattern ]]; then
-      printf '%s\n' "${BASH_REMATCH[1]}"
-      return 0
-    fi
-  done <"$package_json"
-
-  return 1
-}
-
-module_scope_name() {
-  local repo_root="$1"
-  local module_dir="$2"
-  local package_name
-
-  package_name=$(package_name_from_manifest "$repo_root/$module_dir/package.json" || true)
-  if [ -n "$package_name" ]; then
-    printf '%s\n' "${package_name##*/}"
-    return 0
-  fi
-
-  printf '%s\n' "${module_dir##*/}"
-}
-
-derive_scope_from_monorepo() {
-  local changed_files="$1"
-  local repo_root file module_dir scope=''
-  local -A seen_modules=()
-
-  repo_root=$(git_repo_root)
-  if ! repo_is_monorepo "$repo_root"; then
-    printf '\n'
-    return 0
-  fi
-
-  while IFS= read -r file; do
-    [ -n "$file" ] || continue
-    module_dir=$(module_dir_for_file "$repo_root" "$file" || true)
-    if [ -z "$module_dir" ] || [ -n "${seen_modules[$module_dir]:-}" ]; then
-      continue
-    fi
-
-    seen_modules[$module_dir]=1
-    if [ -n "$scope" ] && [ "$scope" != "$module_dir" ]; then
-      printf '\n'
-      return 0
-    fi
-    scope="$module_dir"
-  done <<<"$changed_files"
-
-  if [ -z "$scope" ]; then
-    printf '\n'
-    return 0
-  fi
-
-  module_scope_name "$repo_root" "$scope"
-}
-
-pre_commit_hook_path() {
-  git rev-parse --git-path hooks/pre-commit
-}
-
-git_index_path() {
-  git rev-parse --git-path index
-}
-
-run_pre_commit_checks() {
-  local changed_files="$1"
-  local retry_count="$2"
-  local hook_path index_snapshot temp_index file attempt=1
-  local max_attempts=$((retry_count + 1))
-  local -a files=()
-
-  hook_path=$(pre_commit_hook_path)
-  if [ ! -x "$hook_path" ]; then
-    debug_log 'Skipping pre-commit checks because no executable hook was found'
-    return 0
-  fi
-
-  index_snapshot=$(mktemp)
-  temp_index=$(mktemp)
-  register_tmpfile "$index_snapshot"
-  register_tmpfile "$temp_index"
-  trap 'cleanup_tmpfiles' EXIT
-  cp "$(git_index_path)" "$index_snapshot"
-
-  debug_log "Running pre-commit hook for ${#files[@]} changed file(s)"
-  echo 'Pre-commit checks:'
-  while true; do
-    if [ "$max_attempts" -gt 1 ]; then
-      printf 'Attempt %d/%d\n' "$attempt" "$max_attempts"
-    fi
-
-    cp "$index_snapshot" "$temp_index"
-    GIT_INDEX_FILE="$temp_index" git add -A :/
-
-    if GIT_INDEX_FILE="$temp_index" "$hook_path"; then
-      printf '\n'
-      return 0
-    fi
-
-    printf '\n'
-
-    if [ "$attempt" -ge "$max_attempts" ]; then
-      echo "Error: pre-commit checks failed after $max_attempts attempts" >&2
       return 1
     fi
-
-    attempt=$((attempt + 1))
-  done
-}
-
-count_nonempty_lines() {
-  local text="$1"
-  local count=0 line
-
-  while IFS= read -r line; do
-    if [ -n "$line" ]; then
-      count=$((count + 1))
-    fi
-  done <<<"$text"
-
-  printf '%s\n' "$count"
-}
-
-commit_planning_response_shape() {
-  local include_pr_details="${1:-false}"
-
-  if [ "$include_pr_details" = 'true' ]; then
-    printf '%s\n' '{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}],"pull_request":{"title":"short pr title","body":"detailed markdown description"}}'
-    return 0
-  fi
-
-  printf '%s\n' '{"commits":[{"type":"feat","message":"short summary","files":["path/to/file"]}]}'
-}
-
-commit_planning_pull_request_rules() {
-  cat <<'EOF'
-Pull request rules:
-- `pull_request.title` must be concise and descriptive for the full change set.
-- `pull_request.body` must be a detailed pull request description for the full change set.
-- Keep the pull request title and body consistent with the planned commits.
-EOF
-}
-
-commit_planning_rules() {
-  cat <<'EOF'
-Rules:
-- Allowed types: feat, fix, docs, refactor, chore, perf, test, ci
-- The message must be the commit subject suffix only. Do not include the type or scope prefix.
-- The message must start with an imperative lower-case verb.
-- The final commit header, including the type/scope prefix, must not exceed 100 characters.
-- When a scope is provided, do not repeat that scope value or its parent package/org prefix in the message unless it is required for clarity.
-- Prefer one commit unless the changes clearly belong to distinct tasks.
-- Prefer separate commits when reusable supporting changes are independently useful from the consuming feature.
-- When one tool or shared capability is extended to support a new tool, prefer one commit for the supporting capability and another for the new consuming feature when the split is coherent.
-- Each changed file must appear in exactly one commit, even when there is only one commit.
-- Before returning, check the full changed-file list and confirm every listed file appears exactly once across all commit `files` arrays.
-- Before returning, confirm no file path appears in more than one commit.
-- Before returning, build the union of every commit `files` array and compare it against the changed-file list. If any file is duplicated, missing, unknown, or ambiguous, rewrite the plan before returning.
-- Use file paths exactly as provided.
-- Do not include markdown fences or commentary.
-- Before returning, confirm the final response string is a single valid JSON object with the exact requested shape and no extra text before or after it.
-EOF
-}
-
-commit_planning_system_message() {
-  local include_pr_details="${1:-false}"
-
-  cat <<'EOF'
-You are an expert software engineer creating conventional commit plans.
-EOF
-
-  printf '\nReturn JSON only with this exact shape:\n%s\n' "$(commit_planning_response_shape "$include_pr_details")"
-  if [ "$include_pr_details" = 'true' ]; then
-    printf '\n%s\n' "$(commit_planning_pull_request_rules)"
-  fi
-  printf '\n%s\n' "$(commit_planning_rules)"
-}
-
-build_pull_request_context_block() {
-  local pr_base_branch="$1"
-  local existing_pr_title="$2"
-  local existing_pr_body="$3"
-  local existing_pr_exists="$4"
-  local existing_pr_body_section
-
-  printf '\nPull request base branch:\n%s\n' "$pr_base_branch"
-
-  if [ "$existing_pr_exists" = 'true' ]; then
-    # shellcheck disable=SC2016
-    printf '\nExisting open pull request:\nYes\n\nGenerate `pull_request.title` and `pull_request.body` for the full pull request after the current local changes are pushed. Preserve and extend relevant details from the existing pull request content below so the result covers both the existing PR changes and the current local changes.\n\nExisting pull request title:\n%s\n' "${existing_pr_title:-'(none)'}"
-    existing_pr_body_section=$(truncate_commit_plan_section 'existing pull request body' "$existing_pr_body" "$MAX_COMMIT_PLAN_EXISTING_PR_BODY_CHARS")
-    printf '\nExisting pull request body:\n%s\n' "$existing_pr_body_section"
-    return 0
-  fi
-
-  # shellcheck disable=SC2016
-  printf '\nExisting open pull request:\nNo\n\nGenerate `pull_request.title` and `pull_request.body` for the pull request that should be created from these current local changes.\n'
-}
-
-build_commit_planning_message() {
-  local branch="$1"
-  local scope="$2"
-  local changed_files="$3"
-  local diff_output="$4"
-  local create_pr="${5:-false}"
-  local pr_base_branch="${6:-}"
-  local existing_pr_title="${7:-}"
-  local existing_pr_body="${8:-}"
-  local existing_pr_exists="${9:-false}"
-  local changed_files_section diff_section pr_section=''
-
-  if [ -z "$scope" ]; then
-    scope='(none)'
-  fi
-
-  changed_files_section=$(truncate_commit_plan_section 'changed file list' "$changed_files" "$MAX_COMMIT_PLAN_CHANGED_FILES_CHARS")
-  diff_section=$(truncate_commit_plan_section 'diff' "$diff_output" "$MAX_COMMIT_PLAN_DIFF_CHARS")
-
-  if [ "$create_pr" = 'true' ]; then
-    pr_section=$(build_pull_request_context_block "$pr_base_branch" "$existing_pr_title" "$existing_pr_body" "$existing_pr_exists")
-  fi
-
-  printf '%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s\n\n%s\n%s%s\n' \
-    'Analyze these current git workspace changes and propose conventional commit plan JSON.' \
-    'Current branch:' "$branch" \
-    'Derived scope:' "$scope" \
-    'Changed files:' "$changed_files_section" \
-    'Unified diff:' "$diff_section" \
-    "$pr_section"
-}
-
-build_commit_planning_retry_message() {
-  local original_user_message="$1"
-  local correction="$2"
-  local normalized_correction
-
-  case "$correction" in
-  'Error: commit plan assigned the same file to multiple commits:'*)
-    normalized_correction="${correction} Remove duplicate file assignments. Each changed file must appear in exactly one commit, and no file may appear in more than one commit. Compare every file path across all commits before returning."
-    ;;
-  'Error: commit plan did not cover changed file:'*)
-    normalized_correction="${correction} Include every changed file exactly once across the commit plan before returning."
-    ;;
-  'Error: commit plan referenced an unknown or ambiguous changed file:'* | 'Error: commit plan referenced an unknown changed file:'*)
-    normalized_correction="${correction} Use only file paths from the provided changed-file list and keep each path assigned exactly once."
-    ;;
-  *)
-    normalized_correction="$correction"
-    ;;
-  esac
-
-  printf '%s\n\n%s\n%s\n\n%s\n' \
-    'A previous attempt produced an invalid commit plan. Reuse the same workspace information below.' \
-    'Correction required:' "${normalized_correction} Re-check the changed-file list and your final response string before returning." \
-    "$original_user_message"
-}
-
-read_commit_plan_item() {
-  local plan_json="$1"
-  local commit_index="$2"
-  local scope="$3"
-  local changed_files="$4"
-  local type_ref_name="$5"
-  local message_ref_name="$6"
-  local title_ref_name="$7"
-  local files_var_name="$8"
-  local item_type item_message item_title
-  local -n type_ref="$type_ref_name"
-  local -n message_ref="$message_ref_name"
-  local -n title_ref="$title_ref_name"
-
-  item_type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
-  item_message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
-
-  if ! valid_commit_type "$item_type"; then
-    echo "Error: invalid commit type in plan: $item_type" >&2
-    exit 1
-  fi
-
-  if [ -z "$item_message" ]; then
-    echo "Error: commit plan item $((commit_index + 1)) is missing a message" >&2
-    exit 1
-  fi
-
-  if ! valid_commit_message_style "$item_message"; then
-    echo "Error: commit plan item $((commit_index + 1)) must start with an imperative lower-case verb" >&2
-    exit 1
-  fi
-
-  item_title=$(format_commit_title "$item_type" "$scope" "$item_message")
-  resolve_commit_files_into "$plan_json" "$commit_index" "$changed_files" "$files_var_name"
-
-  # shellcheck disable=SC2034
-  {
-    type_ref="$item_type"
-    message_ref="$item_message"
-    title_ref="$item_title"
-  }
-}
-
-format_commit_title() {
-  local type="$1"
-  local scope="$2"
-  local message="$3"
-  local prefix available_chars
-
-  if [ -n "$scope" ]; then
-    prefix="${type}(${scope}): "
-  else
-    prefix="${type}: "
-  fi
-
-  available_chars=$((MAX_COMMIT_HEADER_LENGTH - ${#prefix}))
-  if [ "$available_chars" -le 0 ]; then
-    printf '%s\n' "${prefix:0:$MAX_COMMIT_HEADER_LENGTH}"
-    return 0
-  fi
-
-  if [ "${#message}" -gt "$available_chars" ]; then
-    if [ "$available_chars" -gt 3 ]; then
-      message="${message:0:$((available_chars - 3))}..."
-    else
-      message="${message:0:$available_chars}"
-    fi
-  fi
-
-  printf '%s%s\n' "$prefix" "$message"
-}
-
-pre_commit_config_exists_in_worktree() {
-  [ -f "$(git_repo_root)/$PRE_COMMIT_CONFIG_FILE" ]
-}
-
-pre_commit_config_is_tracked() {
-  git ls-files --error-unmatch -- "$PRE_COMMIT_CONFIG_FILE" >/dev/null 2>&1
-}
-
-pre_commit_config_commit_title() {
-  local scope="$1"
-  local action='update'
-
-  if ! pre_commit_config_is_tracked; then
-    action='add'
-  fi
-
-  format_commit_title chore "$scope" "$action pre-commit config"
-}
-
-should_separate_pre_commit_config_commit() {
-  local plan_json="$1"
-  local scope="$2"
-  local changed_files="$3"
-  local type message title
-  local -a commit_files=()
-
-  if ! changed_files_include_path "$changed_files" "$PRE_COMMIT_CONFIG_FILE"; then
-    return 1
-  fi
-
-  if ! pre_commit_config_exists_in_worktree; then
-    return 1
-  fi
-
-  read_commit_plan_item "$plan_json" 0 "$scope" "$changed_files" type message title commit_files
-  if [ "${#commit_files[@]}" -eq 1 ] && [ "${commit_files[0]}" = "$PRE_COMMIT_CONFIG_FILE" ]; then
-    return 1
-  fi
-
-  return 0
-}
-
-copy_commit_files() {
-  local output_ref_name="$1"
-  shift
-  # shellcheck disable=SC2178
-  local -n output_ref="$output_ref_name"
-
-  output_ref=("$@")
-}
-
-copy_commit_files_without_pre_commit_config() {
-  local output_ref_name="$1"
-  shift
-  local file
-  # shellcheck disable=SC2178
-  local -n output_ref="$output_ref_name"
-
-  output_ref=()
-  for file in "$@"; do
-    if [ "$file" != "$PRE_COMMIT_CONFIG_FILE" ]; then
-      output_ref+=("$file")
-    fi
-  done
-}
-
-effective_commit_count() {
-  local plan_json="$1"
-  local scope="$2"
-  local changed_files="$3"
-  local count commit_index effective_count=0
-  local separate_pre_commit_config=false
-  local type message title
-  local -a commit_files=() effective_files=()
-
-  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
-    separate_pre_commit_config=true
-    effective_count=$((effective_count + 1))
-  fi
-
-  count=$(plan_commit_count "$plan_json")
-  commit_index=0
-  while [ "$commit_index" -lt "$count" ]; do
-    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
-
-    if [ "$separate_pre_commit_config" = 'true' ]; then
-      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
-    else
-      copy_commit_files effective_files "${commit_files[@]}"
-    fi
-
-    if [ "${#effective_files[@]}" -gt 0 ]; then
-      effective_count=$((effective_count + 1))
-    fi
-
-    commit_index=$((commit_index + 1))
   done
 
-  printf '%s\n' "$effective_count"
-}
-
-resolve_push_remote() {
-  local branch="$1"
-  local remote
-  local -a remotes=()
-
-  remote=$(git config --get "branch.$branch.pushRemote" 2>/dev/null || true)
-  if [ -n "$remote" ]; then
-    printf '%s\n' "$remote"
-    return 0
-  fi
-
-  remote=$(git config --get remote.pushDefault 2>/dev/null || true)
-  if [ -n "$remote" ]; then
-    printf '%s\n' "$remote"
-    return 0
-  fi
-
-  if git remote get-url origin >/dev/null 2>&1; then
-    printf 'origin\n'
-    return 0
-  fi
-
-  mapfile -t remotes < <(git remote)
-  if [ "${#remotes[@]}" -eq 1 ]; then
-    printf '%s\n' "${remotes[0]}"
-    return 0
-  fi
-
-  echo "Error: unable to determine push remote for branch '$branch'" >&2
-  exit 1
-}
-
-push_current_branch() {
-  local branch="$1"
-  local remote
-
-  if git rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' >/dev/null 2>&1; then
-    debug_log "Pushing branch '$branch' to its configured upstream"
-    git push
-    return 0
-  fi
-
-  remote=$(resolve_push_remote "$branch")
-  debug_log "Pushing branch '$branch' to '$remote' and setting upstream"
-  git push -u "$remote" "$branch"
-}
-
-planned_commit_titles() {
-  local plan_json="$1"
-  local scope="$2"
-  local count commit_index type message title
-
-  count=$(plan_commit_count "$plan_json")
-  commit_index=0
-  while [ "$commit_index" -lt "$count" ]; do
-    type=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].type // empty")
-    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
-    title=$(format_commit_title "$type" "$scope" "$message")
-    printf '%s\n' "$title"
-    commit_index=$((commit_index + 1))
-  done
-}
-
-pull_request_title() {
-  local plan_json="$1"
-  local scope="$2"
-  local count commit_index type message first_type
-
-  count=$(plan_commit_count "$plan_json")
-
-  if [ "$count" -eq 1 ]; then
-    type=$(printf '%s' "$plan_json" | jq -r '.commits[0].type // empty')
-    message=$(printf '%s' "$plan_json" | jq -r '.commits[0].message // empty')
-    format_commit_title "$type" "$scope" "$message"
-    return 0
-  fi
-
-  first_type=$(printf '%s' "$plan_json" | jq -r '.commits[0].type // empty')
-  local -a messages=()
-  commit_index=0
-  while [ "$commit_index" -lt "$count" ]; do
-    message=$(printf '%s' "$plan_json" | jq -r ".commits[$commit_index].message // empty")
-    messages+=("$message")
-    commit_index=$((commit_index + 1))
-  done
-
-  local joined
-  if [ "${#messages[@]}" -le 3 ]; then
-    joined=$(printf '%s, ' "${messages[@]}")
-    joined=${joined%, }
-  else
-    joined=$(printf '%s, ' "${messages[@]:0:2}")
-    joined="${joined}and $((count - 2)) more"
-  fi
-
-  if [ -n "$scope" ]; then
-    printf '%s(%s): %s\n' "$first_type" "$scope" "$joined"
-  else
-    printf '%s: %s\n' "$first_type" "$joined"
-  fi
-}
-
-pull_request_body() {
-  local plan_json="$1"
-  local scope="$2"
-  local title body='Automated PR created by git-commit.'
-
-  while IFS= read -r title; do
-    [ -n "$title" ] || continue
-    body+=$'\n- '
-    body+="$title"
-  done < <(planned_commit_titles "$plan_json" "$scope")
-
-  printf '%s\n' "$body"
-}
-
-planned_pull_request_title() {
-  local plan_json="$1"
-  local scope="$2"
-  local existing_title="${3:-}"
-  local title
-
-  title=$(json_read_string "$plan_json" '.pull_request.title // empty')
-  if [ -n "$title" ]; then
-    printf '%s\n' "$title"
-    return 0
-  fi
-
-  if [ -n "$existing_title" ]; then
-    printf '%s\n' "$existing_title"
-    return 0
-  fi
-
-  pull_request_title "$plan_json" "$scope"
-}
-
-planned_pull_request_body() {
-  local plan_json="$1"
-  local scope="$2"
-  local existing_body="${3:-}"
-  local body fallback_body
-
-  body=$(json_read_string "$plan_json" '.pull_request.body // empty')
-  if [ -n "$body" ]; then
-    printf '%s\n' "$body"
-    return 0
-  fi
-
-  if [ -n "$existing_body" ]; then
-    fallback_body=$(pull_request_body "$plan_json" "$scope")
-    printf '%s\n\n%s\n' "$existing_body" "$fallback_body"
-    return 0
-  fi
-
-  pull_request_body "$plan_json" "$scope"
-}
-
-create_pull_request() {
-  local branch="$1"
-  local plan_json="$2"
-  local scope="$3"
-  local owner="$4"
-  local name="$5"
-  local base_branch="$6"
-  local existing_pr_url="${7:-}"
-  local existing_pr_number="${8:-}"
-  local existing_pr_title="${9:-}"
-  local existing_pr_body="${10:-}"
-  local repo title body response pr_url
-
-  repo="$owner/$name"
-
-  title=$(planned_pull_request_title "$plan_json" "$scope" "$existing_pr_title")
-  body=$(planned_pull_request_body "$plan_json" "$scope" "$existing_pr_body")
-
-  if [ -n "$existing_pr_url" ] && [ -n "$existing_pr_number" ]; then
-    debug_log "Updating existing pull request for '$branch' into '$base_branch': $existing_pr_url"
-    response=$(run_git_api pulls/update "$owner" "$name" "$existing_pr_number" \
-      --field "title=$title" \
-      --field "body=$body")
-    pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty' 2>/dev/null || true)
-    if [ -z "$pr_url" ]; then
-      pr_url="$existing_pr_url"
-    fi
-    printf '\033[1;32mPull request updated:\033[0m %s\n' "$pr_url"
-    return 0
-  fi
-
-  debug_log "Creating pull request for '$branch' into '$base_branch' on '$repo'"
-  response=$(run_git_api pulls/create "$owner" "$name" \
-    --field "title=$title" \
-    --field "head=$branch" \
-    --field "base=$base_branch" \
-    --field "body=$body")
-  pr_url=$(printf '%s' "$response" | jq -r '.html_url // empty' 2>/dev/null || true)
-  if [ -n "$pr_url" ]; then
-    printf '\033[1;32mPull request:\033[0m %s\n' "$pr_url"
-    return 0
-  fi
-
-  echo 'Error: git-api did not return a pull request URL' >&2
-  exit 1
-}
-
-find_existing_pull_request_response() {
-  local owner="$1"
-  local repo_name="$2"
-  local branch="$3"
-  local base_branch="$4"
-  local response pr_url
-
-  response=$(run_git_api pulls/list "$owner" "$repo_name" \
-    --state open \
-    --head "$owner:$branch" \
-    --base "$base_branch" 2>/dev/null || true)
-  if [ -z "$response" ]; then
-    return 1
-  fi
-
-  pr_url=$(printf '%s' "$response" | jq -r '.[0].html_url // empty' 2>/dev/null || true)
-  if [ -z "$pr_url" ]; then
-    return 1
-  fi
-
-  printf '%s\n' "$response"
-}
-
-pull_request_url_from_list_response() {
-  local response="${1:-}"
-
-  if [ -z "$response" ]; then
-    return 0
-  fi
-
-  json_read_string "$response" '.[0].html_url // empty'
-}
-
-pull_request_number_from_list_response() {
-  local response="${1:-}"
-
-  if [ -z "$response" ]; then
-    return 0
-  fi
-
-  json_read_string "$response" '.[0].number // empty'
-}
-
-pull_request_title_from_list_response() {
-  local response="${1:-}"
-
-  if [ -z "$response" ]; then
-    return 0
-  fi
-
-  json_read_string "$response" '.[0].title // empty'
-}
-
-pull_request_body_from_list_response() {
-  local response="${1:-}"
-
-  if [ -z "$response" ]; then
-    return 0
-  fi
-
-  json_read_string "$response" '.[0].body // empty'
-}
-
-resolve_pull_request_context() {
-  local branch="$1"
-  local requested_base_branch="$2"
-  local context_var_name="$3"
-  local remote repo owner name base_branch existing_pr_response
-  local -n context_ref="$context_var_name"
-
-  remote=$(resolve_push_remote "$branch")
-  repo=$(github_repo_from_remote "$remote")
-  owner=${repo%%/*}
-  name=${repo#*/}
-  base_branch=$(resolve_pull_request_base_branch "$requested_base_branch" "$owner" "$name" "$remote")
-
-  if [ "$branch" = "$base_branch" ]; then
-    echo "Error: --pr requires a branch different from the base branch '$base_branch'" >&2
-    exit 1
-  fi
-
-  existing_pr_response=$(find_existing_pull_request_response "$owner" "$name" "$branch" "$base_branch" || true)
-  context_ref[remote]="$remote"
-  context_ref[owner]="$owner"
-  context_ref[name]="$name"
-  context_ref[base_branch]="$base_branch"
-  # shellcheck disable=SC2154
-  {
-    context_ref[existing_response]="$existing_pr_response"
-    context_ref[existing_url]="$(pull_request_url_from_list_response "$existing_pr_response")"
-    context_ref[existing_number]="$(pull_request_number_from_list_response "$existing_pr_response")"
-    context_ref[existing_title]="$(pull_request_title_from_list_response "$existing_pr_response")"
-    context_ref[existing_body]="$(pull_request_body_from_list_response "$existing_pr_response")"
-  }
-  if [ -n "$existing_pr_response" ]; then
-    # shellcheck disable=SC2154
-    context_ref[existing_exists]='true'
-  else
-    # shellcheck disable=SC2034
-    context_ref[existing_exists]='false'
-  fi
-}
-
-request_validated_commit_plan() {
-  local output_ref_name="$1"
-  local profile="$2"
-  local model="$3"
-  local additional_profile="$4"
-  local additional_model="$5"
-  local branch="$6"
-  local scope="$7"
-  local changed_files="$8"
-  local diff_output="$9"
-  local create_pr="${10}"
-  local resolved_pr_base_branch="${11:-}"
-  local existing_pr_title="${12:-}"
-  local existing_pr_body="${13:-}"
-  local existing_pr_exists="${14:-false}"
-  local system_message user_message raw_requested_plan_json requested_plan_json retry_message attempt max_attempts validation_error request_status
-  # shellcheck disable=SC2178
-  local -n output_ref="$output_ref_name"
-
-  debug_log 'Collecting workspace diff for commit planning'
-  system_message=$(commit_planning_system_message "$create_pr")
-  user_message=$(build_commit_planning_message "$branch" "$scope" "$changed_files" "$diff_output" "$create_pr" "$resolved_pr_base_branch" "$existing_pr_title" "$existing_pr_body" "$existing_pr_exists")
-
-  max_attempts=2
-  attempt=1
-  validation_error=''
-  while true; do
-    debug_log "Requesting commit plan, attempt $attempt/$max_attempts"
-    if [ "$attempt" -eq 1 ]; then
-      raw_requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$user_message") || {
-        request_status=$?
-        exit "$request_status"
-      }
-    else
-      retry_message=$(build_commit_planning_retry_message "$user_message" "$validation_error")
-      debug_log 'Retrying commit plan request with correction guidance'
-      raw_requested_plan_json=$(request_commit_plan "$profile" "$model" "$additional_profile" "$additional_model" "$system_message" "$retry_message") || {
-        request_status=$?
-        exit "$request_status"
-      }
-    fi
-
-    record_raw_commit_plan_response "$raw_requested_plan_json"
-    requested_plan_json=$(extract_commit_plan_json "$raw_requested_plan_json")
-    debug_log "Extracted commit plan JSON (${#requested_plan_json} chars)"
-
-    if commit_plan_json_is_parseable "$requested_plan_json"; then
-      validation_error=$(run_commit_plan_validation "$requested_plan_json" "$changed_files" "$create_pr") && {
-        debug_log 'Validated commit plan JSON'
-        # shellcheck disable=SC2178
-        output_ref="$requested_plan_json"
-        return 0
-      }
-    else
-      validation_error='Your previous response did not contain parseable commit plan JSON. Return ONLY the JSON object with the exact shape requested, no markdown fences, no commentary, no prose before or after the JSON.'
-    fi
-
-    if [ "$attempt" -ge "$max_attempts" ]; then
-      debug_log "Commit plan validation failed after $max_attempts attempts"
-      break
-    fi
-
-    attempt=$((attempt + 1))
-  done
-
-  if [ -n "$validation_error" ]; then
-    case "$validation_error" in
-    'Error: '*)
-      printf '%s\n' "$validation_error" >&2
-      ;;
-    *)
-      printf 'Error: %s\n' "$validation_error" >&2
-      ;;
-    esac
-  fi
-
-  print_raw_commit_plan_response
-
-  case "$validation_error" in
-  'Error: '*)
-    exit 1
-    ;;
-  esac
-
-  echo 'Error: model-profile ask did not return valid commit plan JSON' >&2
-  exit 1
-}
-
-load_run_configuration() {
-  local config_values
-
-  debug_log 'Loading configured model profile'
-  config_values=$(load_configuration)
-  printf '%s\n' "$config_values"
-}
-
-resolve_repository_git_api_auth() {
-  local token stderr_file stderr_output
-
-  GIT_COMMIT_GIT_API_TOKEN=''
-  stderr_file=$(mktemp)
-  register_tmpfile "$stderr_file"
-
-  debug_log 'Checking for a repository git profile PAT'
-  if token=$(run_git_profile token 2>"$stderr_file"); then
-    GIT_COMMIT_GIT_API_TOKEN="$token"
-    debug_log 'Using repository git profile PAT for pull request API calls'
-    return 0
-  fi
-
-  stderr_output=$(<"$stderr_file")
-  case "$stderr_output" in
-  'Error: no git profile is recorded in this repository' | "Error: PAT not configured for profile '"*"'")
-    debug_log 'No repository git profile PAT is available; falling back to git-api profile resolution'
-    return 0
-    ;;
-  '')
-    echo 'Error: failed to resolve repository git profile PAT' >&2
-    ;;
-  *)
-    printf '%s\n' "$stderr_output" >&2
-    ;;
-  esac
-
-  exit 1
-}
-
-prepare_workspace_changes() {
-  local output_ref_name="$1"
-  local pre_commit_retries="$2"
-  local current_dir="$3"
-  shift 3
-  local prepared_changed_files filtered_changed_files changed_file_count repo_root
-  local selected_path
-  local -a selected_paths=()
-  # shellcheck disable=SC2178
-  local -n output_ref="$output_ref_name"
-
-  debug_log 'Checking repository state'
-  require_git_repository
-  ensure_no_staged_changes
-  ensure_changes_exist
-
-  debug_log 'Collecting changed files'
-  prepared_changed_files=$(collect_changed_files)
-  repo_root=$(git_repo_root)
-  for selected_path in "$@"; do
-    selected_paths+=("$(resolve_scope_path "$repo_root" "$current_dir" "$selected_path")")
-  done
-  filtered_changed_files=$(filter_changed_files_to_scope "$prepared_changed_files" "${selected_paths[@]}")
-  if [ "${#selected_paths[@]}" -gt 0 ]; then
-    debug_log "Filtering changed files to ${#selected_paths[@]} selected path(s)"
-  fi
-  changed_file_count=$(count_nonempty_lines "$filtered_changed_files")
-  if [ "$changed_file_count" -eq 0 ]; then
-    if [ "${#selected_paths[@]}" -gt 0 ]; then
-      echo 'Error: no file changes found in the selected --path scope' >&2
-    else
-      echo 'Error: no file changes found in the current git workspace' >&2
-    fi
-    exit 1
-  fi
-  debug_log "Collected $changed_file_count changed file(s)"
-
-  run_pre_commit_checks "$filtered_changed_files" "$pre_commit_retries"
-  ensure_changes_exist
-
-  debug_log 'Refreshing changed files after pre-commit checks'
-  prepared_changed_files=$(collect_changed_files)
-  filtered_changed_files=$(filter_changed_files_to_scope "$prepared_changed_files" "${selected_paths[@]}")
-  changed_file_count=$(count_nonempty_lines "$filtered_changed_files")
-  if [ "$changed_file_count" -eq 0 ]; then
-    echo 'Error: no file changes remained in the selected --path scope after pre-commit checks' >&2
-    exit 1
-  fi
-  debug_log "Collected $changed_file_count changed file(s) after pre-commit"
-
-  # shellcheck disable=SC2034
-  # shellcheck disable=SC2178
-  output_ref="$filtered_changed_files"
-}
-
-default_branch_from_git_api() {
-  local owner="$1"
-  local repo_name="$2"
-  local response branch
-
-  response=$(run_git_api repos/get "$owner" "$repo_name" 2>/dev/null || true)
-  if [ -z "$response" ]; then
-    return 1
-  fi
-
-  branch=$(printf '%s' "$response" | jq -r '.default_branch // empty' 2>/dev/null || true)
-  if [ -z "$branch" ]; then
-    return 1
-  fi
-
-  printf '%s\n' "$branch"
-}
-
-default_branch_from_git() {
-  local remote="$1"
-  local ref line output
-
-  ref=$(git symbolic-ref --quiet --short "refs/remotes/${remote}/HEAD" 2>/dev/null || true)
-  if [ -n "$ref" ]; then
-    printf '%s\n' "${ref#"${remote}"/}"
-    return 0
-  fi
-
-  output=$(git remote show "$remote" 2>/dev/null || true)
-  while IFS= read -r line; do
-    case "$line" in
-    *'HEAD branch: '*)
-      printf '%s\n' "${line##*HEAD branch: }"
-      return 0
-      ;;
-    esac
-  done <<<"$output"
-
-  return 1
-}
-
-resolve_pull_request_base_branch() {
-  local requested_base_branch="$1"
-  local owner="$2"
-  local repo_name="$3"
-  local remote="$4"
-  local base_branch
-
-  if [ -n "$requested_base_branch" ]; then
-    printf '%s\n' "$requested_base_branch"
-    return 0
-  fi
-
-  base_branch=$(default_branch_from_git_api "$owner" "$repo_name" || true)
-  if [ -n "$base_branch" ]; then
-    printf '%s\n' "$base_branch"
-    return 0
-  fi
-
-  base_branch=$(default_branch_from_git "$remote" || true)
-  if [ -n "$base_branch" ]; then
-    printf '%s\n' "$base_branch"
-    return 0
-  fi
-
-  echo 'Error: unable to determine the pull request base branch' >&2
-  exit 1
-}
-
-parse_run_options() {
-  local scope_override=''
-  local no_scope=false
-  local apply_commits=false
-  local push_commits=false
-  local create_pr=false
-  local pr_base_branch=''
-  local pre_commit_retries=2
-  local debug_mode=false
-  local -a path_file_entries=()
-  local -a selected_paths=()
-
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-    --apply)
-      apply_commits=true
-      shift
-      ;;
-    --debug)
-      debug_mode=true
-      shift
-      ;;
-    --push)
-      push_commits=true
-      shift
-      ;;
-    --pr)
-      create_pr=true
-      if [ "$#" -ge 2 ] && [[ "$2" != --* ]]; then
-        pr_base_branch="$2"
-        shift 2
-      else
-        shift
-      fi
-      ;;
-    --pr=*)
-      create_pr=true
-      pr_base_branch="${1#--pr=}"
-      shift
-      ;;
-    --pre-commit-retries)
-      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
-        echo 'Error: --pre-commit-retries requires a value' >&2
-        exit 1
-      fi
-      if ! [[ "$2" =~ ^[0-9]+$ ]]; then
-        echo 'Error: --pre-commit-retries must be a non-negative integer' >&2
-        exit 1
-      fi
-      pre_commit_retries="$2"
-      shift 2
-      ;;
-    --pre-commit-retries=*)
-      pre_commit_retries="${1#--pre-commit-retries=}"
-      if [ -z "$pre_commit_retries" ]; then
-        echo 'Error: --pre-commit-retries requires a value' >&2
-        exit 1
-      fi
-      if ! [[ "$pre_commit_retries" =~ ^[0-9]+$ ]]; then
-        echo 'Error: --pre-commit-retries must be a non-negative integer' >&2
-        exit 1
-      fi
-      shift
-      ;;
-    --path)
-      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
-        echo 'Error: --path requires a value' >&2
-        exit 1
-      fi
-      selected_paths+=("$2")
-      shift 2
-      ;;
-    --path=*)
-      if [ -z "${1#--path=}" ]; then
-        echo 'Error: --path requires a value' >&2
-        exit 1
-      fi
-      selected_paths+=("${1#--path=}")
-      shift
-      ;;
-    --path-file)
-      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
-        echo 'Error: --path-file requires a value' >&2
-        exit 1
-      fi
-      mapfile -t path_file_entries < <(load_scope_paths_file "$2")
-      selected_paths+=("${path_file_entries[@]}")
-      shift 2
-      ;;
-    --path-file=*)
-      if [ -z "${1#--path-file=}" ]; then
-        echo 'Error: --path-file requires a value' >&2
-        exit 1
-      fi
-      mapfile -t path_file_entries < <(load_scope_paths_file "${1#--path-file=}")
-      selected_paths+=("${path_file_entries[@]}")
-      shift
-      ;;
-    --scope)
-      if [ "$#" -lt 2 ] || [ -z "$2" ]; then
-        echo 'Error: --scope requires a value' >&2
-        exit 1
-      fi
-      scope_override="$2"
-      no_scope=false
-      shift 2
-      ;;
-    --scope=*)
-      scope_override="${1#--scope=}"
-      if [ -z "$scope_override" ]; then
-        echo 'Error: --scope requires a value' >&2
-        exit 1
-      fi
-      no_scope=false
-      shift
-      ;;
-    --no-scope)
-      scope_override=''
-      no_scope=true
-      shift
-      ;;
-    *)
-      echo "Error: unknown option '$1'" >&2
-      usage >&2
-      exit 1
-      ;;
-    esac
-  done
-
-  if [ "$create_pr" = 'true' ]; then
-    push_commits=true
-  fi
-
-  if [ "$push_commits" = 'true' ]; then
-    apply_commits=true
-  fi
-
-  printf '%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n' "$scope_override" "$no_scope" "$apply_commits" "$push_commits" "$create_pr" "$pr_base_branch" "$pre_commit_retries" "$debug_mode" "${#selected_paths[@]}"
-  printf '%s\n' "${selected_paths[@]}"
-}
-
-resolve_scope() {
-  local branch="$1"
-  local scope_override="$2"
-  local no_scope="$3"
-  local changed_files="$4"
-  local scope
-
-  if [ "$no_scope" = 'true' ]; then
-    printf '\n'
-    return 0
-  fi
-
-  if [ -n "$scope_override" ]; then
-    printf '%s\n' "$scope_override"
-    return 0
-  fi
-
-  scope=$(derive_scope_from_branch "$branch")
-  if [ -n "$scope" ]; then
-    printf '%s\n' "$scope"
-    return 0
-  fi
-
-  derive_scope_from_monorepo "$changed_files"
-}
-
-print_git_add_command() {
-  if [ "$#" -eq 0 ]; then
-    printf 'git add -A :/\n'
-    return 0
-  fi
-
-  local file
-  printf 'git add --'
-  for file in "$@"; do
-    printf ' %q' ":/$file"
-  done
-  printf '\n'
-}
-
-shell_squote() {
-  local text="$1"
-
-  printf "'%s'" "${text//\'/\'\\\'\'}"
-}
-
-print_git_commit_command() {
-  local title="$1"
-
-  printf 'git commit -m %s\n' "$(shell_squote "$title")"
-}
-
-print_commit_plan() {
-  local plan_json="$1"
-  local scope="$2"
-  local changed_files="$3"
-  local count commit_index type message title width effective_count display_index=0
-  local separate_pre_commit_config=false pre_commit_title
-  local -a commit_files=() lines=()
-  local -a effective_files=()
-
-  count=$(plan_commit_count "$plan_json")
-  effective_count=$(effective_commit_count "$plan_json" "$scope" "$changed_files")
-
-  lines+=("commit plan")
-  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
-    separate_pre_commit_config=true
-    pre_commit_title=$(pre_commit_config_commit_title "$scope")
-    display_index=$((display_index + 1))
-    if [ "$effective_count" -gt 1 ]; then
-      lines+=("Commit ${display_index}:")
-    fi
-    lines+=("$(print_git_add_command "$PRE_COMMIT_CONFIG_FILE")")
-    lines+=("$(print_git_commit_command "$pre_commit_title")")
-    if [ "$display_index" -lt "$effective_count" ]; then
-      lines+=("")
-    fi
-  fi
-
-  commit_index=0
-  while [ "$commit_index" -lt "$count" ]; do
-    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
-
-    if [ "$separate_pre_commit_config" = 'true' ]; then
-      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
-    else
-      copy_commit_files effective_files "${commit_files[@]}"
-    fi
-
-    if [ "${#effective_files[@]}" -eq 0 ]; then
-      commit_index=$((commit_index + 1))
-      continue
-    fi
-
-    display_index=$((display_index + 1))
-    if [ "$effective_count" -eq 1 ]; then
-      lines+=("$(print_git_add_command "${effective_files[@]}")")
-    else
-      lines+=("Commit ${display_index}:")
-      lines+=("$(print_git_add_command "${effective_files[@]}")")
-    fi
-
-    lines+=("$(print_git_commit_command "$title")")
-    if [ "$display_index" -lt "$effective_count" ]; then
-      lines+=("")
-    fi
-    commit_index=$((commit_index + 1))
-  done
-
-  width=$(picotools_box_width_for_lines 60 "${lines[@]}")
-  if [ "$width" -gt 120 ]; then
-    width=120
-  fi
-
-  printf '\n'
-  picotools_box_top "$width"
-  picotools_box_line "${lines[0]}" "$width"
-  picotools_box_separator "$width"
-
-  for ((commit_index = 1; commit_index < ${#lines[@]}; commit_index++)); do
-    picotools_box_wrap_line "${lines[$commit_index]}" "$width"
-  done
-
-  picotools_box_bottom "$width"
-  printf '\n'
-}
-
-execute_commit_plan() {
-  local plan_json="$1"
-  local scope="$2"
-  local changed_files="$3"
-  local count commit_index type message title pre_commit_title
-  local separate_pre_commit_config=false effective_count
-  local -a commit_files=()
-  local -a effective_files=()
-
-  count=$(plan_commit_count "$plan_json")
-  effective_count=$(effective_commit_count "$plan_json" "$scope" "$changed_files")
-  debug_log "Applying commit plan with $effective_count commit(s)"
-
-  if should_separate_pre_commit_config_commit "$plan_json" "$scope" "$changed_files"; then
-    separate_pre_commit_config=true
-    pre_commit_title=$(pre_commit_config_commit_title "$scope")
-    debug_log "Creating pre-commit config bootstrap commit: $pre_commit_title"
-    git add -- ":/$PRE_COMMIT_CONFIG_FILE"
-    git commit -m "$pre_commit_title"
-  fi
-
-  commit_index=0
-  while [ "$commit_index" -lt "$count" ]; do
-    read_commit_plan_item "$plan_json" "$commit_index" "$scope" "$changed_files" type message title commit_files
-
-    if [ "$separate_pre_commit_config" = 'true' ]; then
-      copy_commit_files_without_pre_commit_config effective_files "${commit_files[@]}"
-    else
-      copy_commit_files effective_files "${commit_files[@]}"
-    fi
-
-    if [ "${#effective_files[@]}" -eq 0 ]; then
-      commit_index=$((commit_index + 1))
-      continue
-    fi
-
-    debug_log "Creating commit $((commit_index + 1))/$count: $title"
-    git add -- "${effective_files[@]/#/:/}"
-    git commit -m "$title"
-    commit_index=$((commit_index + 1))
-  done
+  model_profile_command >/dev/null
 }
 
 run_commit_tool() {
-  local config_values profile model additional_profile additional_model git_api_profile branch scope changed_files='' diff_output plan_json scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode selected_path_count current_dir
+  local config_values profile model additional_profile additional_model git_api_profile branch scope diff_output plan_json planned_fingerprint scope_override no_scope apply_commits push_commits create_pr pr_base_branch pre_commit_retries debug_mode current_dir
   local -a config_lines=()
-  local -a option_values=()
   local -a selected_paths=()
+  # shellcheck disable=SC2034
+  local -a changed_files=()
+  local -A run_options=()
   local -A pr_context=()
 
-  mapfile -t option_values < <(parse_run_options "$@")
-  scope_override="${option_values[0]:-}"
-  no_scope="${option_values[1]:-false}"
-  apply_commits="${option_values[2]:-false}"
-  push_commits="${option_values[3]:-false}"
-  create_pr="${option_values[4]:-false}"
-  pr_base_branch="${option_values[5]:-}"
-  pre_commit_retries="${option_values[6]:-2}"
-  debug_mode="${option_values[7]:-false}"
-  selected_path_count="${option_values[8]:-0}"
-  if [ "$selected_path_count" -gt 0 ]; then
-    selected_paths=("${option_values[@]:9:$selected_path_count}")
-  fi
+  parse_run_options run_options selected_paths "$@" || return $?
+  scope_override="${run_options[scope_override]:-}"
+  no_scope="${run_options[no_scope]:-false}"
+  apply_commits="${run_options[apply_commits]:-false}"
+  push_commits="${run_options[push_commits]:-false}"
+  create_pr="${run_options[create_pr]:-false}"
+  pr_base_branch="${run_options[pr_base_branch]:-}"
+  pre_commit_retries="${run_options[pre_commit_retries]:-2}"
+  debug_mode="${run_options[debug_mode]:-false}"
 
   if [ "$debug_mode" = 'true' ]; then
     enable_debug_logging
   fi
 
   current_dir=$(pwd -P)
-  prepare_workspace_changes changed_files "$pre_commit_retries" "$current_dir" "${selected_paths[@]}"
+  prepare_workspace_changes changed_files "$pre_commit_retries" "$current_dir" "$apply_commits" "${selected_paths[@]}" || return 1
 
-  config_values=$(load_run_configuration)
+  config_values=$(load_run_configuration) || return 1
   mapfile -t config_lines <<<"$config_values"
   profile="${config_lines[0]:-}"
   model="${config_lines[1]:-}"
@@ -1895,11 +207,11 @@ run_commit_tool() {
   git_api_profile="${config_lines[4]:-}"
   GIT_COMMIT_GIT_API_TOKEN=''
   GIT_COMMIT_GIT_API_PROFILE="$git_api_profile"
-  require_dependencies
+  require_dependencies || return 1
   if [ "$create_pr" = 'true' ]; then
-    git_api_command >/dev/null
-    git_profile_command >/dev/null
-    resolve_repository_git_api_auth
+    git_api_command >/dev/null || return 1
+    git_profile_command >/dev/null || return 1
+    resolve_repository_git_api_auth || return 1
     if [ -n "$GIT_COMMIT_GIT_API_TOKEN" ]; then
       echo 'Pull request auth: current git-profile PAT.'
     elif [ -n "$GIT_COMMIT_GIT_API_PROFILE" ]; then
@@ -1910,33 +222,40 @@ run_commit_tool() {
   fi
 
   debug_log 'Resolving branch and commit scope'
-  branch=$(current_branch_name)
-  scope=$(resolve_scope "$branch" "$scope_override" "$no_scope" "$changed_files")
+  branch=$(current_branch_name) || return 1
+  scope=$(resolve_scope "$branch" "$scope_override" "$no_scope" changed_files) || return 1
   debug_log "Resolved branch '$branch' and scope '${scope:-<none>}'"
 
   if [ "$create_pr" = 'true' ]; then
     debug_log 'Resolving pull request context before commit planning'
-    resolve_pull_request_context "$branch" "$pr_base_branch" pr_context
+    resolve_pull_request_context "$branch" "$pr_base_branch" pr_context || return 1
     if [ "${pr_context[existing_exists]:-false}" = 'true' ]; then
       debug_log "Found existing open pull request for '$branch' into '${pr_context[base_branch]:-}' before commit planning"
     fi
   fi
 
-  diff_output=$(collect_changes_diff "$changed_files")
-  request_validated_commit_plan plan_json "$profile" "$model" "$additional_profile" "$additional_model" "$branch" "$scope" "$changed_files" "$diff_output" "$create_pr" "${pr_context[base_branch]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}" "${pr_context[existing_exists]:-false}"
+  diff_output=$(collect_changes_diff changed_files)
+  capture_workspace_fingerprint planned_fingerprint changed_files
+  request_validated_commit_plan plan_json "$profile" "$model" "$additional_profile" "$additional_model" "$branch" "$scope" changed_files "$diff_output" "$create_pr" "${pr_context[base_branch]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}" "${pr_context[existing_exists]:-false}" || return 1
   debug_log 'Printing commit plan preview'
-  print_commit_plan "$plan_json" "$scope" "$changed_files"
+  print_commit_plan "$plan_json" "$scope" changed_files || return 1
 
   if [ "$apply_commits" = 'true' ]; then
-    execute_commit_plan "$plan_json" "$scope" "$changed_files"
+    revalidate_workspace_before_apply changed_files "$planned_fingerprint" "$current_dir" "${selected_paths[@]}" || return 1
+    execute_commit_plan "$plan_json" "$scope" changed_files || return 1
     if [ "$push_commits" = 'true' ]; then
       debug_log 'Pushing committed branch'
-      push_current_branch "$branch"
+      if ! push_current_branch "$branch"; then
+        report_push_failure
+        return 1
+      fi
       if [ "$create_pr" = 'true' ]; then
-        create_pull_request "$branch" "$plan_json" "$scope" "${pr_context[owner]:-}" "${pr_context[name]:-}" "${pr_context[base_branch]:-}" "${pr_context[existing_url]:-}" "${pr_context[existing_number]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}"
+        if ! create_pull_request "$branch" "$plan_json" "$scope" "${pr_context[owner]:-}" "${pr_context[name]:-}" "${pr_context[base_branch]:-}" "${pr_context[head_owner]:-}" "${pr_context[head_ref]:-}" "${pr_context[existing_url]:-}" "${pr_context[existing_number]:-}" "${pr_context[existing_title]:-}" "${pr_context[existing_body]:-}"; then
+          report_pull_request_failure
+          return 1
+        fi
       fi
     fi
-    return 0
   fi
 }
 
@@ -1965,4 +284,6 @@ main() {
   esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi
