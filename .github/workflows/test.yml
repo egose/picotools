@@ -26,6 +26,9 @@ jobs:
     steps:
     - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+    - name: Setup Tools
+      uses: ./.github/actions/setup-tools
+
     - name: Validate Bash Scripts
       run: |
         npm run check:syntax
