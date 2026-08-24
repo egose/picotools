@@ -1,3 +1,9 @@
+## [0.53.1](https://github.com/egose/picotools/compare/v0.53.0...v0.53.1) (2026-08-24)
+
+### Bug Fixes
+
+* ignore unresolved placeholder scopes and update prompt guidance ([ce3a19a](https://github.com/egose/picotools/commit/ce3a19adcbaab5bf48c0014bc0558bf3cec5ce88))
+
 ## [0.53.0](https://github.com/egose/picotools/compare/v0.52.0...v0.53.0) (2026-08-24)
 
 ### Features
