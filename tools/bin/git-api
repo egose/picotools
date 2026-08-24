@@ -229,12 +229,20 @@ show_operation() {
 
   while IFS=$'\t' read -r name required _; do
     [ -n "$name" ] || continue
-    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$name")" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+    local required_label=''
+    if [ "$required" = 'true' ]; then
+      required_label=' (required)'
+    fi
+    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$name")" "$required_label"
   done < <(git_api_operation_query_parameters "$SCRIPT_DIR" "$file")
 
   while IFS=$'\t' read -r name required _; do
     [ -n "$name" ] || continue
-    printf 'Body Field: %s%s\n' "$name" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+    local required_label=''
+    if [ "$required" = 'true' ]; then
+      required_label=' (required)'
+    fi
+    printf 'Body Field: %s%s\n' "$name" "$required_label"
   done < <(git_api_operation_body_fields "$file")
 }
 
@@ -244,7 +252,7 @@ show_operation_usage() {
   local rest_path="$3"
   local docs_url="$4"
   local usage_line="git-api ${operation_id}"
-  local path_param line
+  local path_param line required_label
 
   while IFS= read -r path_param; do
     [ -n "$path_param" ] || continue
@@ -258,7 +266,11 @@ show_operation_usage() {
 
   while IFS=$'\t' read -r query_name required description; do
     [ -n "$query_name" ] || continue
-    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$query_name")" "$([ "$required" = 'true' ] && printf ' (required)' || true)"
+    required_label=''
+    if [ "$required" = 'true' ]; then
+      required_label=' (required)'
+    fi
+    printf 'Query Flag: --%s%s\n' "$(git_api_cli_flag_name "$query_name")" "$required_label"
     if [ -n "$description" ]; then
       printf '  %s\n' "$description"
     fi
