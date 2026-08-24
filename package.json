@@ -15,11 +15,12 @@
   "scripts": {
     "check:format": "scripts/shfmt-diff.bash && git diff --check",
     "check:shellcheck": "scripts/shellcheck.bash",
-    "check:syntax": "bash -n bin/* tools/bin/* lib/picotools/*.sh scripts/*.bash tests/helpers/*.bash tests/git-commit*.bats",
+    "check:syntax": "bash -n bin/* tools/bin/* lib/picotools/*.sh scripts/*.bash tests/helpers/*.bash tests/*.bats",
     "release": "release-it",
+    "test:git-clean-branches": "bats tests/git-clean-branches*.bats",
     "test:git-commit": "bats tests/git-commit*.bats",
     "test:git-profile": "bats tests/git-profile*.bats",
-    "test:model-profile": "bats tests/model-profile.bats",
+    "test:model-profile": "bats tests/model-profile*.bats",
     "changelog": "repo-toolkit-changelog",
     "test": "bats tests/*.bats"
   },
