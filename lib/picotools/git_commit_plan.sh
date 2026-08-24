@@ -67,10 +67,11 @@ run_commit_plan_validation() {
   local changed_files_ref_name="$2"
   local create_pr="$3"
   local scope="${4:-}"
+  local relaxed_plan="${5:-false}"
   local error_output
   local status=0
 
-  error_output=$(validate_commit_plan "$plan_json" "$changed_files_ref_name" "$scope" 2>&1 >/dev/null) || status=1
+  error_output=$(validate_commit_plan "$plan_json" "$changed_files_ref_name" "$scope" "$relaxed_plan" 2>&1 >/dev/null) || status=1
   if [ "$status" -eq 0 ]; then
     if [ "$create_pr" = 'true' ]; then
       error_output=$(validate_pull_request_plan "$plan_json" 2>&1 >/dev/null) || status=1
@@ -278,10 +279,59 @@ validate_multi_commit_plan() {
   done
 }
 
+validate_relaxed_multi_commit_plan() {
+  local plan_json="$1"
+  local changed_files_ref_name="$2"
+  local count commit_index
+  local -A changed_file_set=()
+  local -a commit_files=()
+
+  build_changed_file_lookup_map "$changed_files_ref_name" changed_file_set
+
+  count=$(plan_commit_count "$plan_json")
+  commit_index=0
+  while [ "$commit_index" -lt "$count" ]; do
+    resolve_commit_files_into "$plan_json" "$commit_index" changed_file_set commit_files || return 1
+    commit_index=$((commit_index + 1))
+  done
+}
+
+normalize_relaxed_commit_plan() {
+  local plan_json="$1"
+  local changed_files_ref_name="$2"
+  local changed_files_json
+
+  changed_files_json=$(changed_files_json_array "$changed_files_ref_name")
+  printf '%s' "$plan_json" | jq --argjson changed "$changed_files_json" '
+    . as $plan
+    | reduce range(0; ($plan.commits | length)) as $i (
+        {seen: {}, commits: ($plan.commits | map({files: []}))};
+        reduce (($plan.commits[$i].files // [])[]) as $file (
+          .;
+          if .seen[$file] then
+            .
+          else
+            .seen[$file] = true
+            | .commits[$i].files += [$file]
+          end
+        )
+      ) as $deduped
+    | ($changed | map(select(($deduped.seen[.] // false) | not))) as $missing
+    | .commits = [
+        range(0; ($plan.commits | length)) as $i
+        | ($plan.commits[$i] + {
+            files: (($deduped.commits[$i].files // []) + (if $i == (($plan.commits | length) - 1) then $missing else [] end))
+          })
+      ]
+    | .commits |= map(select(.files | length > 0))
+  '
+}
+
 validate_commit_plan() {
   local plan_json="$1"
   local changed_files_ref_name="$2"
   local scope="${3:-}"
+  local relaxed_plan="${4:-false}"
   local count commit_index
 
   if ! json_expr_is_true "$plan_json" 'type == "object"'; then
@@ -306,7 +356,11 @@ validate_commit_plan() {
     commit_index=$((commit_index + 1))
   done
 
-  validate_multi_commit_plan "$plan_json" "$changed_files_ref_name"
+  if [ "$relaxed_plan" = 'true' ]; then
+    validate_relaxed_multi_commit_plan "$plan_json" "$changed_files_ref_name"
+  else
+    validate_multi_commit_plan "$plan_json" "$changed_files_ref_name"
+  fi
 }
 
 validate_pull_request_plan() {

@@ -26,6 +26,7 @@ parse_run_options() {
   options_ref["pr_base_branch"]=''
   options_ref["pre_commit_retries"]=2
   options_ref["debug_mode"]=false
+  options_ref["relaxed_plan"]=false
   selected_paths_ref=()
 
   while [ "$#" -gt 0 ]; do
@@ -36,6 +37,10 @@ parse_run_options() {
       ;;
     --debug)
       options_ref["debug_mode"]=true
+      shift
+      ;;
+    --relaxed-plan)
+      options_ref["relaxed_plan"]=true
       shift
       ;;
     --push)
