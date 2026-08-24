@@ -353,6 +353,7 @@ create_isolated_commit() {
   if [ -n "$parent" ]; then
     commit_tree_args_for_config commit_tree_args "$repo_root" "$tree" "$title" "$parent" || return 1
     if ! commit=$(git -C "$repo_root" commit-tree "${commit_tree_args[@]}"); then
+      report_commit_tree_signing_hint commit_tree_args
       return 1
     fi
     if ! git -C "$repo_root" update-ref -m "git-commit: $title" HEAD "$commit" "$parent"; then
@@ -361,6 +362,7 @@ create_isolated_commit() {
   else
     commit_tree_args_for_config commit_tree_args "$repo_root" "$tree" "$title" || return 1
     if ! commit=$(git -C "$repo_root" commit-tree "${commit_tree_args[@]}"); then
+      report_commit_tree_signing_hint commit_tree_args
       return 1
     fi
     if ! git -C "$repo_root" update-ref -m "git-commit: $title" HEAD "$commit"; then
@@ -368,6 +370,22 @@ create_isolated_commit() {
     fi
   fi
   git -C "$repo_root" reset -q --mixed HEAD --
+}
+
+report_commit_tree_signing_hint() {
+  local args_ref_name="$1"
+  local arg
+  # shellcheck disable=SC2178
+  local -n args_ref="$args_ref_name"
+
+  for arg in "${args_ref[@]}"; do
+    case "$arg" in
+    -S | -S*)
+      echo "Hint: commit.gpgSign is enabled. If pinentry failed, ensure GPG_TTY points to an interactive terminal, for example: export GPG_TTY=\$(tty)." >&2
+      return 0
+      ;;
+    esac
+  done
 }
 
 commit_tree_args_for_config() {

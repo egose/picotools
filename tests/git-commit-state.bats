@@ -401,6 +401,24 @@ EOF
   assert_eq "$(git -C "$repo" log -1 --pretty=%s)" 'feat: update readme' 'apply mode should still create the planned commit'
 }
 
+@test "signed commit-tree failures explain GPG terminal recovery" {
+  local repo output
+
+  repo="$TMP_HOME/repo"
+  setup_state_repo "$repo"
+  git -C "$repo" config commit.gpgSign true
+  printf '%s\n' 'signed change' >>"$repo/README.md"
+
+  if output=$(GIT_COMMIT_TREE_FAIL_AT=1 \
+    MODEL_PROFILE_ASK_RESPONSE='{"commits":[{"type":"feat","message":"update readme","files":["README.md"]}]}' \
+    run_tool_in_repo "$repo" --apply 2>&1); then
+    fail 'git-commit should fail when signed commit-tree creation fails'
+  fi
+
+  assert_contains "$output" 'Hint: commit.gpgSign is enabled.' 'signed commit-tree failures should include a signing-specific hint'
+  assert_contains "$output" "export GPG_TTY=\$(tty)" 'signing hint should mention the standard GPG_TTY recovery'
+}
+
 @test "injected commit 1 failure leaves no commits empty index and recovery guidance" {
   local repo output before_count after_count staged_after status_after
 
