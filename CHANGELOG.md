@@ -1,3 +1,9 @@
+## [0.54.0](https://github.com/egose/picotools/compare/v0.53.1...v0.54.0) (2026-08-24)
+
+### Features
+
+* add relaxed commit plan normalization ([21c9cce](https://github.com/egose/picotools/commit/21c9cce47f8c51ac43582333d8a247121c916b4f))
+
 ## [0.53.1](https://github.com/egose/picotools/compare/v0.53.0...v0.53.1) (2026-08-24)
 
 ### Bug Fixes
