@@ -161,9 +161,9 @@ source_git_profile_modules() {
 }
 
 register_git_profile_module_test_hooks() {
-  # shellcheck disable=SC2329 # These hooks are invoked indirectly by sourced modules.
+  # shellcheck disable=SC2317,SC2329 # These hooks are invoked indirectly by sourced modules.
   register_tmpfile() { :; }
-  # shellcheck disable=SC2329 # These hooks are invoked indirectly by sourced modules.
+  # shellcheck disable=SC2317,SC2329 # These hooks are invoked indirectly by sourced modules.
   debug_log() { :; }
 }
 
