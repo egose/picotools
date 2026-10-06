@@ -1,3 +1,13 @@
+## [0.55.0](https://github.com/egose/picotools/compare/v0.54.2...v0.55.0) (2026-10-06)
+
+### Features
+
+* allow slashed model names in profile validation ([892f564](https://github.com/egose/picotools/commit/892f5640ac5f04c25f5d46748fd6527190d519bc))
+
+### Documentation
+
+* refresh remediation notes and benchmark environment details ([06a12fb](https://github.com/egose/picotools/commit/06a12fb8f99fdf8ddf9baf207cd65cdcfa642d56))
+
 ## [0.54.2](https://github.com/egose/picotools/compare/v0.54.1...v0.54.2) (2026-08-24)
 
 ### Bug Fixes
