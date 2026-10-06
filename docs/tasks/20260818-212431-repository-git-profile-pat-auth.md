@@ -53,7 +53,7 @@ The completed authentication precedence must be:
 - `model-profile` separates config and token storage between `XDG_CONFIG_HOME` and `XDG_DATA_HOME`, and writes token files under `umask 077` (`tools/bin/model-profile:119-130`, `tools/bin/model-profile:219-227`, `tools/bin/model-profile:587-600`).
 - `git-api` stores tokens below `${XDG_DATA_HOME:-$HOME/.local/share}/git-api` and writes them under `umask 077` (`tools/bin/git-api.d/common.sh:11-24`, `tools/bin/git-api.d/common.sh:63-83`).
 - `git-api --token TOKEN` already sets the highest-priority `GIT_API_TOKEN_OVERRIDE` (`tools/bin/git-api:416-423`, `tools/bin/git-api.d/common.sh:257-264`).
-- `git-commit` currently discovers named `git-api` profiles directly from `~/.local/share/git-api/profiles`, saves one optional profile globally, and forwards only `--profile` (`tools/bin/git-commit:95-109`, `tools/bin/git-commit:141-161`, `tools/bin/git-commit:259-281`).
+- `git-commit` currently discovers named `git-api` profiles directly from `${XDG_DATA_HOME:-$HOME/.local/share}/git-api/profiles`, saves one optional profile globally, and forwards only `--profile` (`tools/bin/git-commit:95-109`, `tools/bin/git-commit:141-161`, `tools/bin/git-commit:259-281`).
 - `git-commit` loads the optional `git-api.profile` before all PR-related calls (`tools/bin/git-commit:1800-1849`).
 - Existing coverage verifies the configured fallback profile is passed to both default-branch and PR calls (`tests/git-commit.bats:2077-2107`).
 - The repository's Bash conventions require matching Bats coverage, `bash -n`, all Bats tests, shellcheck/pre-commit, and two-space shfmt formatting (`.opencode/skills/bash-tool-conventions/SKILL.md:132-143`).
