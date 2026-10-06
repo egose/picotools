@@ -172,13 +172,25 @@ write_profile_config() {
 }
 
 @test "model names are normalized and reject separators controls and empty values" {
-  local input_file
+  local input_file output invalid_models
 
-  input_file="$TMP_HOME/bad-models-input"
-  printf 'bad-models\n1\nexample-openai\ngpt-5, bad/model\nsecret\n' >"$input_file"
+  input_file="$TMP_HOME/slashed-models-input"
+  printf 'slashed-models\n1\nexample-openai\nopenai/gpt-5, org/sub-model v2\nsecret\n' >"$input_file"
   run "$MODEL_PROFILE_TOOL" create <"$input_file"
-  assert_eq "$status" 1 'create should reject model names with path separators'
-  assert_file_not_exists "$(profile_file_path bad-models)" 'invalid model names should not be saved'
+  assert_eq "$status" 0 'create should accept model names with single slashes'
+  assert_config_value "$(profile_file_path slashed-models)" provider.models 'openai/gpt-5,org/sub-model v2' 'create should store slashed model names'
+
+  output=$(run_tool models slashed-models)
+  assert_contains "$output" 'openai/gpt-5' 'models should expose slashed model names'
+  assert_contains "$output" 'org/sub-model v2' 'models should expose slashed model names with spaces'
+
+  for invalid_models in 'gpt-5, bad//model' 'gpt-5, /bad-model' 'gpt-5, bad-model/' 'gpt-5, bad /model' 'gpt-5, bad/ model' 'gpt-5, bad\model' 'gpt-5, bad|model' 'gpt-5, ./model' 'gpt-5, bad/../model'; do
+    input_file="$TMP_HOME/bad-slash-models-input"
+    printf 'bad-slash-models\n1\nexample-openai\n%s\nsecret\n' "$invalid_models" >"$input_file"
+    run "$MODEL_PROFILE_TOOL" create <"$input_file"
+    assert_eq "$status" 1 "create should reject invalid slashed model names: $invalid_models"
+    assert_file_not_exists "$(profile_file_path bad-slash-models)" "invalid slashed model names should not be saved: $invalid_models"
+  done
 
   input_file="$TMP_HOME/tab-models-input"
   printf 'tab-models\n1\nexample-openai\ngpt-5, bad\tmodel\nsecret\n' >"$input_file"

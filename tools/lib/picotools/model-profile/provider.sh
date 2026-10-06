@@ -45,10 +45,47 @@ validate_profile_name() {
   fi
 }
 
+model_name_error() {
+  echo 'Error: model name may contain letters, numbers, single spaces, dots, underscores, hyphens, and single slashes' >&2
+}
+
 validate_model_name_value() {
   local name="$1"
+  local segment
+  local -a segments=()
 
-  validate_identity_name model "$name"
+  if [ -z "$name" ]; then
+    model_name_error
+    return 1
+  fi
+
+  if [[ "$name" =~ [[:cntrl:]\\|,] ]]; then
+    model_name_error
+    return 1
+  fi
+
+  if [[ "$name" == *//* ]] || [[ "$name" == /* ]] || [[ "$name" == */ ]]; then
+    model_name_error
+    return 1
+  fi
+
+  IFS='/' read -r -a segments <<<"$name"
+  if [ "${#segments[@]}" -eq 0 ]; then
+    model_name_error
+    return 1
+  fi
+
+  for segment in "${segments[@]}"; do
+    if [ -z "$segment" ] || [ "$segment" = '.' ] || [ "$segment" = '..' ] || [[ "$segment" == .* ]]; then
+      model_name_error
+      return 1
+    fi
+
+    if [[ ! "$segment" =~ ^[A-Za-z0-9._-]+(\ [A-Za-z0-9._-]+)*$ ]]; then
+      model_name_error
+      return 1
+    fi
+  done
 }
 
 validate_provider_type_value() {
