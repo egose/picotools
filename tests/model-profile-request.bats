@@ -342,6 +342,56 @@ chat_payload_size() {
   assert_contains "$request_url" 'https://api.custom.example.com:8443/' 'request URL should keep the validated custom scheme and authority'
 }
 
+@test "ask sends responses request to custom-responses endpoint" {
+  local output
+
+  printf 'responses-main\n5\nhttps://responses.example.com/openai/v1\nresponses-model, responses-model-2\nresponses-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$MODEL_PROFILE_STUB_BIN:$PATH" \
+    MODEL_PROFILE_CURL_RESPONSE_BODY='{"output":[{"type":"message","content":[{"type":"output_text","text":"responses answer"}]}]}' \
+    run_tool ask responses-main --model responses-model-2 --system-message 'Be terse' --user-message 'Hello Responses')
+
+  assert_eq "$output" 'responses answer' 'ask should print the responses output text'
+  assert_eq "$(<"$MODEL_PROFILE_CURL_URL_LOG")" 'https://responses.example.com/openai/v1/responses' 'ask should use the configured responses endpoint URL'
+  assert_secret_eq "$(<"$MODEL_PROFILE_CURL_AUTH_LOG")" 'Authorization: Bearer responses-secret' 'ask should send the custom-responses API key as a bearer token'
+  assert_json_string_eq "$MODEL_PROFILE_CURL_BODY_LOG" '.model' 'responses-model-2' 'ask should send the selected responses model'
+  assert_json_string_eq "$MODEL_PROFILE_CURL_BODY_LOG" '.input' 'Hello Responses' 'ask should send the prompted user message as input'
+  assert_json_string_eq "$MODEL_PROFILE_CURL_BODY_LOG" '.instructions' 'Be terse' 'ask should send the system message as instructions'
+}
+
+@test "ask joins multiple responses output text parts and omits empty instructions" {
+  local output has_instructions
+
+  printf 'responses-multi\n5\nhttps://responses.example.com/openai/v1\nresponses-model\nresponses-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$MODEL_PROFILE_STUB_BIN:$PATH" \
+    MODEL_PROFILE_CURL_RESPONSE_BODY='{"output":[{"type":"message","content":[{"type":"output_text","text":"first part"},{"type":"output_text","text":"second part"}]}]}' \
+    run_tool ask responses-multi --system-message '' --user-message 'Hello Responses')
+
+  assert_eq "$output" 'first part
+second part' 'ask should join every responses output text part'
+  assert_json_string_eq "$MODEL_PROFILE_CURL_BODY_LOG" '.input' 'Hello Responses' 'ask should send the user message as input'
+  has_instructions=$("$MODEL_PROFILE_REAL_JQ" -r 'has("instructions")' "$MODEL_PROFILE_CURL_BODY_LOG")
+  assert_eq "$has_instructions" 'false' 'ask should omit instructions for an empty system message'
+}
+
+@test "custom responses endpoint appends the responses path without replacing authority" {
+  local output request_url
+
+  printf 'responses-origin\n5\nhttps://api.responses.example.com:8443/openai/v1//nested\nresponses-model\nresponses-secret\n' |
+    run_tool create >/dev/null 2>&1
+
+  output=$(PATH="$MODEL_PROFILE_STUB_BIN:$PATH" \
+    MODEL_PROFILE_CURL_RESPONSE_BODY='{"output_text":"origin responses answer"}' \
+    run_tool ask responses-origin --message 'Hello Responses')
+
+  request_url="$(<"$MODEL_PROFILE_CURL_URL_LOG")"
+  assert_eq "$output" 'origin responses answer' 'ask should complete against a responses endpoint with port and path'
+  assert_eq "$request_url" 'https://api.responses.example.com:8443/openai/v1//nested/responses' 'ask should append the responses path without replacing the endpoint authority'
+}
+
 @test "ask CLI defaults to the first configured model" {
   local output
 

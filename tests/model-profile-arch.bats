@@ -32,8 +32,11 @@ EOF
   cat >>"$script" <<'EOF'
 provider_type_label azure-openai
 provider_type_from_selection 4
+provider_type_from_selection 5
 provider_openai_base_url azure-openai example-openai ''
 provider_endpoint custom '' https://custom.example.com/openai/v1/
+provider_request_url custom https://custom.example.com/openai/v1/
+provider_request_url custom-responses https://custom.example.com/openai/v1/
 validate_custom_endpoint_url_value http://custom.example.com/openai/v1 >/dev/null 2>&1 || printf 'rejected unsafe endpoint\n'
 validate_token_content direct-profile '' >/dev/null 2>&1 || printf 'rejected blank token\n'
 EOF
@@ -44,6 +47,8 @@ EOF
   assert_contains "$output" 'custom' 'provider selection should resolve from the provider registry'
   assert_contains "$output" 'https://example-openai.openai.azure.com/openai/v1/' 'provider base URL should resolve directly'
   assert_contains "$output" 'https://custom.example.com/openai/v1/' 'custom display endpoint should resolve directly'
+  assert_contains "$output" 'https://custom.example.com/openai/v1/chat/completions' 'custom chat provider should resolve the chat completions request URL'
+  assert_contains "$output" 'https://custom.example.com/openai/v1/responses' 'custom responses provider should resolve the responses request URL'
   assert_contains "$output" 'rejected unsafe endpoint' 'destination validation should return a non-zero status without exiting'
   assert_contains "$output" 'rejected blank token' 'token validation should return a non-zero status without exiting'
 }

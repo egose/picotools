@@ -559,7 +559,7 @@ prompt_provider_type() {
         return 2
       fi
 
-      echo 'Please choose 1, 2, 3, or 4.' >&2
+      provider_selection_hint "$(provider_selection_count)" >&2
       continue
     fi
 
@@ -568,7 +568,7 @@ prompt_provider_type() {
       return 0
     fi
 
-    echo 'Please choose 1, 2, 3, or 4.' >&2
+    provider_selection_hint "$(provider_selection_count)" >&2
   done
 }
 

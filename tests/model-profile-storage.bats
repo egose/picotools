@@ -72,6 +72,8 @@ teardown() {
     run_tool create >/dev/null 2>&1
   printf 'custom-main\n4\nhttps://custom.example.com/openai/v1\ncustom-model, custom-model-2\ncustom-secret\n' |
     run_tool create >/dev/null 2>&1
+  printf 'responses-main\n5\nhttps://responses.example.com/openai/v1\nresponses-model\nresponses-secret\n' |
+    run_tool create >/dev/null 2>&1
 
   assert_config_value "$(profile_file_path vision)" provider.type 'azure-cognitive-services' 'create should support azure-cognitive-services'
   assert_config_value "$(profile_file_path vision)" provider.resourceName 'example-vision' 'azure-cognitive-services should store a resource name'
@@ -88,11 +90,19 @@ teardown() {
   assert_eq "$(git config -f "$(profile_file_path custom-main)" --get provider.resourceName 2>/dev/null || true)" '' 'custom should not store a resource name'
   assert_file_exists "$(token_file_path custom-main)" 'custom should store a token file'
 
+  assert_config_value "$(profile_file_path responses-main)" provider.type 'custom-responses' 'create should support custom-responses'
+  assert_config_value "$(profile_file_path responses-main)" provider.endpointUrl 'https://responses.example.com/openai/v1/' 'custom-responses should store a normalized endpoint URL'
+  assert_config_value "$(profile_file_path responses-main)" provider.models 'responses-model' 'custom-responses should store the normalized model list'
+  assert_eq "$(git config -f "$(profile_file_path responses-main)" --get provider.resourceName 2>/dev/null || true)" '' 'custom-responses should not store a resource name'
+  assert_file_exists "$(token_file_path responses-main)" 'custom-responses should store a token file'
+
   output=$(run_tool list)
   assert_contains "$output" 'vision' 'list should include azure-cognitive-services profiles'
   assert_contains "$output" 'gemini-main' 'list should include gemini profiles'
   assert_contains "$output" 'custom-main' 'list should include custom profiles'
   assert_contains "$output" 'https://custom.example.com/openai/v1/' 'list should show the custom endpoint URL'
+  assert_contains "$output" 'Custom (Responses)' 'list should label custom-responses profiles'
+  assert_contains "$output" 'https://responses.example.com/openai/v1/' 'list should show the custom-responses endpoint URL'
 }
 
 @test "create supports profile names with spaces" {

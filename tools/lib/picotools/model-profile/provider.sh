@@ -92,7 +92,7 @@ validate_provider_type_value() {
   local provider_type="$1"
 
   if ! provider_registry_entry "$provider_type" >/dev/null; then
-    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini, custom" >&2
+    echo "Error: provider type must be one of azure-openai, azure-cognitive-services, gemini, custom, custom-responses" >&2
     return 1
   fi
 }
@@ -102,7 +102,8 @@ provider_registry_rows() {
     1 azure-openai 'Azure OpenAI' resource 'https://%s.openai.azure.com/' 'https://%s.openai.azure.com/openai/v1/' \
     2 azure-cognitive-services 'Azure Cognitive Services' resource 'https://%s.cognitiveservices.azure.com/' 'https://%s.cognitiveservices.azure.com/openai/v1/' \
     3 gemini Gemini none '' 'https://generativelanguage.googleapis.com/v1beta/openai/' \
-    4 custom Custom endpoint '%s' '%s'
+    4 custom 'Custom (Chat Completions)' endpoint '%s' '%s' \
+    5 custom-responses 'Custom (Responses)' endpoint '%s' '%s'
 }
 
 provider_registry_entry() {
@@ -182,6 +183,43 @@ provider_type_default_selection() {
   local provider_type="${1:-}"
 
   provider_registry_field "$provider_type" choice || printf '%s\n' '1'
+}
+
+provider_uses_responses_api() {
+  local provider_type="$1"
+
+  [ "$provider_type" = 'custom-responses' ]
+}
+
+provider_request_path() {
+  local provider_type="$1"
+
+  if provider_uses_responses_api "$provider_type"; then
+    printf '%s\n' 'responses'
+  else
+    printf '%s\n' 'chat/completions'
+  fi
+}
+
+provider_selection_count() {
+  provider_registry_rows | wc -l
+}
+
+provider_selection_hint() {
+  local count="${1:-$(provider_selection_count)}"
+  local hint='' index
+
+  for index in $(seq 1 "$count"); do
+    if [ -z "$hint" ]; then
+      hint="$index"
+    elif [ "$index" -eq "$count" ]; then
+      hint="$hint, or $index"
+    else
+      hint="$hint, $index"
+    fi
+  done
+
+  printf 'Please choose %s.\n' "$hint"
 }
 
 validate_azure_resource_name_value() {
@@ -569,8 +607,9 @@ validate_custom_endpoint_url_value() {
   printf '%s\n' "$endpoint_url"
 }
 
-provider_chat_completions_url() {
+provider_request_url_for_path() {
   local base_url="$1"
+  local path_suffix="$2"
   local base_origin request_url request_origin
 
   if ! validate_custom_endpoint_url_value "$base_url" >/dev/null; then
@@ -578,7 +617,7 @@ provider_chat_completions_url() {
   fi
 
   base_origin=$(url_scheme_authority "$base_url")
-  request_url="${base_url}chat/completions"
+  request_url="${base_url}${path_suffix}"
   if ! validate_custom_endpoint_url_value "$request_url" >/dev/null; then
     return 1
   fi
@@ -589,6 +628,21 @@ provider_chat_completions_url() {
   fi
 
   printf '%s\n' "$request_url"
+}
+
+provider_chat_completions_url() {
+  provider_request_url_for_path "$1" 'chat/completions'
+}
+
+provider_responses_url() {
+  provider_request_url_for_path "$1" 'responses'
+}
+
+provider_request_url() {
+  local provider_type="$1"
+  local base_url="$2"
+
+  provider_request_url_for_path "$base_url" "$(provider_request_path "$provider_type")"
 }
 
 provider_endpoint() {

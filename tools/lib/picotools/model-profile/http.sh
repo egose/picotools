@@ -182,7 +182,7 @@ provider_chat_completion() {
   resource_name=$(provider_resource_name_value "$file")
   endpoint_url=$(provider_endpoint_url_value "$file")
   base_url=$(provider_openai_base_url "$provider_type" "$resource_name" "$endpoint_url") || return 1
-  if ! request_url=$(provider_chat_completions_url "$base_url"); then
+  if ! request_url=$(provider_request_url "$provider_type" "$base_url"); then
     return 1
   fi
   connect_timeout=$(request_connect_timeout) || return 1
@@ -201,7 +201,11 @@ provider_chat_completion() {
     return 1
   }
   printf '\033[1;34m[model-profile]\033[0m Sending request to %s model %s\n' "$name" "$model" >&2
-  debug_log "Preparing chat completion request for profile '$name' model '$model'"
+  if provider_uses_responses_api "$provider_type"; then
+    debug_log "Preparing responses request for profile '$name' model '$model'"
+  else
+    debug_log "Preparing chat completion request for profile '$name' model '$model'"
+  fi
   debug_log "Provider type: $provider_type"
   debug_log "Request URL: ${request_url}"
   payload_file="$request_tmpdir/payload.json"
@@ -217,11 +221,19 @@ provider_chat_completion() {
     user_message_file="$request_tmpdir/user-message.txt"
     printf '%s' "$user_message" >"$user_message_file"
   fi
-  jq -n \
-    --arg model "$model" \
-    --rawfile system_message "$system_message_file" \
-    --rawfile user_message "$user_message_file" \
-    '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
+  if provider_uses_responses_api "$provider_type"; then
+    jq -n \
+      --arg model "$model" \
+      --rawfile instructions "$system_message_file" \
+      --rawfile input "$user_message_file" \
+      '{model: $model, input: $input} + (if ($instructions | length) > 0 then {instructions: $instructions} else {} end)' >"$payload_file"
+  else
+    jq -n \
+      --arg model "$model" \
+      --rawfile system_message "$system_message_file" \
+      --rawfile user_message "$user_message_file" \
+      '{model: $model, messages: [{role: "system", content: $system_message}, {role: "user", content: $user_message}]}' >"$payload_file"
+  fi
   if [ -z "$system_message_path" ]; then
     rm -f "$system_message_file"
   fi
@@ -300,7 +312,11 @@ provider_chat_completion() {
     return 1
   fi
 
-  response_text=$(jq -r '.choices[0].message.content // empty' <"$tmpfile")
+  if provider_uses_responses_api "$provider_type"; then
+    response_text=$(jq -r '.output_text // ([.output[]? | select(.type == "message") | .content[]? | select(.type == "output_text" or .type == "refusal") | (.text // .refusal // empty)] | join("\n")) // empty' <"$tmpfile")
+  else
+    response_text=$(jq -r '.choices[0].message.content // empty' <"$tmpfile")
+  fi
   response_size=$(wc -c <"$tmpfile")
   rm -f "$tmpfile"
   debug_log "Response size: ${response_size} bytes"
