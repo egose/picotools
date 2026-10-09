@@ -34,7 +34,7 @@ provider_type_label azure-openai
 provider_type_from_selection 4
 provider_openai_base_url azure-openai example-openai ''
 provider_endpoint custom '' https://custom.example.com/openai/v1/
-validate_custom_endpoint_url_value http://127.0.0.1/openai/v1 >/dev/null 2>&1 || printf 'rejected unsafe endpoint\n'
+validate_custom_endpoint_url_value http://custom.example.com/openai/v1 >/dev/null 2>&1 || printf 'rejected unsafe endpoint\n'
 validate_token_content direct-profile '' >/dev/null 2>&1 || printf 'rejected blank token\n'
 EOF
 

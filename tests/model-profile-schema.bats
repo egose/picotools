@@ -272,6 +272,9 @@ write_profile_config() {
     'custom.example.com/openai/v1'
     'ftp://custom.example.com/openai/v1'
     'http://custom.example.com/openai/v1'
+    'http://10.0.0.1/openai/v1'
+    'http://172.16.0.1/openai/v1'
+    'http://192.168.1.1/openai/v1'
     'https://user@custom.example.com/openai/v1'
     'https://custom.example.com/openai v1'
     'https://custom.example.com/openai/v1?api-version=1'
@@ -280,12 +283,10 @@ write_profile_config() {
     'https://custom.example.com:bad/openai/v1'
     'https://custom.example.com:99999/openai/v1'
     '--config'
-    'https://localhost/openai/v1'
-    'https://127.0.0.1/openai/v1'
-    'https://10.0.0.1/openai/v1'
-    'https://172.16.0.1/openai/v1'
-    'https://192.168.1.1/openai/v1'
     'https://169.254.1.1/openai/v1'
+    'http://169.254.1.1/openai/v1'
+    'https://0.0.0.0/openai/v1'
+    'http://0.0.0.0/openai/v1'
   )
 
   index=0
@@ -318,7 +319,7 @@ write_profile_config() {
 
   printf 'custom-main\n4\nhttps://custom.example.com/openai/v1\ncustom-model\ncustom-secret\n' |
     run_tool create >/dev/null 2>&1
-  git config -f "$(profile_file_path custom-main)" provider.endpointUrl 'http://127.0.0.1/openai/v1'
+  git config -f "$(profile_file_path custom-main)" provider.endpointUrl 'http://custom.example.com/openai/v1'
   original_data_dir="$TMP_HOME/original-data-dir"
   outside_data_dir="$TMP_HOME/outside-data-dir"
   mv "$DATA_DIR" "$original_data_dir"

@@ -92,9 +92,10 @@ Environment:
   MODEL_PROFILE_MAX_DIAGNOSTIC_BYTES=<bytes> Error diagnostic cap, default 4096, max 65536
 
 HTTP policy:
-  Requests ignore .curlrc, do not use proxies, use HTTPS only, and do not
-  follow redirects. Message files must be readable regular files; symlinks,
-  FIFOs, devices, and other special files are rejected.
+  Requests ignore .curlrc, do not use proxies, use HTTPS (plain HTTP is
+  allowed only for localhost and loopback), and do not follow redirects.
+  Message files must be readable regular files; symlinks, FIFOs, devices,
+  and other special files are rejected.
 
 Storage policy:
   Profile metadata is stored under ${XDG_CONFIG_HOME:-$HOME/.config}/model-profile
@@ -104,9 +105,11 @@ Storage policy:
   same-directory atomic publication and roll back on token/profile failures.
 
 Custom endpoints:
-  Must be HTTPS URLs with a DNS hostname or public IPv4 literal. Userinfo,
-  fragments, query strings, HTTP, localhost, private, loopback, and link-local
-  address literals are rejected before API keys are read.
+  Must be HTTPS URLs with a DNS hostname, public IPv4, private IPv4,
+  localhost, or loopback literal. Plain HTTP is allowed only for localhost
+  and 127.0.0.0/8 loopback to support local proxies. Userinfo, fragments,
+  query strings, non-loopback HTTP, unspecified, link-local, and IPv6
+  literals are rejected before API keys are read.
 EOF
 }
 

@@ -346,7 +346,18 @@ validate_ipv4_literal_value() {
   done
 }
 
-is_risky_ipv4_literal() {
+is_loopback_ipv4_literal() {
+  local host="$1"
+  local a
+  local -a octets=()
+
+  IFS='.' read -r -a octets <<<"$host"
+  a=${octets[0]}
+
+  [ "$a" -eq 127 ]
+}
+
+is_private_ipv4_literal() {
   local host="$1"
   local a b
   local -a octets=()
@@ -355,10 +366,7 @@ is_risky_ipv4_literal() {
   a=${octets[0]}
   b=${octets[1]}
 
-  if [ "$a" -eq 0 ] || [ "$a" -eq 10 ] || [ "$a" -eq 127 ]; then
-    return 0
-  fi
-  if [ "$a" -eq 169 ] && [ "$b" -eq 254 ]; then
+  if [ "$a" -eq 10 ]; then
     return 0
   fi
   if [ "$a" -eq 172 ] && [ "$b" -ge 16 ] && [ "$b" -le 31 ]; then
@@ -371,19 +379,74 @@ is_risky_ipv4_literal() {
   return 1
 }
 
-validate_endpoint_host_value() {
+is_blocked_ipv4_literal() {
+  local host="$1"
+  local a b
+  local -a octets=()
+
+  IFS='.' read -r -a octets <<<"$host"
+  a=${octets[0]}
+  b=${octets[1]}
+
+  if [ "$a" -eq 0 ]; then
+    return 0
+  fi
+  if [ "$a" -eq 169 ] && [ "$b" -eq 254 ]; then
+    return 0
+  fi
+
+  return 1
+}
+
+is_risky_ipv4_literal() {
+  local host="$1"
+
+  if is_blocked_ipv4_literal "$host"; then
+    return 0
+  fi
+  if is_private_ipv4_literal "$host"; then
+    return 0
+  fi
+  if is_loopback_ipv4_literal "$host"; then
+    return 0
+  fi
+
+  return 1
+}
+
+is_localhost_name() {
   local host="$1"
   local lower_host
 
   lower_host=${host,,}
-  if [ "$lower_host" = localhost ] || [[ "$lower_host" == *.localhost ]]; then
-    url_error 'localhost destinations are not supported'
-    return 1
+  [ "$lower_host" = localhost ] || [[ "$lower_host" == *.localhost ]]
+}
+
+validate_endpoint_host_value() {
+  local host="$1"
+  local scheme="${2:-https}"
+
+  if is_localhost_name "$host"; then
+    return 0
   fi
 
   if validate_ipv4_literal_value "$host"; then
-    if is_risky_ipv4_literal "$host"; then
-      url_error 'loopback, private, and link-local address literals are not supported'
+    if is_blocked_ipv4_literal "$host"; then
+      url_error 'unspecified and link-local address literals are not supported'
+      return 1
+    fi
+    if is_loopback_ipv4_literal "$host"; then
+      return 0
+    fi
+    if is_private_ipv4_literal "$host"; then
+      if [ "$scheme" != https ]; then
+        url_error 'plain HTTP is only allowed for localhost and loopback destinations'
+        return 1
+      fi
+      return 0
+    fi
+    if [ "$scheme" != https ]; then
+      url_error 'plain HTTP is only allowed for localhost and loopback destinations'
       return 1
     fi
     return 0
@@ -396,6 +459,11 @@ validate_endpoint_host_value() {
 
   if ! validate_dns_hostname_value "$host"; then
     url_error 'host must be a valid DNS hostname or public IPv4 literal'
+    return 1
+  fi
+
+  if [ "$scheme" != https ]; then
+    url_error 'plain HTTP is only allowed for localhost and loopback destinations'
     return 1
   fi
 }
@@ -431,13 +499,13 @@ validate_custom_endpoint_url_value() {
     return 1
   fi
   if [[ ! "$endpoint_url" =~ ^([A-Za-z][A-Za-z0-9+.-]*):// ]]; then
-    url_error 'explicit https:// scheme is required'
+    url_error 'explicit http:// or https:// scheme is required'
     return 1
   fi
 
   scheme=${BASH_REMATCH[1],,}
-  if [ "$scheme" != https ]; then
-    url_error 'only https:// endpoints are supported'
+  if [ "$scheme" != https ] && [ "$scheme" != http ]; then
+    url_error 'only http:// and https:// endpoints are supported'
     return 1
   fi
 
@@ -494,7 +562,7 @@ validate_custom_endpoint_url_value() {
     url_error 'host is required'
     return 1
   fi
-  if ! validate_endpoint_host_value "$host"; then
+  if ! validate_endpoint_host_value "$host" "$scheme"; then
     return 1
   fi
 
