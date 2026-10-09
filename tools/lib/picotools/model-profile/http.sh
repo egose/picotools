@@ -173,7 +173,7 @@ provider_chat_completion() {
   local user_message="$4"
   local system_message_path="${5:-}"
   local user_message_path="${6:-}"
-  local name provider_type resource_name endpoint_url base_url request_url token auth_config_file payload_file tmpfile system_message_file user_message_file response_fifo response_reader_pid http_code response_text error_message payload_size response_size connect_timeout total_timeout payload_max_bytes response_max_bytes diagnostic_max_bytes request_tmpdir=
+  local name provider_type resource_name endpoint_url base_url request_url token auth_config_file payload_file tmpfile system_message_file user_message_file response_fifo response_reader_pid http_code response_text error_message payload_size response_size connect_timeout total_timeout payload_max_bytes response_max_bytes diagnostic_max_bytes request_tmpdir='' curl_proto='=https'
   local -a curl_args=()
 
   require_valid_profile_file "$file" || return 1
@@ -239,14 +239,18 @@ provider_chat_completion() {
   debug_log "Payload size: ${payload_size} bytes"
   debug_log "Request limits: connect=${connect_timeout}s total=${total_timeout}s payload=${payload_max_bytes}B response=${response_max_bytes}B diagnostic=${diagnostic_max_bytes}B"
 
+  if [[ "${request_url,,}" == http://* ]]; then
+    curl_proto='=http'
+  fi
+
   curl_args=(
     -q
     -sS
     --proxy ''
     --noproxy '*'
     --max-redirs 0
-    --proto '=https'
-    --proto-redir '=https'
+    --proto "$curl_proto"
+    --proto-redir "$curl_proto"
     --connect-timeout "$connect_timeout"
     --max-time "$total_timeout"
     -o "$response_fifo"

@@ -24,7 +24,7 @@ teardown() {
   assert_contains "$output" 'MODEL_PROFILE_DEBUG=true                  Deprecated fallback for --debug' 'help should describe the deprecated debug env'
   assert_contains "$output" 'MODEL_PROFILE_CURL_CONNECT_TIMEOUT=<s>    Connect timeout, default 10, max 120' 'help should document the connect timeout limit'
   assert_contains "$output" 'MODEL_PROFILE_MAX_RESPONSE_BYTES=<bytes>  Response body cap, default 1048576, max 10485760' 'help should document the response byte limit'
-  assert_contains "$output" 'Must be HTTPS URLs with a DNS hostname or public IPv4 literal.' 'help should describe custom endpoint policy'
+  assert_contains "$output" 'Plain HTTP is allowed only for localhost' 'help should describe custom endpoint policy'
   assert_contains "$output" 'same-directory atomic publication' 'help should document failure-safe publication behavior'
   assert_contains "$output" 'Grammar:' 'help should document the normalized command grammar'
   assert_contains "$output" 'Exit status:' 'help should document status meanings'
