@@ -1,3 +1,9 @@
+## [0.56.0](https://github.com/egose/picotools/compare/v0.55.0...v0.56.0) (2026-10-09)
+
+### Features
+
+* allow local HTTP custom endpoints and expand validation ([d5c4c97](https://github.com/egose/picotools/commit/d5c4c976f437d75d9589a2c5bcbd442ff9caa30a))
+
 ## [0.55.0](https://github.com/egose/picotools/compare/v0.54.2...v0.55.0) (2026-10-06)
 
 ### Features
