@@ -197,7 +197,8 @@ teardown() {
 
   assert_contains "$output" 'Provider types:' 'create should show the numbered provider menu'
   assert_contains "$output" '1. Azure OpenAI' 'create should show readable provider labels'
-  assert_contains "$output" '4. Custom' 'create should show the custom provider label'
-  assert_contains "$output" 'Please choose 1, 2, 3, or 4.' 'create should reject unsupported provider selections before continuing'
+  assert_contains "$output" '4. Custom (Chat Completions)' 'create should show the custom chat provider label'
+  assert_contains "$output" '5. Custom (Responses)' 'create should show the custom responses provider label'
+  assert_contains "$output" 'Please choose 1, 2, 3, 4, or 5.' 'create should reject unsupported provider selections before continuing'
   assert_file_exists "$(profile_file_path broken)" 'create should continue after a valid provider type is entered'
 }

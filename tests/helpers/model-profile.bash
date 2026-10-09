@@ -190,7 +190,7 @@ write_model_profile_config() {
   azure-openai | azure-cognitive-services)
     git config -f "$file" provider.resourceName "$location"
     ;;
-  custom)
+  custom | custom-responses)
     git config -f "$file" provider.endpointUrl "$location"
     ;;
   esac
