@@ -1,3 +1,9 @@
+## [0.57.0](https://github.com/egose/picotools/compare/v0.56.0...v0.57.0) (2026-10-09)
+
+### Features
+
+* add custom responses provider support ([cde5012](https://github.com/egose/picotools/commit/cde5012c64c3062631a7e903505614a7dd9c740f))
+
 ## [0.56.0](https://github.com/egose/picotools/compare/v0.55.0...v0.56.0) (2026-10-09)
 
 ### Features
