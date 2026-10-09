@@ -129,13 +129,17 @@ fetch_latest_spec() {
 }
 
 write_metadata() {
+  local spec_name index_name path_tree_name
+  spec_name="$(basename "$SPEC_FILE")"
+  index_name="$(basename "$INDEX_FILE")"
+  path_tree_name="$(basename "$OUTPUT_DIR")"
   jq -n \
     --arg source_api_url "$SOURCE_URL" \
     --arg source_download_url "$DOWNLOAD_URL" \
     --arg source_file_name "$LATEST_NAME" \
-    --arg spec_file "$SPEC_FILE" \
-    --arg index_file "$INDEX_FILE" \
-    --arg path_tree_dir "$OUTPUT_DIR" \
+    --arg spec_file "$spec_name" \
+    --arg index_file "$index_name" \
+    --arg path_tree_dir "$path_tree_name" \
     --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       sourceApiUrl: $source_api_url,
