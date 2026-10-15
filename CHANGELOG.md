@@ -1,3 +1,5 @@
+## [0.57.1](https://github.com/egose/picotools/compare/v0.57.0...v0.57.1) (2026-10-15)
+
 ## [0.57.0](https://github.com/egose/picotools/compare/v0.56.0...v0.57.0) (2026-10-09)
 
 ### Features
