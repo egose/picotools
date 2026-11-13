@@ -309,3 +309,102 @@ k8s_profile_delete() {
   picotools_ui_status ok "Deleted profile '$display_name'"
   printf "Deleted profile '%s'.\n" "$display_name"
 }
+
+# Switching must preserve every physical field other than current-context,
+# including hidden definitions and raw credentials that merged view redacts.
+K8S_PROFILE_USE_JQ='
+  def semantic_config:
+    .contexts = ((.contexts // []) | sort_by(.name)) |
+    .clusters = ((.clusters // []) | sort_by(.name)) |
+    .users = ((.users // []) | sort_by(.name)) |
+    .["current-context"] = (.["current-context"] // "");
+'
+
+k8s_profile_plan_use() {
+  local profile="$1" definitions_count
+  k8s_profile_validate_ownership || return 1
+  k8s_profile_json_value definitions_count --arg profile "$profile" "$K8S_PROFILE_MODEL_JQ"'
+    (definitions(.; "context"; $profile) | length | tostring), "\u0000"
+  ' "$K8S_PROFILE_TMP_DIR/inventory.json" || return 1
+  if [ "$definitions_count" -eq 0 ]; then
+    k8s_profile_error 'profile does not exist; use list to inspect available contexts'
+    return 1
+  fi
+  if [ "$definitions_count" -ne 1 ]; then
+    k8s_profile_error 'selected context has multiple physical definitions; remove or rename its shadow definitions using kubectl with an explicit --kubeconfig file before retrying use'
+    return 1
+  fi
+  # A nonempty value in the first existing member outranks all lower fallbacks.
+  # No context/resources are copied, and no missing chain member is created.
+  k8s_profile_jq "$K8S_PROFILE_TMP_DIR/use-plan.json" 'unable to plan context switching' \
+    --arg profile "$profile" --slurpfile visible "$K8S_PROFILE_TMP_DIR/visible.json" '
+      {profile:$profile,target:([.[] | select(.existed) | .index][0]),
+       is_current:(($visible[0]["current-context"] // "") == $profile)}
+    ' "$K8S_PROFILE_TMP_DIR/inventory.json"
+}
+
+k8s_profile_stage_use() {
+  local target
+  k8s_profile_json_value target '(.target | tostring), "\u0000"' "$K8S_PROFILE_TMP_DIR/use-plan.json" || return 1
+  k8s_profile_tx_add_file "$target" || return 1
+  k8s_profile_tx_prepare || return 1
+  k8s_profile_write_config "${K8S_PROFILE_TX_CANDIDATES[$target]}" 'unable to stage context switching' \
+    --slurpfile plan "$K8S_PROFILE_TMP_DIR/use-plan.json" '
+      .["current-context"] = $plan[0].profile
+    ' "${K8S_PROFILE_CHAIN_RAW[$target]}"
+}
+
+k8s_profile_verify_use() {
+  local merged_file="$1" target
+  k8s_profile_jq "$K8S_PROFILE_TMP_DIR/use-check" 'context switching changed unrelated configuration or did not activate the requested profile' -e \
+    --slurpfile plan "$K8S_PROFILE_TMP_DIR/use-plan.json" --slurpfile before "$K8S_PROFILE_TMP_DIR/visible.json" "$K8S_PROFILE_USE_JQ"'
+      ($before[0] | .["current-context"] = $plan[0].profile | semantic_config) == semantic_config
+    ' "$merged_file" || return 1
+  k8s_profile_json_value target '(.target | tostring), "\u0000"' "$K8S_PROFILE_TMP_DIR/use-plan.json" || return 1
+  k8s_profile_jq "$K8S_PROFILE_TMP_DIR/use-file-check" 'context switching changed unrelated physical configuration' -e \
+    --argjson target "$target" --slurpfile plan "$K8S_PROFILE_TMP_DIR/use-plan.json" \
+    --slurpfile before "$K8S_PROFILE_TMP_DIR/inventory.json" "$K8S_PROFILE_USE_JQ"'
+      ($before[0][$target].config | .["current-context"] = $plan[0].profile | semantic_config) == semantic_config
+    ' "$K8S_PROFILE_TMP_DIR/validated-$target.json"
+}
+
+k8s_profile_use() {
+  local profile="${1:-}" index exact_name display_name is_current
+  k8s_profile_init || return 1
+  k8s_profile_snapshot_chain || return 1
+  if [ "$#" -eq 0 ]; then
+    k8s_profile_capture_prompt index k8s_profile_select_index || return 1
+    k8s_profile_profile_name "$index" exact_name || return 1
+  else
+    k8s_profile_find_profile_index "$profile" index || return 1
+    if [ "$index" -eq 0 ]; then
+      k8s_profile_error 'profile does not exist; use list to inspect available contexts'
+      return 1
+    fi
+    k8s_profile_profile_name "$index" exact_name || return 1
+    # jq can replace invalid native argument bytes with U+FFFD; never switch to
+    # that different, valid context. External UTF-8 names need no create-name rule.
+    if [ "$profile" != "$exact_name" ]; then
+      k8s_profile_error 'profile name must match an existing context exactly (valid UTF-8)'
+      return 1
+    fi
+  fi
+  if [ -z "$exact_name" ]; then
+    k8s_profile_error 'an empty context name cannot be activated'
+    return 1
+  fi
+  k8s_profile_recheck_chain || return 1
+  k8s_profile_display_name "$index" display_name || return 1
+  k8s_profile_plan_use "$exact_name" || return 1
+  k8s_profile_recheck_chain || return 1
+  k8s_profile_json_value is_current '(.is_current | tostring), "\u0000"' "$K8S_PROFILE_TMP_DIR/use-plan.json" || return 1
+  if [ "$is_current" = true ]; then
+    k8s_profile_recheck_chain || return 1
+    printf "Profile '%s' is already current.\n" "$display_name"
+    return 0
+  fi
+  debug_log 'Staging current-context only; profile settings and credentials remain unchanged'
+  k8s_profile_stage_use || return 1
+  k8s_profile_tx_commit k8s_profile_verify_use || return 1
+  printf "Switched to profile '%s'.\n" "$display_name"
+}

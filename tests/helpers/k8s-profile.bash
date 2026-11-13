@@ -422,6 +422,9 @@ jq)
   delete-stage-fail)
     case " $* " in *'delete_from_file($plan[0]; $index)'*) diagnostic_failure ;; esac
     ;;
+  use-stage-fail)
+    case " $* " in *'.["current-context"] = $plan[0].profile'*) diagnostic_failure ;; esac
+    ;;
   stale-selection | disappeared-selection)
     case " $* " in
     *'.profiles[].name | display_text'*)
@@ -437,7 +440,7 @@ jq)
       ;;
     esac
     ;;
-  stale-delete-plan)
+  stale-delete-plan | stale-use-plan)
     case " $* " in
     *' --slurpfile visible '*)
       if [ ! -f "$K8S_TEST_MARKER" ]; then

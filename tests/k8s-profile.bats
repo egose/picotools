@@ -64,7 +64,7 @@ load 'helpers/k8s-profile'
     fi
     [ "$status" -eq 0 ]
     assert_contains "$output" 'Usage: k8s-profile [--debug] <command>' 'help should describe the entrypoint'
-    assert_contains "$output" 'All four commands accept no arguments.' 'help should document strict grammar'
+    assert_contains "$output" 'create/list/update/delete accept no arguments; use accepts one optional name.' 'help should document strict grammar'
     assert_contains "$output" 'HTTP, URL userinfo' 'help should document HTTPS-only policy'
     assert_contains "$output" 'not crash-atomic' 'help should document transaction limits'
   done
@@ -124,7 +124,7 @@ load 'helpers/k8s-profile'
   for command in read set token rename --unknown --; do
     run run_tool "$command"
     [ "$status" -ne 0 ]
-    assert_contains "$output" 'unknown command' 'only four actions are supported'
+    assert_contains "$output" 'unknown command' 'unsupported actions must remain unavailable'
   done
 }
 
@@ -271,6 +271,6 @@ EOF
   assert_config_expr "$KUBECONFIG" '.contexts[0].name == "installed" and .users[0].user.token == $token' --rawfile token "$TMP_HOME/sentinel"
   run k8s_test_env bash "$REPO_ROOT/scripts/functional-test-k8s-profile-install.bash" "$TMP_HOME/install"
   [ "$status" -eq 0 ]
-  assert_contains "$output" 'Installed k8s-profile create/list/update/delete smoke passed.' 'CI must validate the real installed artifact privately'
+  assert_contains "$output" 'Installed k8s-profile create/list/use/update/delete smoke passed.' 'CI must validate the real installed artifact privately'
   assert_no_artifacts
 }

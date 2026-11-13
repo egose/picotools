@@ -31,11 +31,12 @@ unset K8S_PROFILE_MODULE
 
 usage() {
   cat <<'EOF'
-Usage: k8s-profile [--debug] <command>
+Usage: k8s-profile [--debug] <command> [profile-name]
 
 Commands:
   create                    Register a local Kubernetes profile (context)
   list                      List every context visible to kubectl
+  use [profile-name]        Switch by name, or select a profile interactively
   update                    Update a selected profile's Server and/or Token
   delete                    Delete a selected profile after confirmation
 
@@ -45,7 +46,8 @@ Options:
   -v, --version, version    Show the tool version
 
 Notes:
-  All four commands accept no arguments. Place --debug before the command.
+  create/list/update/delete accept no arguments; use accepts one optional name.
+  Place --debug before the command. Quote names containing spaces or punctuation.
   create requires Name, Server, and a masked Token; overwrite is default-no.
   New names must match [A-Za-z0-9._-]+. Server must be a meaningful https://
   URL, including for localhost; ports, paths, and private IPv4/IPv6 are allowed.
@@ -90,6 +92,11 @@ Notes:
   explicitly owned orphan resources. External credential/CA files are retained.
   Deleting the current profile clears ALL nonempty current-context values,
   including hidden different fallbacks, and never chooses a replacement.
+  use matches existing context names exactly, including external names. With no
+  name, it prompts to select a profile. Empty names and context shadows are refused.
+  It writes only current-context in the first existing chain file; other files,
+  credentials, and lower fallbacks remain unchanged.
+  An already-current profile is a no-op. Switching makes no cluster request.
 EOF
 }
 
@@ -142,6 +149,19 @@ main() {
   -v | --version | version)
     require_no_args version "$@" || return 1
     print_version
+    ;;
+  use)
+    if [ "${1:-}" = --debug ]; then
+      k8s_profile_error '--debug is a global option; place it before the command'
+      return 1
+    fi
+    if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ -z "$1" ]; }; then
+      k8s_profile_error 'use accepts at most one nonempty profile name'
+      usage >&2
+      return 1
+    fi
+    k8s_profile_require_dependencies || return 1
+    k8s_profile_use "$@"
     ;;
   create | list | update | delete)
     require_no_args "$command_name" "$@" || return 1

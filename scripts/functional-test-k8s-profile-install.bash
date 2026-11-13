@@ -72,7 +72,7 @@ kubectl)
     args=("${args[@]:1}")
   fi
   [ "${args[0]:-}" = config ] || exit 99
-  case "${args[1]:-}" in view | use-context) ;; *) exit 99 ;; esac
+  case "${args[1]:-}" in view) ;; *) exit 99 ;; esac
   exec "$K8S_INSTALL_REAL_KUBECTL" "$@"
   ;;
 jq) exec "$K8S_INSTALL_REAL_JQ" "$@" ;;
@@ -120,7 +120,12 @@ smoke_env jq -e --rawfile token "$SMOKE_ROOT/replace-token" '
   .users[0].user.token == $token and (.["current-context"] // "") == ""
 ' "$SMOKE_ROOT/config.json" >/dev/null 2>"$SMOKE_ROOT/assert-update.err"
 
-smoke_env kubectl config use-context installed >"$SMOKE_ROOT/current.out" 2>"$SMOKE_ROOT/current.err"
+smoke_env "$installed_tool" --debug use installed >"$SMOKE_ROOT/current.out" 2>"$SMOKE_ROOT/current.err"
+read_config
+smoke_env jq -e '.["current-context"] == "installed"' "$SMOKE_ROOT/config.json" >/dev/null 2>"$SMOKE_ROOT/assert-use.err"
+# Exercise the installed optional-name menu too; current selection is a no-op.
+builtin printf '1\n' | smoke_env "$installed_tool" use >"$SMOKE_ROOT/menu.out" 2>"$SMOKE_ROOT/menu.err"
+grep -F "Profile 'installed' is already current." "$SMOKE_ROOT/menu.out" >/dev/null
 builtin printf '1\nyes\n' | smoke_env "$installed_tool" --debug delete >"$SMOKE_ROOT/delete.out" 2>"$SMOKE_ROOT/delete.err"
 grep -F 'ALL nonempty current-context values' "$SMOKE_ROOT/delete.err" >/dev/null
 read_config
@@ -135,4 +140,4 @@ if grep -F -q -f "$SMOKE_ROOT/create-token" -f "$SMOKE_ROOT/replace-token" "$SMO
   printf 'Installed smoke failed: credential bytes crossed an argv/env/output boundary.\n' >&2
   exit 1
 fi
-printf 'Installed k8s-profile create/list/update/delete smoke passed.\n'
+printf 'Installed k8s-profile create/list/use/update/delete smoke passed.\n'
