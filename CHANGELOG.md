@@ -1,3 +1,13 @@
+## [0.60.0](https://github.com/egose/picotools/compare/v0.59.0...v0.60.0) (2026-11-13)
+
+### Features
+
+* add namespace support to create, update, and list profiles ([d8269c1](https://github.com/egose/picotools/commit/d8269c1fffa4268897477495c978461930427a91))
+
+### Documentation
+
+* mark the Kubernetes profile task complete with test evidence ([cbd9702](https://github.com/egose/picotools/commit/cbd9702ff3fb31fa054614bb9a604d0e15ea034c))
+
 ## [0.59.0](https://github.com/egose/picotools/compare/v0.58.0...v0.59.0) (2026-11-13)
 
 ### Features
