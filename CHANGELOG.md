@@ -1,3 +1,13 @@
+## [0.58.0](https://github.com/egose/picotools/compare/v0.57.1...v0.58.0) (2026-11-13)
+
+### Features
+
+* add kubernetes profile tool and tests ([b99aa16](https://github.com/egose/picotools/commit/b99aa16afa1a5c6fd45ab7be04a052cfa4084385))
+
+### Documentation
+
+* document k8s-profile usage and task notes ([aa940ad](https://github.com/egose/picotools/commit/aa940ad197589a29bcc0342aa3c498fe71172c15))
+
 ## [0.57.1](https://github.com/egose/picotools/compare/v0.57.0...v0.57.1) (2026-10-15)
 
 ## [0.57.0](https://github.com/egose/picotools/compare/v0.56.0...v0.57.0) (2026-10-09)
