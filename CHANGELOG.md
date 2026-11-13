@@ -1,3 +1,9 @@
+## [0.59.0](https://github.com/egose/picotools/compare/v0.58.0...v0.59.0) (2026-11-13)
+
+### Features
+
+* add optional context switching command ([4ffabdd](https://github.com/egose/picotools/commit/4ffabddac3eabc339a25e3c6702c78cd59987a6b))
+
 ## [0.58.0](https://github.com/egose/picotools/compare/v0.57.1...v0.58.0) (2026-11-13)
 
 ### Features
