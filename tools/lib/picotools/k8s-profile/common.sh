@@ -566,6 +566,15 @@ k8s_profile_validate_name() {
   fi
 }
 
+# Kubernetes namespace names are DNS-1123 labels. Offline validation only;
+# existence and RBAC are cluster-side concerns this tool never contacts.
+k8s_profile_validate_namespace() {
+  if ! [[ "$1" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+    k8s_profile_error 'Namespace must be a DNS-1123 label: lowercase alphanumeric and "-" only, at most 63 characters'
+    return 1
+  fi
+}
+
 k8s_profile_valid_ipv4() {
   local address="$1" part
   local -a parts=()

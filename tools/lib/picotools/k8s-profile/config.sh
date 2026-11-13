@@ -79,6 +79,7 @@ k8s_profile_project_config() {
       ([($config.clusters // [])[] | select(.name == ($entry.context.cluster // ""))][0] // null) as $cluster |
       ([($config.users // [])[] | select(.name == ($entry.context.user // ""))][0] // null) as $user |
       {name: .name, cluster: (.context.cluster // ""), user: (.context.user // ""),
+       namespace: (.context.namespace // ""),
        cluster_found: ($cluster != null), user_found: ($user != null),
         server: (($cluster.cluster.server // "") | public_server), current: ($current != "" and .name == $current)}
     ] | sort_by(.name)}
@@ -129,6 +130,7 @@ k8s_profile_print_profiles() {
     [(.key + 1 | tostring), (.value.name | display), (.value.server | display),
      (if .value.cluster_found then .value.cluster | display else "-" end),
      (if .value.user_found then .value.user | display else "-" end),
+     (.value.namespace | display),
      (if .value.current then "yes" else "no" end)] | join("\t")
   ' "$K8S_PROFILE_TMP_DIR/profiles.json" || return 1
   while IFS= read -r row; do
@@ -139,7 +141,7 @@ k8s_profile_print_profiles() {
     printf 'No Kubernetes profiles found.\n'
     return 0
   fi
-  picotools_print_table $'#\tName\tServer\tCluster\tUser\tCurrent' "${rows[@]}"
+  picotools_print_table $'#\tName\tServer\tCluster\tUser\tNamespace\tCurrent' "${rows[@]}"
 }
 
 k8s_profile_find_profile_index() {

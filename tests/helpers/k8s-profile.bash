@@ -238,7 +238,7 @@ assert_config_expr() {
 }
 
 create_profile() {
-  local name="${1:-work}" server="${2:-https://api.invalid:6443}" confirmation="${3:-}"
+  local name="${1:-work}" server="${2:-https://api.invalid:6443}" confirmation="${3:-}" namespace="${4:-}"
   {
     printf '%s\n' "$name"
     if [ -n "$confirmation" ]; then
@@ -246,11 +246,12 @@ create_profile() {
     fi
     printf '%s\n' "$server"
     builtin printf '%s\n' "$(<"$TMP_HOME/sentinel")"
+    builtin printf '%s\n' "$namespace"
   } | run_tool create
 }
 
 update_profile() {
-  local index="${1:-1}" server="${2:-}" token_file="${3:-}"
+  local index="${1:-1}" server="${2:-}" token_file="${3:-}" namespace="${4:-}"
   {
     printf '%s\n' "$index"
     if [ -n "$server" ]; then
@@ -260,7 +261,10 @@ update_profile() {
       printf '2\n2\n'
       builtin printf '%s\n' "$(<"$token_file")"
     fi
-    printf '3\n'
+    if [ -n "$namespace" ]; then
+      printf '3\n%s\n' "$namespace"
+    fi
+    printf '4\n'
   } | run_tool update
 }
 

@@ -37,7 +37,7 @@ Commands:
   create                    Register a local Kubernetes profile (context)
   list                      List every context visible to kubectl
   use [profile-name]        Switch by name, or select a profile interactively
-  update                    Update a selected profile's Server and/or Token
+  update                    Update a selected profile's Server, Token, or Namespace
   delete                    Delete a selected profile after confirmation
 
 Options:
@@ -49,6 +49,9 @@ Notes:
   create/list/update/delete accept no arguments; use accepts one optional name.
   Place --debug before the command. Quote names containing spaces or punctuation.
   create requires Name, Server, and a masked Token; overwrite is default-no.
+  Namespace is prompted with "default" as the shown Enter default and must
+  match a DNS-1123 label (lowercase alphanumeric and "-"); update can edit it
+  and never clears it. It is stored locally; existence and RBAC are cluster-side.
   New names must match [A-Za-z0-9._-]+. Server must be a meaningful https://
   URL, including for localhost; ports, paths, and private IPv4/IPv6 are allowed.
   HTTP, URL userinfo, query/fragment, whitespace, and controls are rejected.
@@ -85,9 +88,10 @@ Notes:
   UTF-8 paths are supported; list still reads native filename bytes unchanged.
   Operations require Bash 4.4+, kubectl, jq, awk, cmp, and GNU coreutils (including
   stat, sha256sum, stty, mv, and ln). Help/version need no operational tools.
-  update offers Server, Token (keep/add/replace, never remove), and Done. Only
-  valid credential-free HTTPS servers are prompt defaults. Server-only updates
-  retain external authentication; Token replacement rejects incompatible auth.
+  update offers Server, Token (keep/add/replace, never remove), Namespace,
+  and Done. Only valid credential-free HTTPS servers and valid namespaces are
+  prompt defaults. Server-only updates retain external authentication;
+  Token replacement rejects incompatible auth.
   delete is default-no, refuses context shadows, and removes only unambiguous,
   explicitly owned orphan resources. External credential/CA files are retained.
   Deleting the current profile clears ALL nonempty current-context values,

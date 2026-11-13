@@ -87,12 +87,17 @@ k8s_profile_target_index() {
 # It plans cleanup against ALL physical contexts, including hidden definitions.
 k8s_profile_plan_change() {
   local profile="$1" server="$2" server_change="$3" token_change="$4"
+  local namespace="${5:-}" namespace_change="${6:-false}"
   if [ "$server_change" = true ]; then
     k8s_profile_validate_server "$server" || return 1
+  fi
+  if [ "$namespace_change" = true ]; then
+    k8s_profile_validate_namespace "$namespace" || return 1
   fi
   k8s_profile_validate_ownership || return 1
   k8s_profile_jq "$K8S_PROFILE_TMP_DIR/change-plan.json" 'unable to plan profile change (required cluster information or compatible bearer authentication is missing)' \
     --arg profile "$profile" --arg server "$server" --argjson server_change "$server_change" --argjson token_change "$token_change" \
+    --arg namespace "$namespace" --argjson namespace_change "$namespace_change" \
     "$K8S_PROFILE_MODEL_JQ"'
       . as $files | target_index($files; $profile) as $target |
       definitions($files; "context"; $profile) as $contexts |
@@ -112,14 +117,17 @@ k8s_profile_plan_change() {
         (if $token_change then
            if $reuse_user then $users[0].name else allocate($files; $profile; "user") end
          else ($old_context.user // "") end) as $user_name |
-        ($old_context | .cluster = $cluster_name | .user = $user_name | with_marker($profile; "context")) as $context |
+        ($old_context | .cluster = $cluster_name | .user = $user_name |
+         (if $namespace_change then .namespace = $namespace else . end) |
+         with_marker($profile; "context")) as $context |
         ($files | map(. as $file | .config.contexts =
           [entries($file; "context") | if $file.index == $target and .name == $profile then .context = $context else . end]) |
           if ($contexts | length) == 0 then
             map(if .index == $target then .config.contexts += [{name:$profile,context:$context}] else . end)
           else . end) as $proposed |
         {profile:$profile,target:$target,directory:$files[$target].directory,context:$context,
-         server_change:$server_change,token_change:$token_change,
+         server_change:$server_change,token_change:$token_change,namespace_change:$namespace_change,
+         expected_namespace:(if $namespace_change then $namespace else ($old_context.namespace // "") end),
          cluster_name:$cluster_name,user_name:$user_name,
          cluster_source:($clusters[0] // {data:{},directory:$files[$target].directory}),
          user_source:($users[0] // {data:{},directory:$files[$target].directory}),
@@ -196,7 +204,9 @@ k8s_profile_verify_change() {
       [.clusters[]? | select(.name == $p.cluster_name)] as $clusters |
       [.users[]? | select(.name == $p.user_name)] as $users |
       ($contexts | length) == 1 and $contexts[0].context.cluster == $p.cluster_name and
-      $contexts[0].context.user == $p.user_name and ($clusters | length) == 1 and
+      $contexts[0].context.user == $p.user_name and
+      (($contexts[0].context.namespace // "") == $p.expected_namespace) and
+      ($clusters | length) == 1 and
       $clusters[0].cluster.server == $p.expected_server and
       (($p.token_change | not) or (($users | length) == 1 and (($users[0].user.token // "") | length) > 0)) and
       (.["current-context"] // "") == ($before[0]["current-context"] // "")

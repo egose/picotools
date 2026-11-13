@@ -11,7 +11,8 @@ load 'helpers/k8s-profile-tty'
 {"initial_echonl":false,"expect_mask":true,"steps":[
   {"wait":"Name: ","input":"work\n"},
   {"wait":"Server: ","input":"https://api.invalid\n"},
-  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.75,"after":"\n"}
+  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.75,"after":"\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
   run k8s_test_pty create "$TMP_HOME/pty-plan.json"
@@ -25,7 +26,8 @@ EOF
 {"initial_echonl":false,"redirect_stderr":true,"steps":[
   {"wait":"Name: ","input":"work\n"},
   {"wait":"Server: ","input":"https://api.invalid\n"},
-  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.75,"after":"\n"}
+  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.75,"after":"\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
   run k8s_test_pty create "$TMP_HOME/pty-plan.json"
@@ -43,7 +45,8 @@ EOF
   {"wait":"Server: ","input":"https://api.invalix\b d\u0002\b\u0006\n"},
   {"wait":"Token: ","secret":true,"token":true},
   {"input":"\u001b[H\u001b[C\u001b[D\u001b[F"},
-  {"token_range":[-2,null],"after":"\u007f\n"}
+  {"token_range":[-2,null],"after":"\u007f\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
   # Correct the last two Server characters with both backspace spellings and
@@ -149,7 +152,7 @@ EOF
       write_pty_plan <<'EOF'
 {"expected_status":"failure","error":"unsupported NUL character","steps":[
   {"wait":"Enter to confirm","input":"\n"},
-  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\u001b[A\n"},
   {"wait":"Server [https://external.invalid:6443]: ","input":"https://new\u0000.invalid\n"}
 ]}
 EOF
@@ -157,9 +160,9 @@ EOF
       write_pty_plan <<'EOF'
 {"expected_status":"failure","error":"unsupported NUL character","steps":[
   {"wait":"Enter to confirm","input":"\n"},
-  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\u001b[A\n"},
   {"wait":"Server [https://external.invalid:6443]: ","input":"https://not-published.invalid\n"},
-  {"wait":"Update fields","input":"\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
   {"wait":"Keep Token [configured]","input":"\u001b[B\n"},
   {"wait":"Token: ","secret":true,"token":true,"after":"\n"}
 ]}
@@ -195,7 +198,7 @@ EOF
   write_pty_plan <<'EOF'
 {"steps":[
   {"wait":"Enter to confirm","input":"\u001b[B\u001b[A\u001b[B\n"},
-  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\u001b[A\n"},
   {"wait":"Server [https://external.invalid:6443]: ","input":"wrong\u0015https://selected.invalid/trash\u001b[D\u001b[D\u001b[D\u001b[D\u001b[D\u000b\n"},
   {"wait":"Update fields","input":"\n"}
 ]}
@@ -220,7 +223,7 @@ EOF
     write_pty_plan <<EOF
 {"expected_status":$expected,"steps":[
   {"wait":"Enter to confirm","input":"\n"},
-  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\u001b[A\n"},
   {"wait":"Server [https://external.invalid:6443]: ","input":"$input"}
 ]}
 EOF
@@ -313,10 +316,10 @@ EOF
   write_pty_plan <<'EOF'
 {"redirect_stderr":true,"steps":[
   {"wait":"Select profile: ","input":"1\n"},
-  {"wait":"Select field [3]: ","input":"2\n"},
+  {"wait":"Select field [4]: ","input":"2\n"},
   {"wait":"Select Token action [1]: ","input":"2\n"},
   {"wait":"Token: ","secret":true,"token":true,"after":"X\b\n"},
-  {"wait":"Select field [3]: ","input":"\n"}
+  {"wait":"Select field [4]: ","input":"\n"}
 ]}
 EOF
   run k8s_test_pty update "$TMP_HOME/pty-plan.json"
@@ -331,7 +334,8 @@ EOF
 {"initial_echo":false,"expect_mask":true,"steps":[
   {"wait":"Name: ","input":"work\n"},
   {"wait":"Server: ","input":"https://api.invalid\n"},
-  {"wait":"Token: ","secret":true,"token":true,"after":"\n"}
+  {"wait":"Token: ","secret":true,"token":true,"after":"\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
   run k8s_test_pty create "$TMP_HOME/pty-plan.json"
@@ -348,7 +352,8 @@ EOF
   {"wait":"Server: ","input":"\n"},
   {"wait":"Server: ","input":"https://api.invalid\n"},
   {"wait":"Token: ","secret":true,"input":"\n"},
-  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.5,"after":"\n"}
+  {"wait":"Token: ","secret":true,"token_range":[0,1],"sample_echo":0.5,"after":"\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
   run k8s_test_pty create "$TMP_HOME/pty-plan.json"
@@ -369,14 +374,15 @@ EOF
 {"redirect_stderr":$redirected,"steps":[
   {"wait":"Name: ","input":"work\n"},
   {"wait":"Server: ","input":"https://api.invalid\n"},
-  {"wait":"Token: ","secret":true,"token":true,"after":"X\b\n"}
+  {"wait":"Token: ","secret":true,"token":true,"after":"X\b\n"},
+  {"wait":"Namespace [default]: ","input":"\n"}
 ]}
 EOF
       elif [ "$redirected" = false ]; then
         write_pty_plan <<'EOF'
 {"steps":[
   {"wait":"Enter to confirm","input":"\n"},
-  {"wait":"Update fields","input":"\u001b[A\n"},
+  {"wait":"Update fields","input":"\u001b[A\u001b[A\n"},
   {"wait":"Keep Token [configured]","input":"\u001b[B\n"},
   {"wait":"Token: ","secret":true,"token":true,"after":"X\b\n"},
   {"wait":"Update fields","input":"\n"}
@@ -386,10 +392,10 @@ EOF
         write_pty_plan <<'EOF'
 {"redirect_stderr":true,"steps":[
   {"wait":"Select profile: ","input":"1\n"},
-  {"wait":"Select field [3]: ","input":"2\n"},
+  {"wait":"Select field [4]: ","input":"2\n"},
   {"wait":"Select Token action [1]: ","input":"2\n"},
   {"wait":"Token: ","secret":true,"token":true,"after":"X\b\n"},
-  {"wait":"Select field [3]: ","input":"\n"}
+  {"wait":"Select field [4]: ","input":"\n"}
 ]}
 EOF
       fi
