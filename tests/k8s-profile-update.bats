@@ -72,7 +72,7 @@ load 'helpers/k8s-profile'
   chmod 644 "$KUBECONFIG"
   cp "$KUBECONFIG" "$TMP_HOME/before"
   install_failure_wrappers
-  for input in $'1\n3\n' $'1\n1\n\n3\n' $'1\n1\nhttps://api.invalid:6443\n3\n' $'1\n2\n1\n3\n' $'1\n2\n\n3\n'; do
+  for input in $'1\n4\n' $'1\n1\n\n4\n' $'1\n1\nhttps://api.invalid:6443\n4\n' $'1\n2\n1\n4\n' $'1\n2\n\n4\n'; do
     printf '%s' "$input" | run_tool update >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"
     assert_contains "$(<"$TMP_HOME/stdout")" 'No changes to profile' 'unchanged proposals must not enter the writer'
     assert_same_file "$KUBECONFIG" "$TMP_HOME/before" 'no-op must preserve exact original bytes'
@@ -89,7 +89,7 @@ load 'helpers/k8s-profile'
 @test "changing Server then restoring its original value before Done publishes nothing" {
   create_profile work >/dev/null 2>"$TMP_HOME/stderr"
   cp "$KUBECONFIG" "$TMP_HOME/before"
-  printf '1\n1\nhttps://temporary.invalid\n1\nhttps://api.invalid:6443\n3\n' | run_tool update >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"
+  printf '1\n1\nhttps://temporary.invalid\n1\nhttps://api.invalid:6443\n4\n' | run_tool update >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"
   assert_contains "$(<"$TMP_HOME/stdout")" 'No changes to profile' 'final proposal, not intermediate edits, determines mutation'
   assert_same_file "$KUBECONFIG" "$TMP_HOME/before" 'reverted Server must not replace any state'
   assert_no_artifacts
@@ -120,13 +120,13 @@ load 'helpers/k8s-profile'
   "$K8S_TEST_REAL_JQ" '.users[0].user |= (del(.token) | .tokenFile = "relative/never-opened.token")' "$KUBECONFIG" >"$TMP_HOME/tokenfile.json"
   mv "$TMP_HOME/tokenfile.json" "$KUBECONFIG"
   read_config_json "$TMP_HOME/before.json" "$KUBECONFIG"
-  printf '1\n1\nhttps://server-only.invalid\n3\n' | k8s_test_env timeout 5 "$TOOL" update >/dev/null 2>"$TMP_HOME/stderr"
+  printf '1\n1\nhttps://server-only.invalid\n4\n' | k8s_test_env timeout 5 "$TOOL" update >/dev/null 2>"$TMP_HOME/stderr"
   read_config_json "$TMP_HOME/after.json" "$KUBECONFIG"
   "$K8S_TEST_REAL_JQ" -e --slurpfile before "$TMP_HOME/before.json" '.users == $before[0].users' "$TMP_HOME/after.json" >/dev/null
   {
     printf '1\n2\n2\n'
     builtin printf '%s\n' "$(<"$TMP_HOME/sentinel")"
-    printf '3\n'
+    printf '4\n'
   } | k8s_test_env timeout 5 "$TOOL" update >/dev/null 2>"$TMP_HOME/stderr"
   assert_config_expr "$KUBECONFIG" '
     (.users | length) == 1 and .users[0].user.token == $token and .users[0].user.tokenFile == null and
@@ -426,7 +426,7 @@ EOF
   create_profile work >/dev/null 2>"$TMP_HOME/stderr"
   cp "$KUBECONFIG" "$TMP_HOME/before"
   for input in '' '1' $'\n' $'q\n' $'0\n' $'2\n' $'01\n' $'999999999999999999999999999\n' \
-    $'1\n' $'1\nq\n' $'1\n4\n' $'1\n1\nhttps://not-published.invalid\nq\n' \
+    $'1\n' $'1\nq\n' $'1\n5\n' $'1\n1\nhttps://not-published.invalid\nq\n' \
     $'1\n2\n' $'1\n2\n3\n' $'1\n2\nq\n' $'1\n2\n2\n' $'1\n1\nhttps://not-published.invalid\n2\n2\n'; do
     if printf '%s' "$input" | run_tool update >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"; then fail 'canceled/invalid/EOF update input must fail'; fi
     assert_same_file "$KUBECONFIG" "$TMP_HOME/before" 'invalid selection must not publish pending fields'

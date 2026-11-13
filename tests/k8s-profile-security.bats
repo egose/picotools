@@ -196,6 +196,7 @@ EOF
   {
     printf 'work\nhttps://api.invalid:6443\n'
     printf '%s\n' "$(<"$TMP_HOME/sentinel")"
+    printf '\n'
   } | k8s_test_env env k8s_profile_token_value=public-inherited bash -x "$TOOL" --debug create >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"
   if grep -F -q -f "$TMP_HOME/sentinel" "$TMP_HOME/audit" "$TMP_HOME/stdout" "$TMP_HOME/stderr"; then
     fail 'synthetic Token leaked across a public/process boundary'

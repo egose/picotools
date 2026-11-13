@@ -20,6 +20,13 @@ k8s_profile_display_server() {
   ' "$K8S_PROFILE_TMP_DIR/profiles.json"
 }
 
+k8s_profile_display_namespace() {
+  local index="$1" result_var="$2"
+  k8s_profile_json_value "$result_var" --argjson index "$index" "$K8S_PROFILE_DISPLAY_JQ"'
+    (.profiles[$index - 1].namespace | if . == "" then "-" else display_text end), "\u0000"
+  ' "$K8S_PROFILE_TMP_DIR/profiles.json"
+}
+
 # Never pass an existing Server to jq --arg, a prompt, or an external command
 # before validating it privately. In particular, a redacted display projection
 # is NOT an editable default or a replacement target. Unchanged expected state
@@ -52,6 +59,21 @@ k8s_profile_update_token_status() {
   ' "$K8S_PROFILE_TMP_DIR/inventory.json"
 }
 
+# Namespace is not secret, but the same default policy applies: only an
+# existing value that passes validation becomes an editable default. Unset
+# or invalid namespaces offer no default, so a blank input cannot invent one.
+k8s_profile_update_namespace_default() {
+  local profile="$1" result_var="$2" namespace
+  k8s_profile_json_value namespace --arg profile "$profile" "$K8S_PROFILE_MODEL_JQ"'
+    (definitions(.; "context"; $profile)[0].data.namespace // ""), "\u0000"
+  ' "$K8S_PROFILE_TMP_DIR/inventory.json" || return 1
+  if k8s_profile_validate_namespace "$namespace" 2>"$K8S_PROFILE_TMP_DIR/diagnostics"; then
+    printf -v "$result_var" '%s' "$namespace"
+  else
+    printf -v "$result_var" '%s' ''
+  fi
+}
+
 k8s_profile_check_token_compatibility() {
   local profile="$1" incompatible
   k8s_profile_json_value incompatible --arg profile "$profile" "$K8S_PROFILE_MODEL_JQ"'
@@ -75,9 +97,9 @@ k8s_profile_token_would_change() {
 }
 
 k8s_profile_prompt_update_field() {
-  local server_display="$1" token_status="$2"
-  k8s_profile_prompt_select_index 'Update fields' 'Select field' 3 false \
-    "Server [$server_display]" "Token [$token_status]" Done
+  local server_display="$1" token_status="$2" namespace_display="$3"
+  k8s_profile_prompt_select_index 'Update fields' 'Select field' 4 false \
+    "Server [$server_display]" "Token [$token_status]" "Namespace [$namespace_display]" Done
 }
 
 k8s_profile_prompt_token_action() {
@@ -91,7 +113,8 @@ k8s_profile_prompt_token_action() {
 
 k8s_profile_update() {
   local index name display_name server_display original_default server_default server=''
-  local selected_field token_status token_action token_file='' server_change=false token_change=false
+  local namespace_display original_namespace_default namespace_default namespace=''
+  local selected_field token_status token_action token_file='' server_change=false token_change=false namespace_change=false
   k8s_profile_init || return 1
   k8s_profile_snapshot_chain || return 1
   k8s_profile_validate_ownership || return 1
@@ -103,11 +126,14 @@ k8s_profile_update() {
   k8s_profile_update_server_default "$name" original_default || return 1
   server_default="$original_default"
   k8s_profile_update_token_status "$name" token_status || return 1
+  k8s_profile_display_namespace "$index" namespace_display || return 1
+  k8s_profile_update_namespace_default "$name" original_namespace_default || return 1
+  namespace_default="$original_namespace_default"
   picotools_ui_section 'Update Kubernetes Profile'
   picotools_ui_step 1 2 'Select fields to update'
   debug_log 'Editing the selected profile; configuration remains unchanged until Done'
   while true; do
-    if ! k8s_profile_capture_prompt selected_field k8s_profile_prompt_update_field "$server_display" "$token_status"; then
+    if ! k8s_profile_capture_prompt selected_field k8s_profile_prompt_update_field "$server_display" "$token_status" "$namespace_display"; then
       picotools_cancel
       return 1
     fi
@@ -136,18 +162,32 @@ k8s_profile_update() {
         token_status=configured
       fi
       ;;
-    3) break ;;
+    3)
+      # Only a valid existing namespace is offered as the default; blank keeps
+      # it. Update never clears a namespace; select Done to keep the current one.
+      k8s_profile_capture_prompt namespace k8s_profile_prompt_required Namespace "$namespace_default" || return 1
+      k8s_profile_validate_namespace "$namespace" || return 1
+      namespace_default="$namespace"
+      namespace_display="$namespace"
+      if [ "$namespace" = "$original_namespace_default" ]; then
+        namespace_change=false
+        namespace=''
+      else
+        namespace_change=true
+      fi
+      ;;
+    4) break ;;
     esac
   done
   k8s_profile_recheck_chain || return 1
-  if [ "$server_change" = false ] && [ "$token_change" = false ]; then
+  if [ "$server_change" = false ] && [ "$token_change" = false ] && [ "$namespace_change" = false ]; then
     printf "No changes to profile '%s'.\n" "$display_name"
     return 0
   fi
   # Empty Server means KEEP, not a projected/default/redacted substitute.
-  k8s_profile_plan_change "$name" "$server" "$server_change" "$token_change" || return 1
+  k8s_profile_plan_change "$name" "$server" "$server_change" "$token_change" "$namespace" "$namespace_change" || return 1
   picotools_ui_summary 'Review Updated Profile' \
-    "Profile: $display_name" "Server: $server_display" "Token: $token_status" 'Current context: unchanged'
+    "Profile: $display_name" "Server: $server_display" "Token: $token_status" "Namespace: $namespace_display" 'Current context: unchanged'
   picotools_ui_step 2 2 'Save updated settings'
   if [ "$token_change" = false ]; then
     token_file=''
@@ -155,7 +195,7 @@ k8s_profile_update() {
   k8s_profile_stage_change "$token_file" || return 1
   k8s_profile_tx_commit k8s_profile_verify_change || return 1
   picotools_ui_summary 'Kubernetes Profile Updated' \
-    "Profile: $display_name" "Server: $server_display" "Token: $token_status" 'Current context: unchanged'
+    "Profile: $display_name" "Server: $server_display" "Token: $token_status" "Namespace: $namespace_display" 'Current context: unchanged'
   printf "Updated profile '%s'.\n" "$display_name"
 }
 

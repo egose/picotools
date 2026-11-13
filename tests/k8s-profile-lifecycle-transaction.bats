@@ -88,7 +88,7 @@ load 'helpers/k8s-profile'
     k8s_profile_prompt_update_field() {
       "$K8S_TEST_REAL_JQ" '\''.contexts[0].context.namespace = "newer-external"'\'' "$K8S_TEST_TARGET" >"$K8S_TEST_TARGET.external"
       "$K8S_TEST_REAL_MV" -fT -- "$K8S_TEST_TARGET.external" "$K8S_TEST_TARGET"
-      printf "3\n"
+      printf "4\n"
     }
     k8s_profile_update
   ' >"$TMP_HOME/stdout" 2>"$TMP_HOME/stderr"; then fail 'stale no-op Done must not claim success'; fi
@@ -372,7 +372,7 @@ EOF
   {
     printf '1\n2\n2\n'
     builtin printf '%s\n' "$(<"$TMP_HOME/replacement")"
-    printf '3\n'
+    printf '4\n'
   } | k8s_test_env env k8s_profile_token_value=public-inherited k8s_profile_private_server=public-inherited bash -x "$TOOL" --debug update >"$TMP_HOME/update-stdout" 2>"$TMP_HOME/update-stderr"
   printf '1\nyes\n' | k8s_test_env bash -x "$TOOL" --debug delete >"$TMP_HOME/delete-stdout" 2>"$TMP_HOME/delete-stderr"
   if grep -F -q -f "$TMP_HOME/sentinel" -f "$TMP_HOME/replacement" "$TMP_HOME/audit" "$TMP_HOME/update-stdout" "$TMP_HOME/update-stderr" "$TMP_HOME/delete-stdout" "$TMP_HOME/delete-stderr"; then
@@ -391,7 +391,7 @@ EOF
   if {
     printf '1\n1\nhttps://not-published.invalid\n2\n2\n'
     builtin printf '%s\n' "$(<"$TMP_HOME/sentinel")"
-    printf '3\n'
+    printf '4\n'
   } | run_module_script '
     builtin() {
       if [ "$1" = printf ] && [ "${2:-}" = "%s" ]; then

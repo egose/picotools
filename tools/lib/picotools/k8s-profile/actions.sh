@@ -6,7 +6,7 @@ fi
 PICOTOOLS_K8S_PROFILE_ACTIONS_SH_LOADED=1
 
 k8s_profile_create() {
-  local name server token_file index target overwrite
+  local name server namespace namespace_default token_file index target overwrite
   k8s_profile_init || return 1
   # Take the complete physical/visible snapshot BEFORE any interactive input.
   k8s_profile_snapshot_chain || return 1
@@ -32,16 +32,27 @@ k8s_profile_create() {
   k8s_profile_capture_prompt server k8s_profile_prompt_required Server || return 1
   k8s_profile_validate_server "$server" || return 1
   k8s_profile_prompt_token_file token_file || return 1
+  # Enter accepts the default explicitly so profiles never silently resolve
+  # to the cluster default namespace behind the user's back. An overwrite
+  # defaults to the profile's existing valid namespace so a blank answer
+  # cannot clear what the user (or the cluster admin) already set.
+  namespace_default='default'
+  if [ "$index" -gt 0 ]; then
+    k8s_profile_update_namespace_default "$name" namespace_default || return 1
+    [ -n "$namespace_default" ] || namespace_default='default'
+  fi
+  k8s_profile_capture_prompt namespace k8s_profile_prompt_required Namespace "$namespace_default" || return 1
+  k8s_profile_validate_namespace "$namespace" || return 1
   # This also rejects incompatible authentication without replacing its user.
-  k8s_profile_plan_change "$name" "$server" true true || return 1
+  k8s_profile_plan_change "$name" "$server" true true "$namespace" true || return 1
   picotools_ui_step 3 3 'Review and save profile'
   picotools_ui_summary 'Review Kubernetes Profile' \
-    "Profile: $name" "Server: $server" 'Token: configured' 'Current context: unchanged'
+    "Profile: $name" "Server: $server" "Namespace: $namespace" 'Token: configured' 'Current context: unchanged'
   debug_log 'Staging a complete profile registration'
   k8s_profile_stage_change "$token_file" || return 1
   k8s_profile_tx_commit k8s_profile_verify_change || return 1
   picotools_ui_summary 'Kubernetes Profile Saved' \
-    "Profile: $name" "Server: $server" 'Token: configured' 'Current context: unchanged'
+    "Profile: $name" "Server: $server" "Namespace: $namespace" 'Token: configured' 'Current context: unchanged'
   printf "Saved profile '%s'.\n" "$name"
 }
 

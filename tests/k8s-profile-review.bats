@@ -13,6 +13,8 @@ load 'helpers/k8s-profile'
     {
       printf 'work\nhttps://api.invalid\n'
       builtin printf '%s\n' "$(<"$TMP_HOME/sentinel")"
+      # Namespace prompt: blank accepts the shown default explicitly.
+      printf '\n'
     } | if [ "$launch" = option ]; then
       k8s_test_env env k8s_profile_token_value=public-inherited bash -ax "$TOOL" --debug create
     else
@@ -40,7 +42,7 @@ load 'helpers/k8s-profile'
     {
       printf '1\n2\n2\n'
       builtin printf '%s\n' "$(<"$TMP_HOME/replacement")"
-      printf '3\n'
+      printf '4\n'
     } | if [ "$launch" = option ]; then
       k8s_test_env env k8s_profile_token_value=public-inherited k8s_profile_private_server=public-inherited bash -ax "$TOOL" --debug update
     else

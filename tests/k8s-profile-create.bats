@@ -56,6 +56,7 @@ load 'helpers/k8s-profile'
   {
     printf '\n  \nwork\n\n \nhttps://api.invalid:6443\n'
     printf '%s\n' "$(<"$TMP_HOME/sentinel")"
+    printf '\n'
   } | run_tool create >/dev/null 2>"$TMP_HOME/stderr"
   assert_config_expr "$KUBECONFIG" '.contexts[0].name == "work"'
 }

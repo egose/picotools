@@ -96,11 +96,13 @@ test ! -e "$SMOKE_ROOT/home/.kube/config"
 {
   builtin printf 'installed\nhttps://127.0.0.1:1\n'
   builtin printf '%s\n' "$(<"$SMOKE_ROOT/create-token")"
+  builtin printf 'ai-poc\n'
 } | smoke_env "$installed_tool" --debug create >"$SMOKE_ROOT/create.out" 2>"$SMOKE_ROOT/create.err"
 read_config
 # shellcheck disable=SC2016 # jq owns these variables.
 smoke_env jq -e --rawfile token "$SMOKE_ROOT/create-token" '
   .contexts[0].name == "installed" and .clusters[0].cluster.server == "https://127.0.0.1:1" and
+  .contexts[0].context.namespace == "ai-poc" and
   .users[0].user.token == $token and (.clusters[0].cluster["insecure-skip-tls-verify"] // false) == false and
   (.["current-context"] // "") == ""
 ' "$SMOKE_ROOT/config.json" >/dev/null 2>"$SMOKE_ROOT/assert-create.err"
@@ -111,12 +113,13 @@ grep -F 'https://127.0.0.1:1' "$SMOKE_ROOT/list.out" >/dev/null
 {
   builtin printf '1\n1\nhttps://[::1]:1/prefix\n2\n2\n'
   builtin printf '%s\n' "$(<"$SMOKE_ROOT/replace-token")"
-  builtin printf '3\n'
+  builtin printf '3\npoc-deploy\n4\n'
 } | smoke_env "$installed_tool" --debug update >"$SMOKE_ROOT/update.out" 2>"$SMOKE_ROOT/update.err"
 read_config
 # shellcheck disable=SC2016 # jq owns these variables.
 smoke_env jq -e --rawfile token "$SMOKE_ROOT/replace-token" '
   .contexts[0].name == "installed" and .clusters[0].cluster.server == "https://[::1]:1/prefix" and
+  .contexts[0].context.namespace == "poc-deploy" and
   .users[0].user.token == $token and (.["current-context"] // "") == ""
 ' "$SMOKE_ROOT/config.json" >/dev/null 2>"$SMOKE_ROOT/assert-update.err"
 
