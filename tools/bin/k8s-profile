@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Never trace credential input, including when invoked with bash -x.
+set +x
+# An inherited SHELLOPTS=allexport must not re-export secret assignments.
+set +a
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOAD_SH="${SCRIPT_DIR}/../lib/picotools/load.sh"
+if [ ! -f "$LOAD_SH" ]; then
+  LOAD_SH="${SCRIPT_DIR}/../../lib/picotools/load.sh"
+fi
+# shellcheck source=../../lib/picotools/load.sh
+# shellcheck disable=SC1091
+. "$LOAD_SH"
+picotools_source_modules "$SCRIPT_DIR" box commands prompt table ui version
+
+K8S_PROFILE_LIB_DIR="${SCRIPT_DIR}/../lib/picotools/k8s-profile"
+if [ ! -d "$K8S_PROFILE_LIB_DIR" ]; then
+  K8S_PROFILE_LIB_DIR="${SCRIPT_DIR}/../../tools/lib/picotools/k8s-profile"
+fi
+for K8S_PROFILE_MODULE in common config transaction model actions lifecycle; do
+  if [ ! -f "$K8S_PROFILE_LIB_DIR/${K8S_PROFILE_MODULE}.sh" ]; then
+    printf "Error: missing k8s-profile module '%s.sh'\n" "$K8S_PROFILE_MODULE" >&2
+    exit 1
+  fi
+  # shellcheck disable=SC1090
+  . "$K8S_PROFILE_LIB_DIR/${K8S_PROFILE_MODULE}.sh"
+done
+unset K8S_PROFILE_MODULE
+
+usage() {
+  cat <<'EOF'
+Usage: k8s-profile [--debug] <command>
+
+Commands:
+  create                    Register a local Kubernetes profile (context)
+  list                      List every context visible to kubectl
+  update                    Update a selected profile's Server and/or Token
+  delete                    Delete a selected profile after confirmation
+
+Options:
+  --debug                   Print nonsecret progress to stderr (global only)
+  -h, --help, help          Show this help message
+  -v, --version, version    Show the tool version
+
+Notes:
+  All four commands accept no arguments. Place --debug before the command.
+  create requires Name, Server, and a masked Token; overwrite is default-no.
+  New names must match [A-Za-z0-9._-]+. Server must be a meaningful https://
+  URL, including for localhost; ports, paths, and private IPv4/IPv6 are allowed.
+  HTTP, URL userinfo, query/fragment, whitespace, and controls are rejected.
+  Token must be valid UTF-8, nonblank, and contain no whitespace or controls.
+  Inputs and consent require a completed line; NUL and partial-line EOF fail.
+  Terminal input supports backspace, left/right, Home/End, and Ctrl-A/E/U/K.
+  Token encoding/format is checked locally; remote authentication is not.
+  No cluster request or credential plugin execution is performed.
+  Creation does not activate a context or disable TLS verification; the API
+  server certificate must be trusted. Overwrite retains existing TLS settings.
+  Kubeconfig is authoritative: list uses kubectl config view, not a registry.
+  It shows external contexts and missing references; URL userinfo/query/fragment
+  are omitted from display. Escaped display names retain their exact identity.
+  The default is $HOME/.kube/config; KUBECONFIG chains retain files and shadows.
+  New entries use the first existing file, otherwise the last chain member.
+  Existing entries use their visible context's file. Changed shared/unmanaged
+  resources are cloned; ownership requires version/profile/role extensions.
+  Tokens are stored inline in private kubeconfig user entries, never passed
+  in subprocess arguments, environment variables, debug output, or results.
+  Filesystem permissions protect access; they are not encryption.
+  Writes use private snapshots, cooperative .lock files, checked same-directory
+  mode-0600 replacement, and compare-before-restore recovery on returned failure.
+  Unsafe/linked paths and stale configuration are rejected. Multi-file writes
+  are not crash-atomic: noncooperative writers, SIGKILL, or power loss can leave
+  partial state. Incomplete recovery retains private backups and a manifest;
+  newer external edits are never deliberately overwritten during recovery.
+  A final check/rename race remains with noncooperative writers.
+  Known kubeconfig fields/extensions and relative credential/CA meaning are
+  preserved semantically; comments, formatting, and unknown fields are not.
+  Private workspaces require safe TMPDIR ancestry, including relative TMPDIR.
+  Mutation rejects symlinked/hard-linked files, controls, and missing ancestors
+  needed for lexical . or .. traversal; existing traversal keeps native meaning.
+  Mutation paths/origins and recovery workspaces must be valid UTF-8. Non-ASCII
+  UTF-8 paths are supported; list still reads native filename bytes unchanged.
+  Operations require Bash 4.4+, kubectl, jq, awk, cmp, and GNU coreutils (including
+  stat, sha256sum, stty, mv, and ln). Help/version need no operational tools.
+  update offers Server, Token (keep/add/replace, never remove), and Done. Only
+  valid credential-free HTTPS servers are prompt defaults. Server-only updates
+  retain external authentication; Token replacement rejects incompatible auth.
+  delete is default-no, refuses context shadows, and removes only unambiguous,
+  explicitly owned orphan resources. External credential/CA files are retained.
+  Deleting the current profile clears ALL nonempty current-context values,
+  including hidden different fallbacks, and never chooses a replacement.
+EOF
+}
+
+print_version() {
+  picotools_print_version "$SCRIPT_DIR"
+}
+
+debug_mode=false
+
+debug_enabled() {
+  [ "$debug_mode" = true ]
+}
+
+debug_log() {
+  if debug_enabled; then
+    printf '[k8s-profile] %s\n' "$1" >&2
+  fi
+}
+
+require_no_args() {
+  local command_name="$1"
+  shift
+
+  if [ "$#" -ne 0 ]; then
+    if [ "$1" = --debug ]; then
+      k8s_profile_error '--debug is a global option; place it before the command'
+    else
+      k8s_profile_error "$command_name does not accept arguments"
+    fi
+    usage >&2
+    return 1
+  fi
+}
+
+main() {
+  while [ "${1:-}" = --debug ]; do
+    debug_mode=true
+    shift
+  done
+
+  local command_name="${1:-help}"
+  if [ "$#" -gt 0 ]; then
+    shift
+  fi
+  case "$command_name" in
+  -h | --help | help)
+    require_no_args help "$@" || return 1
+    usage
+    ;;
+  -v | --version | version)
+    require_no_args version "$@" || return 1
+    print_version
+    ;;
+  create | list | update | delete)
+    require_no_args "$command_name" "$@" || return 1
+    k8s_profile_require_dependencies || return 1
+    case "$command_name" in
+    create) k8s_profile_create ;;
+    list) k8s_profile_list ;;
+    update) k8s_profile_update ;;
+    delete) k8s_profile_delete ;;
+    esac
+    ;;
+  *)
+    k8s_profile_error 'unknown command'
+    usage >&2
+    return 1
+    ;;
+  esac
+}
+
+main "$@"

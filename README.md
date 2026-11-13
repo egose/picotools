@@ -22,6 +22,7 @@ The following scripts are included in `tools/bin`:
 | `pre-commit-upgrade` | Runs `pre-commit autoupdate` against a pre-commit config file |
 | `model-profile` | Stores named model provider profiles with config and token data kept separately |
 | `git-profile` | Stores named Git identity profiles and optional GitHub PATs with repository-local selection |
+| `k8s-profile` | Creates, lists, updates, and safely deletes local Kubernetes contexts |
 | `git-commit` | Uses a configured model provider to propose and create conventional commits from workspace changes |
 | `git-api` | Calls GitHub REST operations by `operationId` using split OpenAPI method files |
 | `git-release-setup` | Generates a release SSH keypair, stores it as an Actions secret, and configures matching deploy-key permissions |
@@ -116,6 +117,31 @@ All tools support `--help`, `--version`, and `--debug`. The version is read from
 
 Single-choice interactive menus use arrow-key navigation when both stdin and stderr are attached to a terminal, and fall back to numbered prompts in non-interactive flows.
 
+### k8s-profile
+
+`k8s-profile` manages local Kubernetes contexts, called profiles in its menus. Operations require Bash **4.4+**, `kubectl`, `jq`, `awk`, `cmp`, and GNU coreutils, including `stat`, `sha256sum`, `stty`, `mv`, and `ln`. Help/version work without operational dependencies. Repository/CI tests pin kubectl **1.37.2** and run offline with `npm run test:k8s-profile`.
+
+All four actions take **no command-specific arguments**. Create/update/delete prompt interactively; list never prompts or writes. `--debug` is global-only, before the command, and prints nonsecret progress to stderr. Prompts/reviews also use stderr; tables/results use stdout.
+
+```sh
+k8s-profile create         # Prompt for mandatory Name, Server, and masked Token
+k8s-profile list           # Show all visible contexts, including external ones
+k8s-profile update         # Select a profile, edit fields, then choose Done
+k8s-profile delete         # Select a profile, review cleanup, confirm (default no)
+k8s-profile --debug list   # Global option; not: k8s-profile list --debug
+```
+
+- **Create:** Name must match `[A-Za-z0-9._-]+`; Server must be a valid **HTTPS-only** API URL, including for localhost. Ports, paths, and private IPv4/IPv6 addresses are supported; HTTP, userinfo, queries/fragments, whitespace, and controls are rejected. Token is mandatory **valid UTF-8**, with no Unicode whitespace or control characters; accepted bytes are preserved exactly, not normalised. Existing-name overwrite requires explicit default-no consent. All inputs/consent require a completed line: NUL and partial-line EOF fail. Terminal input supports backspace, left/right, Home/End, and Ctrl-A/E/U/K; a blank completed line still applies a nonsecret default. Creation registers a context without activating it or disabling TLS verification: the API server certificate must already be trusted. Overwrite/update retain existing TLS settings.
+- **List:** `kubectl config view -o json` is authoritative, not a separate profile registry. The indexed Name/Server/Cluster/User/Current table includes contexts created outside this tool and shows missing references as `-`. External names are escaped for safe display but retain their exact identity when selected; URL credentials/query/fragment are not displayed.
+- **Update:** Select Server, Token, or Done. A completed blank Server input keeps a valid credential-free HTTPS default; EOF fails rather than accepting a default. Token offers keep/replace, or add when absent, never a visible secret default or removal. Server-only changes preserve authentication. Token add/replace (including overwrite) rejects exec, auth-provider, basic, or client-certificate/key authentication instead of mixing mechanisms. Bearer `tokenFile` references are compatible; replacement stores an inline token and removes only the reference, not the external file. Names and current-context stay unchanged.
+- **Delete:** Review and confirm with default no. Contexts with multiple physical definitions (shadows) are refused; resolve them using kubectl with an explicit `--kubeconfig` file first. Deleting the current profile warns that **all nonempty current-context values in the chain**, including hidden different fallbacks, will be cleared; no replacement is selected. Noncurrent deletion clears only obsolete same-name references and preserves the effective current profile.
+
+**Configuration and ownership:** Unset/empty `KUBECONFIG` uses `$HOME/.kube/config` as one literal file, even with a colon in HOME; only nonempty `KUBECONFIG` is split into a colon-separated chain. Relative chain spellings remain relative during validation, including beneath a colon-containing working directory. Chains retain loading precedence and are never flattened into a live file. New entries go to the first existing member, otherwise the last member; changes to an existing profile use its visible context's origin file. Separator-only chains list as empty and cannot be mutated. Managed cluster/user names use `k8s-profile:<exact-context-name>:cluster:<n>` / `k8s-profile:<exact-context-name>:user:<n>` with a `picotools.k8s-profile` extension recording version `1`, profile, and role. Ownership requires matching metadata and naming, not a prefix alone. Only unambiguous, exclusively referenced owned entries in the context's file are reused; changed shared/unmanaged or split-file resources are copied under fresh names. Cleanup removes only unambiguous owned orphans after checking **all physical contexts**, including shadows. Shared/unmanaged resources are retained. All external token, CA, certificate, and key files are retained and never opened by this tool.
+
+**Security and limits:** Tokens are stored **inline in mode-0600 kubeconfig user entries**; filesystem permissions are **not encryption**. Secret input/raw snapshots/backups use private files and mode-0700 workspaces, not token-bearing subprocess arguments, environment variables, debug output, or results. Token encoding/format is checked locally. Only local config operations run: no live requests, remote token authentication validation, credential plugins, or remote mutations. Known kubeconfig fields/extensions and relative CA/credential-file meaning are preserved semantically, but comments, formatting, defaults, and unknown non-schema fields are not guaranteed.
+
+Writes require safe, user-owned targets/parents and safe `TMPDIR` ancestry (relative `TMPDIR` is checked at its actual absolute lexical location). Mutation paths/origins and recovery workspace paths must be **valid UTF-8** so copied references and recovery metadata preserve their exact bytes; non-ASCII paths, including a literal U+FFFD replacement character, remain supported. Symlinked/hard-linked chain files, nonregular inputs, distinct aliases, control-bearing mutation paths, missing ancestors needed for lexical `.`/`..` traversal, unavailable locks, and stale configuration produce controlled errors. Existing traversal retains its native meaning; ordinary missing destination directories can still be created privately. Read-only list permits regular file links/aliases and retains native filename-byte loading without the mutation encoding restriction. Terminal echo stays disabled throughout secret input and private validation, even with redirected stderr, and the original terminal state is restored on success, errors, EOF, and handled signals. Candidates are privately staged/validated with cooperative `.lock` files and same-directory publication. Returned failures/handled signals attempt compare-before-restore recovery; incomplete recovery preserves newer edits and retains private backups plus a nonsecret recovery manifest for manual inspection. **Multi-file publication is not crash-atomic, and a final check/rename race remains with noncooperative writers.** SIGKILL or power loss can leave partial state, locks, and private recovery artifacts; do not overwrite newer configuration blindly during manual recovery.
+
 ## Install
 
 ### via asdf
@@ -161,6 +187,7 @@ gh-release-assets
 pre-commit-upgrade
 model-profile
 git-profile
+k8s-profile
 git-commit
 git-api
 git-release-setup

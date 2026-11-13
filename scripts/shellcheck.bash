@@ -6,6 +6,7 @@ for path in \
   bin/* \
   tools/bin/* \
   lib/picotools/*.sh \
+  tools/lib/picotools/k8s-profile/*.sh \
   scripts/*.bash \
   tests/helpers/*.bash \
   tests/*.bats; do

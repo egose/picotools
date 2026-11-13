@@ -45,78 +45,81 @@ jobs:
       run: |
         set -euo pipefail
 
-        chmod +x bin/* tools/bin/*
-        mkdir -p dist tmp/download tmp/install
-        tar -czf dist/picotools-test.tar.gz -C . VERSION lib -C tools bin lib
-        cp dist/picotools-test.tar.gz tmp/download/
+        umask 077
+        smoke_root=$(mktemp -d "${TMPDIR:-/tmp}/picotools-install.XXXXXX")
+        trap 'rm -rf -- "$smoke_root"' EXIT
+        mkdir -p "$smoke_root/download" "$smoke_root/install"
+        tar -czf "$smoke_root/download/picotools-test.tar.gz" -C . VERSION lib -C tools bin lib
 
         ASDF_INSTALL_TYPE=version \
         ASDF_INSTALL_VERSION=test \
-        ASDF_INSTALL_PATH="$PWD/tmp/install" \
-        ASDF_DOWNLOAD_PATH="$PWD/tmp/download" \
+        ASDF_INSTALL_PATH="$smoke_root/install" \
+        ASDF_DOWNLOAD_PATH="$smoke_root/download" \
           bin/install
 
-        test -f "$PWD/tmp/install/VERSION"
-        test "$(cat "$PWD/tmp/install/VERSION")" = "$(cat VERSION)"
+        test -f "$smoke_root/install/VERSION"
+        test "$(cat "$smoke_root/install/VERSION")" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/asdf-install" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/asdf-install" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/asdf-install" --help >/dev/null
+        test "$("$smoke_root/install/bin/asdf-install" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/asdf-cli-install" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/asdf-cli-install" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/asdf-cli-install" --help >/dev/null
+        test "$("$smoke_root/install/bin/asdf-cli-install" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/asdf-clean-unused" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/asdf-clean-unused" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/asdf-clean-unused" --help >/dev/null
+        test "$("$smoke_root/install/bin/asdf-clean-unused" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/asdf-upgrade" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/asdf-upgrade" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/asdf-upgrade" --help >/dev/null
+        test "$("$smoke_root/install/bin/asdf-upgrade" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/pip-upgrade" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/pip-upgrade" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/pip-upgrade" --help >/dev/null
+        test "$("$smoke_root/install/bin/pip-upgrade" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/npm-publish-package" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/npm-publish-package" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/npm-publish-package" --help >/dev/null
+        test "$("$smoke_root/install/bin/npm-publish-package" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/gh-repo-sync" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/gh-repo-sync" --help >/dev/null
+        test "$("$smoke_root/install/bin/gh-repo-sync" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/gh-actions-upgrade" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/gh-actions-upgrade" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/gh-actions-upgrade" --help >/dev/null
+        test "$("$smoke_root/install/bin/gh-actions-upgrade" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/gh-release-assets" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/gh-release-assets" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/gh-release-assets" --help >/dev/null
+        test "$("$smoke_root/install/bin/gh-release-assets" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/git-profile" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-profile" --version)" = "$(cat VERSION)"
-        git_profile_home="$PWD/tmp/git-profile-home"
+        "$smoke_root/install/bin/git-profile" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-profile" --version)" = "$(cat VERSION)"
+        git_profile_home="$smoke_root/git-profile-home"
         mkdir -p "$git_profile_home/.config" "$git_profile_home/.local/share"
         HOME="$git_profile_home" \
         XDG_CONFIG_HOME="$git_profile_home/.config" \
         XDG_DATA_HOME="$git_profile_home/.local/share" \
-          "$PWD/tmp/install/bin/git-profile" list | grep -F 'No git profiles found.' >/dev/null
+          "$smoke_root/install/bin/git-profile" list | grep -F 'No git profiles found.' >/dev/null
         printf 'installed\nInstalled User\ninstalled@example.com\nno\nno\n\n' | \
           HOME="$git_profile_home" \
           XDG_CONFIG_HOME="$git_profile_home/.config" \
           XDG_DATA_HOME="$git_profile_home/.local/share" \
-            "$PWD/tmp/install/bin/git-profile" create >/dev/null
+            "$smoke_root/install/bin/git-profile" create >/dev/null
         printf '1\n' | \
           HOME="$git_profile_home" \
           XDG_CONFIG_HOME="$git_profile_home/.config" \
           XDG_DATA_HOME="$git_profile_home/.local/share" \
-            "$PWD/tmp/install/bin/git-profile" read | grep -F 'Installed User' >/dev/null
+            "$smoke_root/install/bin/git-profile" read | grep -F 'Installed User' >/dev/null
 
-        "$PWD/tmp/install/bin/pre-commit-upgrade" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
+        bash scripts/functional-test-k8s-profile-install.bash "$smoke_root/install"
 
-        "$PWD/tmp/install/bin/model-profile" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/model-profile" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/pre-commit-upgrade" --help >/dev/null
+        test "$("$smoke_root/install/bin/pre-commit-upgrade" --version)" = "$(cat VERSION)"
+
+        "$smoke_root/install/bin/model-profile" --help >/dev/null
+        test "$("$smoke_root/install/bin/model-profile" --version)" = "$(cat VERSION)"
         for module in provider.sh token.sh profile.sh http.sh; do
-          test -f "$PWD/tmp/install/lib/picotools/model-profile/$module"
+          test -f "$smoke_root/install/lib/picotools/model-profile/$module"
         done
 
-        model_profile_home="$PWD/tmp/model-profile-home"
+        model_profile_home="$smoke_root/model-profile-home"
         model_profile_stub_bin="$model_profile_home/bin"
-        model_profile_installed_bin="$PWD/tmp/install/bin/model-profile"
+        model_profile_installed_bin="$smoke_root/install/bin/model-profile"
         model_profile_name='installed-openai'
         model_profile_resource='installed-openai'
         model_profile_token="ci-token-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}"
@@ -211,13 +214,13 @@ jobs:
           '.model == $model and .messages[1].content == $message' \
           "$model_profile_home/request-body.json" >/dev/null
 
-        "$PWD/tmp/install/bin/git-api" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-api" --version)" = "$(cat VERSION)"
-        test -f "$PWD/tmp/install/lib/picotools/git-api/operation-id-index.json"
-        test -f "$PWD/tmp/install/lib/picotools/git-api/github-rest-path-tree/repos/{owner}/{repo}/get.json"
+        "$smoke_root/install/bin/git-api" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-api" --version)" = "$(cat VERSION)"
+        test -f "$smoke_root/install/lib/picotools/git-api/operation-id-index.json"
+        test -f "$smoke_root/install/lib/picotools/git-api/github-rest-path-tree/repos/{owner}/{repo}/get.json"
 
-        "$PWD/tmp/install/bin/git-commit" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-commit" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/git-commit" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-commit" --version)" = "$(cat VERSION)"
         for module in \
           git_commit_config.sh \
           git_commit_execution.sh \
@@ -229,12 +232,12 @@ jobs:
           git_commit_remote.sh \
           git_commit_scope.sh \
           git_commit_workspace.sh; do
-          test -f "$PWD/tmp/install/lib/picotools/$module"
+          test -f "$smoke_root/install/lib/picotools/$module"
         done
 
-        git_commit_home="$PWD/tmp/git-commit-home"
-        git_commit_repo="$PWD/tmp/git-commit-repo"
-        git_commit_installed_bin="$PWD/tmp/install/bin/git-commit"
+        git_commit_home="$smoke_root/git-commit-home"
+        git_commit_repo="$smoke_root/git-commit-repo"
+        git_commit_installed_bin="$smoke_root/install/bin/git-commit"
         mkdir -p "$git_commit_home/.config/git-commit" "$git_commit_home/.local/share" "$git_commit_home/bin"
         real_jq=$(asdf which jq 2>/dev/null || command -v jq)
         ln -s "$real_jq" "$git_commit_home/bin/jq"
@@ -271,14 +274,14 @@ jobs:
         test -z "$(git -C "$git_commit_repo" status --short --untracked-files=no | grep '^M  ' || true)"
         test "$(git -C "$git_commit_repo" rev-list --count HEAD)" = '1'
 
-        "$PWD/tmp/install/bin/git-release-setup" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-release-setup" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/git-release-setup" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-release-setup" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/git-clean-branches" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"
-        git_clean_branches_installed_bin="$PWD/tmp/install/bin/git-clean-branches"
-        git_clean_branches_remote="$PWD/tmp/git-clean-branches-remote.git"
-        git_clean_branches_repo="$PWD/tmp/git-clean-branches-repo"
+        "$smoke_root/install/bin/git-clean-branches" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-clean-branches" --version)" = "$(cat VERSION)"
+        git_clean_branches_installed_bin="$smoke_root/install/bin/git-clean-branches"
+        git_clean_branches_remote="$smoke_root/git-clean-branches-remote.git"
+        git_clean_branches_repo="$smoke_root/git-clean-branches-repo"
         git init --bare "$git_clean_branches_remote" >/dev/null
         git init "$git_clean_branches_repo" >/dev/null
         git -C "$git_clean_branches_repo" config user.name 'CI User'
@@ -304,20 +307,20 @@ jobs:
         test -z "$(git -C "$git_clean_branches_repo" for-each-ref --format='%(refname)' refs/heads/cleanup)"
         test -z "$(git -C "$git_clean_branches_remote" for-each-ref --format='%(refname)' refs/heads/cleanup)"
 
-        "$PWD/tmp/install/bin/git-clean-task-pr" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/git-clean-task-pr" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/git-clean-task-pr" --help >/dev/null
+        test "$("$smoke_root/install/bin/git-clean-task-pr" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/license" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/license" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/license" --help >/dev/null
+        test "$("$smoke_root/install/bin/license" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/inotify-watches" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/inotify-watches" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/inotify-watches" --help >/dev/null
+        test "$("$smoke_root/install/bin/inotify-watches" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/oc-quota-requests" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/oc-quota-requests" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/oc-quota-requests" --help >/dev/null
+        test "$("$smoke_root/install/bin/oc-quota-requests" --version)" = "$(cat VERSION)"
 
-        "$PWD/tmp/install/bin/oc-route" --help >/dev/null
-        test "$("$PWD/tmp/install/bin/oc-route" --version)" = "$(cat VERSION)"
+        "$smoke_root/install/bin/oc-route" --help >/dev/null
+        test "$("$smoke_root/install/bin/oc-route" --version)" = "$(cat VERSION)"
 
     - name: Functional Test pip-upgrade scopes
       run: bash scripts/functional-test-pip-upgrade-scopes.bash
